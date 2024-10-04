@@ -1,0 +1,14 @@
+#!/command/with-contenv bashio
+# shellcheck disable=SC1008
+# ==============================================================================
+# Home Assistant Add-on: HA USBIP Client
+# Attach USBIP devices
+# ==============================================================================
+
+bashio::log.info "Attaching USBIP devices"
+
+# Run the attach device script
+/usr/local/bin/mount_devices
+
+# Keep the service running
+exec tail -f /dev/null

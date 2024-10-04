@@ -1,0 +1,17 @@
+# Ignore common files
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+.env
+.DS_Store
+*.log
+*.swp
+*.bak
+
+# Ignore Docker-related files
+*.tar
+*.img
+
+# Ignore VSCode settings
+.vscode/

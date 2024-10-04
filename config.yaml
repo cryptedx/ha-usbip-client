@@ -1,0 +1,24 @@
+name: "HA USBIP Client"
+description: "A USBIP client to connect to an existing USBIP server and access remote USB devices."
+version: "0.1.0"
+slug: "ha_usbip_client"
+arch:
+  - aarch64
+  - amd64
+  - armhf
+  - armv7
+  - i386
+startup: services
+init: true
+kernel_modules:
+  - vhci-hcd
+host_network: true
+privileged: true
+options:
+  devices:
+    - server_address: "192.168.1.44"
+      bus_id: "1-1.2"
+schema:
+  devices:
+    - server_address: match(^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$)
+      bus_id: str
