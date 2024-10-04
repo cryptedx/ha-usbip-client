@@ -24,12 +24,11 @@ The add-on requires a list of devices with the following options:
 Example configuration:
 
 ```yaml
-server_addresses:
-  - "192.168.1.44"
-  - "192.168.1.44"
-bus_ids:
-  - "1-1.1.3"
-  - "1-1.2"
+devices:
+  - server_address: "192.168.1.44"
+    bus_id: "1-1.1.3"
+  - server_address: "192.168.1.44"
+    bus_id: "1-1.2"
 ```
 
 Replace `192.168.1.44` with your USBIP server IP address and provide the correct bus ID of the USB device.
