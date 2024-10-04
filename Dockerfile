@@ -1,4 +1,4 @@
-ARG BUILD_FROM=ghcr.io/hassio-addons/base:14.2.2
+ARG BUILD_FROM
 FROM ${BUILD_FROM}
 
 # Install requirements for add-on
@@ -12,6 +12,7 @@ RUN apk add --no-cache \
 COPY rootfs /
 
 # Ensure scripts are executable
-RUN chmod +x /etc/cont-init.d/*.sh
-RUN chmod +x /etc/services.d/usbip/run
-RUN chmod +x /etc/services.d/usbip/finish
+RUN chmod +x /etc/cont-init.d/*.sh \
+    && chmod +x /etc/cont-finish.d/*.sh \
+    && chmod +x /etc/services.d/*/run \
+    && chmod +x /etc/services.d/*/finish

@@ -4,7 +4,6 @@
 # Home Assistant Add-on: HA USBIP Client
 # Configures USBIP devices
 # ==============================================================================
-
 declare server_address
 declare bus_id
 declare script_directory="/usr/local/bin"
@@ -29,5 +28,11 @@ for device in $(bashio::config 'devices|keys'); do
     server_address=$(bashio::config "devices[${device}].server_address")
     bus_id=$(bashio::config "devices[${device}].bus_id")
     bashio::log.info "Adding device from server ${server_address} on bus ${bus_id}"
+
+    # Detach any existing attachments
+    echo "bashio::log.info \"Detaching device ${bus_id} from server ${server_address} if already attached\"" >>"${mount_script}"
+    echo "/usr/sbin/usbip detach -r ${server_address} -b ${bus_id} || true" >>"${mount_script}"
+
+    # Attach the device
     echo "/usr/sbin/usbip --debug attach --remote=${server_address} --busid=${bus_id}" >>"${mount_script}"
 done

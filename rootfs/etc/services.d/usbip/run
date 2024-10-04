@@ -4,11 +4,14 @@
 # Home Assistant Add-on: HA USBIP Client
 # Attach USBIP devices
 # ==============================================================================
-
 bashio::log.info "Attaching USBIP devices"
 
 # Run the attach device script
-/usr/local/bin/mount_devices
+if /usr/local/bin/mount_devices; then
+    bashio::log.info "USBIP devices attached successfully."
+else
+    bashio::log.error "Failed to attach USBIP devices. Is USBIP server online and device(s) usb attached?"
+fi
 
 # Keep the service running
-exec tail -f /dev/null
+exec sleep infinity
