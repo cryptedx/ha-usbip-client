@@ -57,7 +57,7 @@ It is recommended to:
 
 ## TODO List
 
-- **Automatic Device Discovery**: Implement functionality to automatically discover and list available USB devices on the USBIP server. *(Done)*
+- **Automatic Device Discovery**: Implement functionality to discover and list available USB devices from the USBIP server. *(Done)*
 - **Hot-Plugging Support**: Add support for dynamically attaching and detaching devices without requiring a restart of the add-on.
 - **Error Handling Improvements**: Enhance error handling to provide more detailed feedback when operations fail.
 - **Device Filtering**: Allow users to specify filtering rules to automatically attach only specific types of USB devices.
