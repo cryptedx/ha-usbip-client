@@ -2,6 +2,7 @@ name: "HA USBIP Client"
 description: "A USBIP client to connect to an existing USBIP server and access remote USB devices."
 version: "0.1.0"
 slug: "ha_usbip_client"
+icon: "icon.png"
 arch:
   - aarch64
   - amd64
