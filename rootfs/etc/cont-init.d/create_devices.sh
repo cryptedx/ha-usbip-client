@@ -24,7 +24,6 @@ fi
 touch "${mount_script}"
 chmod +x "${mount_script}"
 echo '#!/command/with-contenv bashio' >"${mount_script}"
-echo 'set -x' >>"${mount_script}"
 echo 'mount -o remount -t sysfs sysfs /sys' >>"${mount_script}"
 
 for device in $(bashio::config 'devices|keys'); do
@@ -37,5 +36,5 @@ for device in $(bashio::config 'devices|keys'); do
     echo "/usr/sbin/usbip detach -r ${server_address} -b ${bus_id} || true" >>"${mount_script}"
 
     # Attach the device
-    echo "/usr/sbin/usbip --debug attach --remote=${server_address} --busid=${bus_id}" >>"${mount_script}"
+    echo "/usr/sbin/usbip attach --remote=${server_address} --busid=${bus_id}" >>"${mount_script}"
 done
