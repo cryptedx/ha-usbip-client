@@ -1,8 +1,5 @@
 #!/command/with-contenv bashio
-# ==============================================================================
-# Home Assistant Add-on: HA USBIP Client
-# Handle usbip service termination
-# ==============================================================================
+# shellcheck disable=SC1008
 
 if [[ "${1}" -ne 0 ]] && [[ "${1}" -ne 256 ]]; then
   bashio::log.warning "usbip crashed, halting add-on"

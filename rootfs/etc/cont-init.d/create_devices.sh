@@ -1,13 +1,16 @@
 #!/command/with-contenv bashio
 # shellcheck disable=SC1008
-# ==============================================================================
-# Home Assistant Add-on: HA USBIP Client
-# Configures USBIP devices
-# ==============================================================================
+
 declare server_address
 declare bus_id
 declare script_directory="/usr/local/bin"
 declare mount_script="/usr/local/bin/mount_devices"
+
+bashio::log.info ""
+bashio::log.info "----------------------------------------------------------------------"
+bashio::log.info "-------------------- Starting USBIP Client Add-on --------------------"
+bashio::log.info "----------------------------------------------------------------------"
+bashio::log.info ""
 
 if ! bashio::fs.directory_exists "${script_directory}"; then
     bashio::log.info "Creating script directory"

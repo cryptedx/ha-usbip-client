@@ -1,9 +1,5 @@
 #!/command/with-contenv bashio
 # shellcheck disable=SC1008
-# ==============================================================================
-# Home Assistant Add-on: HA USBIP Client
-# Load client kernel module
-# ==============================================================================
 
 bashio::log.info "Loading vhci-hcd kernel module..."
 if /sbin/modprobe vhci-hcd; then

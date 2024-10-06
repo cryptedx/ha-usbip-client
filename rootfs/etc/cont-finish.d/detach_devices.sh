@@ -1,9 +1,6 @@
 #!/command/with-contenv bashio
 # shellcheck disable=SC1008
-# ==============================================================================
-# Home Assistant Add-on: HA USBIP Client
-# Detach USBIP devices on shutdown
-# ==============================================================================
+
 bashio::log.info "Detaching USBIP devices"
 
 # Get the list of attached ports
