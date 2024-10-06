@@ -65,6 +65,13 @@ It is recommended to:
 - **Web Interface**: Develop a simple web interface for managing USB devices and configurations directly from Home Assistant.
 - **Device Status Monitoring**: Add monitoring features to track the status of attached devices and provide alerts if a device becomes unavailable.
 
+## SSH into USBIP Client addon
+
+SSH into you Home Assisant instance
+`docker ps | grep usbip`
+Find the <container_id> and put it into this command
+`docker exec -it <container_id> /bin/bash`
+
 ## License
 
 This project is licensed under the MIT License.
