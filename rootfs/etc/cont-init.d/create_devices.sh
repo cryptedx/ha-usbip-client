@@ -49,7 +49,7 @@ for device in $(bashio::config 'devices|keys'); do
 
     # Detach any existing attachments
     echo "bashio::log.info \"Detaching device ${bus_id} from server ${server_address} if already attached\"" >>"${mount_script}"
-    echo "/usr/sbin/usbip detach -r ${server_address} -b ${bus_id} || true" >>"${mount_script}"
+    echo "/usr/sbin/usbip detach -r ${server_address} -b ${bus_id} >/dev/null 2>&1 || true" >>"${mount_script}"
 
     # Attach the device
     echo "/usr/sbin/usbip attach --remote=${server_address} --busid=${bus_id}" >>"${mount_script}"
