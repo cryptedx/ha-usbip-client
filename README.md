@@ -18,12 +18,14 @@ This is a Home Assistant add-on that acts as a USBIP client. It connects to an e
 
 The add-on requires a list of devices with the following options:
 
+- **discovery_server_address**: The IP address of the USBIP server used for discovery.
 - **server_address**: The IP address of the USBIP server.
-- **bus_id**: The bus ID of the USB device on the USBIP server.
+- **bus_id**: The bus ID of the USB device on the USBIP server. Example: `1-1.1.3` or `1-1.2`.
 
 Example configuration:
 
 ```yaml
+discovery_server_address: "192.168.1.44"
 devices:
   - server_address: "192.168.1.44"
     bus_id: "1-1.1.3"
@@ -65,4 +67,4 @@ It is recommended to:
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License.

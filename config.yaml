@@ -22,12 +22,14 @@ privileged:
   - SYS_TIME
   - SYS_NICE
 options:
+  discovery_server_address: "192.168.1.44"
   devices:
     - server_address: "192.168.1.44"
       bus_id: "1-1.2"
     - server_address: "192.168.1.44"
       bus_id: "1-1.1.3"
 schema:
+  discovery_server_address: str
   devices:
     - server_address: str
       bus_id: str
