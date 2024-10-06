@@ -6,6 +6,17 @@ bashio::log.info "Attaching USBIP devices"
 # Run the attach device script
 if /usr/local/bin/mount_devices; then
     bashio::log.info "USBIP devices attached successfully."
+    attached_devices=0
+    while read -r line; do
+        if [[ "$line" == *"attach --remote="* ]]; then
+            attached_devices=$((attached_devices + 1))
+            device_info=$(echo "$line" | sed -E 's/.*--remote=([0-9.]+) --busid=([0-9.-]+)/Server IP: \1, Bus ID: \2/')
+            bashio::log.info "${device_info}"
+        fi
+    done < "/usr/local/bin/mount_devices"
+    if [[ $attached_devices -eq 0 ]]; then
+        bashio::log.warning "No devices were attached. Please check your configuration."
+    fi
 else
     bashio::log.error "Failed to attach USBIP devices. Is USBIP server online and device(s) usb attached?"
 fi
