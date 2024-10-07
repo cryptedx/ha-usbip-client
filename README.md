@@ -2,6 +2,10 @@
 
 This is a Home Assistant add-on that acts as a USBIP client. It connects to an existing USBIP server to access remote USB devices, making them available to Home Assistant.
 
+## Background story
+
+Huge thanks to [irakhlin's hassio-usbip-mounter](https://github.com/irakhlin/hassio-usbip-mounter) for the inspiration! While trying out his addon, I encountered some strange behavior with my HA addons, so I had to remove it, leaving me with an unresolved challenge — how to achieve high availability on my Proxmox cluster. So, I decided to create my own USBIP addon, and here it is.
+
 ## Features
 
 - Connects to a remote USBIP server.
@@ -65,12 +69,25 @@ It is recommended to:
 - **Web Interface**: Develop a simple web interface for managing USB devices and configurations directly from Home Assistant.
 - **Device Status Monitoring**: Add monitoring features to track the status of attached devices and provide alerts if a device becomes unavailable.
 
-## SSH into USBIP Client addon
+## Accessing the USBIP Container in Home Assistant via SSH
 
-SSH into you Home Assisant instance
-`docker ps | grep usbip`
-Find the <container_id> and put it into this command
-`docker exec -it <container_id> /bin/bash`
+1. **SSH into your Home Assistant instance.**
+
+2. **Locate the USBIP container:**
+
+    Run the following command to find the USBIP container ID:
+
+    ```bash
+    docker ps | grep usbip
+    ```
+
+3. **Access the container's bash shell**
+
+    Once you have the <container_id>, use it in this command to enter the container:
+
+    ```bash
+    docker exec -it <container_id> /bin/bash
+    ```
 
 ## License
 

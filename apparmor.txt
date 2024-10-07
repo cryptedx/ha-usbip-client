@@ -1,0 +1,59 @@
+#include <tunables/global>
+
+profile ha_usbip_client flags=(attach_disconnected,mediate_deleted) {
+  #include <abstractions/base>
+
+  # Allow basic file operations
+  file,
+  signal (send) set=(kill,term,int,hup,cont),
+
+  # S6-Overlay file access for initialization and runtime services
+  /init ix,
+  /bin/** ix,
+  /usr/bin/** ix,
+  /run/{s6,s6-rc*,service}/** ix,
+  /package/** ix,
+  /command/** ix,
+  /etc/services.d/** rwix,
+  /etc/cont-init.d/** rwix,
+  /etc/cont-finish.d/** rwix,
+  /run/{,**} rwk,
+  /dev/tty rw,
+
+  # Bashio library access for script management
+  /usr/lib/bashio/** ix,
+  /tmp/** rwk,
+
+  # Add-on files and configuration
+  /data/** rw,
+  /config/** rw,
+
+  # USBIP and vhci-hcd module file access
+  /sys/bus/usb/devices/** r,
+  /sys/class/usb_device/** rwk,
+  /sys/module/vhci_hcd/** r,
+  /dev/vhci rw,
+  /dev/bus/usb/** rw,
+
+  # Networking capabilities needed for USBIP communication
+  network inet,
+  network inet6,
+  
+  # Access required for logging and debugging
+  /dev/kmsg rw,
+  /var/log/** rw,
+
+  # Start a new restricted profile for specific services as needed
+  /usr/bin/my_usbip_service cx -> usbip-service,
+
+  profile usbip-service flags=(attach_disconnected,mediate_deleted) {
+    # Basic service capabilities
+    network,
+    signal (receive) peer=*_usbip-addon,
+
+    # File and device access for USBIP operations
+    /dev/bus/usb/** rw,
+    /data/** rw,
+    /usr/bin/my_usbip_service r,
+  }
+}
