@@ -16,7 +16,8 @@ Huge thanks to [irakhlin's hassio-usbip-mounter](https://github.com/irakhlin/has
 1. Clone this repository or add it to your Home Assistant add-on store as a custom repository.
 2. Install the **USBIP Client** add-on.
 3. Configure the add-on options to specify the USBIP server IP address and the USB device bus ID.
-4. Start the add-on.
+4. Turn off protection mode. [Read more here about it](#security-considerations)
+5. Start the add-on.
 
 ## Configuration
 
