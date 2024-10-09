@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- nothing
+
+## [0.1.1] - 2024-10-09
+
+### Added
+
+- `repository.yaml` file for Home Assistant add-on repository metadata, enabling add-on discovery and compatibility with Home Assistant.
+
 ## [0.1.0] - 2024-10-07
 
 ### Added

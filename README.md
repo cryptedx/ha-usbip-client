@@ -1,5 +1,13 @@
 # USBIP Client Home Assistant Add-on
 
+![Supports aarch64 Architecture][aarch64-shield]
+![Supports amd64 Architecture][amd64-shield]
+![Supports armhf Architecture][armhf-shield]
+![Supports armv7 Architecture][armv7-shield]
+![Supports i386 Architecture][i386-shield]
+
+![Project Maintenance][maintenance-shield]
+
 This is a Home Assistant add-on that acts as a USBIP client. It connects to an existing USBIP server to access remote USB devices, making them available to Home Assistant.
 
 ## Background story
@@ -13,7 +21,10 @@ Huge thanks to [irakhlin's hassio-usbip-mounter](https://github.com/irakhlin/has
 
 ## Installation
 
-1. Clone this repository or add it to your Home Assistant add-on store as a custom repository.
+1. Add it to your Home Assistant add-on store as a custom repository.
+
+    [![Open your Home Assistant instance and show the add add-on repository dialog with a specific repository URL pre-filled.](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https://github.com/cryptedx/ha-usbip-client)
+
 2. Install the **USBIP Client** add-on.
 3. Configure the add-on options to specify the USBIP server IP address and the USB device bus ID.
 4. Turn off protection mode. [Read more here about it](#security-considerations)
@@ -93,3 +104,10 @@ It is recommended to:
 ## License
 
 This project is licensed under the MIT License.
+
+[aarch64-shield]: https://img.shields.io/badge/aarch64-yes-green.svg
+[amd64-shield]: https://img.shields.io/badge/amd64-yes-green.svg
+[armhf-shield]: https://img.shields.io/badge/armhf-yes-green.svg
+[armv7-shield]: https://img.shields.io/badge/armv7-yes-green.svg
+[i386-shield]: https://img.shields.io/badge/i386-yes-green.svg
+[maintenance-shield]: https://img.shields.io/maintenance/yes/2024.svg
