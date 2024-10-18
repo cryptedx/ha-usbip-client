@@ -18,6 +18,7 @@ Huge thanks to [irakhlin's hassio-usbip-mounter](https://github.com/irakhlin/has
 
 - Connects to a remote USBIP server.
 - Exposes remote USB devices for use in Home Assistant.
+- Configurable log levels for easier debugging.
 
 ## Installation
 
@@ -26,21 +27,24 @@ Huge thanks to [irakhlin's hassio-usbip-mounter](https://github.com/irakhlin/has
     [![Open your Home Assistant instance and show the add add-on repository dialog with a specific repository URL pre-filled.](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https://github.com/cryptedx/ha-usbip-client)
 
 2. Install the **USBIP Client** add-on.
-3. Configure the add-on options to specify the USBIP server IP address and the USB device bus ID.
+3. Configure the add-on options to specify the USBIP server IP address, USB device bus IDs, and desired log level.
 4. Turn off protection mode. [Read more here about it](#security-considerations)
 5. Start the add-on.
 
 ## Configuration
 
-The add-on requires a list of devices with the following options:
+The add-on requires the following configuration options:
 
-- **discovery_server_address**: The IP address of the USBIP server used for discovery.
-- **server_address**: The IP address of the USBIP server.
-- **bus_id**: The bus ID of the USB device on the USBIP server. Example: `1-1.1.3` or `1-1.2`.
+- **log_level**: (Optional) Sets the verbosity of the add-on logs. Default is `info`. Available options are `trace`, `debug`, `info`, `notice`, `warning`, `error`, `fatal`.
+- **discovery_server_address**: The IP address of the USBIP server used for device discovery.
+- **devices**: A list of devices with the following options:
+  - **server_address**: The IP address of the USBIP server.
+  - **bus_id**: The bus ID of the USB device on the USBIP server. Example: `1-1.1.3` or `1-1.2`.
 
 Example configuration:
 
 ```yaml
+log_level: info
 discovery_server_address: "192.168.1.44"
 devices:
   - server_address: "192.168.1.44"
@@ -49,12 +53,13 @@ devices:
     bus_id: "1-1.2"
 ```
 
-Replace `192.168.1.44` with your USBIP server IP address and provide the correct bus ID of the USB device.
+Replace `192.168.1.44` with your USBIP server IP address and provide the correct bus IDs of the USB devices.
 
 ## Usage
 
-- Once the add-on is configured and started, it will connect to the specified USBIP server and attach to the USB device.
-- The device will then be available for use in Home Assistant integrations.
+- Once the add-on is configured and started, it will connect to the specified USBIP server and attach to the USB devices.
+- The devices will then be available for use in Home Assistant integrations.
+- Adjust the `log_level` in the configuration to control the verbosity of the logs for troubleshooting.
 
 ## Security Considerations
 
@@ -95,7 +100,7 @@ It is recommended to:
 
 3. **Access the container's bash shell**
 
-    Once you have the <container_id>, use it in this command to enter the container:
+    Once you have the `<container_id>`, use it in this command to enter the container:
 
     ```bash
     docker exec -it <container_id> /bin/bash

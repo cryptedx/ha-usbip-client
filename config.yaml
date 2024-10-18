@@ -1,6 +1,6 @@
 name: "HA USBIP Client"
 description: "A USBIP client to connect to an existing USBIP server and access remote USB devices."
-version: "0.1.1"
+version: "0.1.2"
 slug: "ha_usbip_client"
 icon: "icon.png"
 arch:
@@ -23,13 +23,15 @@ privileged:
   - SYS_TIME
   - SYS_NICE
 options:
-  discovery_server_address: "192.168.1.44"
+  log_level: info
+  discovery_server_address: "192.168.1.200"
   devices:
-    - server_address: "192.168.1.44"
-      bus_id: "1-1.2"
-    - server_address: "192.168.1.44"
-      bus_id: "1-1.1.3"
+    - server_address: "192.168.1.200"
+      bus_id: "1-4"
+    - server_address: "192.168.1.200"
+      bus_id: "2-1"
 schema:
+  log_level: list(trace|debug|info|notice|warning|error|fatal)
   discovery_server_address: str
   devices:
     - server_address: str

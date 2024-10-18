@@ -2,9 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [0.1.2] - 2024-10-18
 
-- nothing
+### Added
+
+- `log_level` option to configure the verbosity of the add-on logs.
+- Enhanced scripts to respect the `log_level` setting for better debugging.
 
 ## [0.1.1] - 2024-10-09
 

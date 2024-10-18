@@ -7,7 +7,7 @@ description: >
   A Home Assistant add-on to act as a USBIP client, enabling remote USB devices 
   from a USBIP server to be accessed in Home Assistant. This add-on supports high availability 
   configurations and device discovery.
-version: "0.1.1"
+version: "0.1.2"
 arch:
   - aarch64
   - amd64
