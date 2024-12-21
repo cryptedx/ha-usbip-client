@@ -1,13 +1,13 @@
 # repository.yaml
 
-name: "HA USBIP Client"
+name: "HA USB/IP Client"
 url: "https://github.com/cryptedx/ha-usbip-client"
 maintainer: "crypted <crypted@me.com>"
 description: >
-  A Home Assistant add-on to act as a USBIP client, enabling remote USB devices 
-  from a USBIP server to be accessed in Home Assistant. This add-on supports high availability 
+  A Home Assistant add-on to act as a USB/IP client, enabling remote USB devices 
+  from a USB/IP server to be accessed in Home Assistant. This add-on supports high availability 
   configurations and device discovery.
-version: "0.1.2"
+version: "0.1.3"
 arch:
   - aarch64
   - amd64

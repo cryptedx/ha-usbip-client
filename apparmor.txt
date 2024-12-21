@@ -28,14 +28,14 @@ profile ha_usbip_client flags=(attach_disconnected,mediate_deleted) {
   /data/** rw,
   /config/** rw,
 
-  # USBIP and vhci-hcd module file access
+  # USB/IP and vhci-hcd module file access
   /sys/bus/usb/devices/** r,
   /sys/class/usb_device/** rwk,
   /sys/module/vhci_hcd/** r,
   /dev/vhci rw,
   /dev/bus/usb/** rw,
 
-  # Networking capabilities needed for USBIP communication
+  # Networking capabilities needed for USB/IP communication
   network inet,
   network inet6,
   
@@ -51,7 +51,7 @@ profile ha_usbip_client flags=(attach_disconnected,mediate_deleted) {
     network,
     signal (receive) peer=*_usbip-addon,
 
-    # File and device access for USBIP operations
+    # File and device access for USB/IP operations
     /dev/bus/usb/** rw,
     /data/** rw,
     /usr/bin/my_usbip_service r,

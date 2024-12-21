@@ -3,12 +3,12 @@
 bashio::config.require 'log_level'
 bashio::log.level "$(bashio::config 'log_level')"
 
-bashio::log.info "Starting USBIP devices attachment process."
+bashio::log.info "Starting USB/IP devices attachment process."
 
 # Run the attach device script
 bashio::log.info "Running the mount_devices script."
 if /usr/local/bin/mount_devices; then
-    bashio::log.info "USBIP devices attached successfully."
+    bashio::log.info "USB/IP devices attached successfully."
     attached_devices=0
     bashio::log.info "Reading the mount script for attached devices..."
     while read -r line; do
@@ -25,7 +25,7 @@ if /usr/local/bin/mount_devices; then
         bashio::log.info "$attached_devices device(s) successfully attached."
     fi
 else
-    bashio::log.error "Failed to attach USBIP devices. Is the USBIP server online and device(s) USB attached?"
+    bashio::log.error "Failed to attach USB/IP devices. Is the USB/IP server online and device(s) USB attached?"
 fi
 
 # Keep the service running

@@ -12,9 +12,9 @@ declare discovery_server_address
 discovery_server_address=$(bashio::config 'discovery_server_address')
 
 bashio::log.info ""
-bashio::log.info "----------------------------------------------------------------------"
-bashio::log.info "-------------------- Starting USBIP Client Add-on --------------------"
-bashio::log.info "----------------------------------------------------------------------"
+bashio::log.info "-----------------------------------------------------------------------"
+bashio::log.info "-------------------- Starting USB/IP Client Add-on --------------------"
+bashio::log.info "-----------------------------------------------------------------------"
 bashio::log.info ""
 
 # Check if the script directory exists and log details

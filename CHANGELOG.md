@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.3] - 2024-12-21
+
+### Changed
+
+- Added an automation example to the README.md.
+
 ## [0.1.2] - 2024-10-18
 
 ### Added
