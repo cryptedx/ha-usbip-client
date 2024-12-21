@@ -24,11 +24,11 @@ privileged:
   - SYS_NICE
 options:
   log_level: info
-  discovery_server_address: "192.168.1.200"
+  discovery_server_address: "192.168.1.44"
   devices:
-    - server_address: "192.168.1.200"
+    - server_address: "192.168.1.44"
       bus_id: "1-4"
-    - server_address: "192.168.1.200"
+    - server_address: "192.168.1.44"
       bus_id: "2-1"
 schema:
   log_level: list(trace|debug|info|notice|warning|error|fatal)
