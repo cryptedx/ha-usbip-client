@@ -27,9 +27,9 @@ options:
   discovery_server_address: "192.168.1.44"
   devices:
     - server_address: "192.168.1.44"
-      bus_id: "1-4"
+      bus_id: "1-1.1.3"
     - server_address: "192.168.1.44"
-      bus_id: "2-1"
+      bus_id: "1-1.2"
 schema:
   log_level: list(trace|debug|info|notice|warning|error|fatal)
   discovery_server_address: str
