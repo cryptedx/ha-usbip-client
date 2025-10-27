@@ -16,3 +16,4 @@ __pycache__/
 # Ignore VSCode settings
 .vscode/
 .aider*
+.github/*
