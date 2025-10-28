@@ -10,12 +10,29 @@ bashio::log.info "Running the mount_devices script."
 if /usr/local/bin/mount_devices; then
     bashio::log.info "USB/IP devices attached successfully."
     attached_devices=0
+    device_info_file="/tmp/attached_devices.txt"
+    rm -f "$device_info_file"
     bashio::log.info "Reading the mount script for attached devices..."
     while read -r line; do
         if [[ "$line" == *"attach --remote="* ]]; then
             attached_devices=$((attached_devices + 1))
-            device_info=$(echo "$line" | sed -E 's/.*--remote=([0-9.]+) --busid=([0-9.-]+)/Server IP: \1, Bus ID: \2/')
+            server_ip=$(echo "$line" | sed -E 's/.*--remote=([0-9.]+).*/\1/')
+            bus_id=$(echo "$line" | sed -E 's/.*--busid=([0-9.-]+).*/\1/')
+            
+            # Look up device name and ID from the device details file
+            device_name="Unknown device"
+            device_id="unknown"
+            if [ -f "/tmp/device_details.txt" ]; then
+                device_info=$(grep "^${bus_id}|" "/tmp/device_details.txt")
+                if [ -n "$device_info" ]; then
+                    device_name=$(echo "$device_info" | cut -d'|' -f2)
+                    device_id=$(echo "$device_info" | cut -d'|' -f3)
+                fi
+            fi
+            
+            device_info="Bus ID: ${bus_id}, Server: ${server_ip}, Device: ${device_name} (${device_id})"
             bashio::log.info "Attached device: ${device_info}"
+            echo "${bus_id}|${server_ip}|${device_name}|${device_id}" >> "$device_info_file"
         fi
     done < "/usr/local/bin/mount_devices"
 

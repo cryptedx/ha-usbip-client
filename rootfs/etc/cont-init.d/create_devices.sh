@@ -43,6 +43,9 @@ bashio::log.debug "Mount script initialization complete."
 
 # Discover available devices
 bashio::log.info "Discovering devices from server ${discovery_server_address}."
+device_info_file="/tmp/device_details.txt"
+rm -f "$device_info_file"
+
 if available_devices=$(usbip list -r "${discovery_server_address}" 2>/dev/null); then
     if [ -z "$available_devices" ]; then
         bashio::log.warning "No devices found on server ${discovery_server_address}."
@@ -50,6 +53,21 @@ if available_devices=$(usbip list -r "${discovery_server_address}" 2>/dev/null);
         bashio::log.info "Available devices from ${discovery_server_address}:"
         echo "$available_devices" | while read -r line; do
             bashio::log.info "$line"
+            
+            # Parse device information: "bus_id: vendor : device_name (device_id)"
+            # Example: "1-1.2: Sigma Designs, Inc. : Aeotec Z-Stick Gen5 (ZW090) - UZB (0658:0200)"
+            if echo "$line" | grep -q '^[0-9.-]\+:\s.*\s([0-9a-fA-F]\+:[0-9a-fA-F]\+)$'; then
+                bus_id=$(echo "$line" | sed -E 's/^([0-9.-]+):.*/\1/')
+                device_id=$(echo "$line" | sed -E 's/.*\(([0-9a-fA-F]+:[0-9a-fA-F]+)\)$/\1/')
+                # Extract device name: everything after "bus_id: " and before " (device_id)"
+                temp_line=$(echo "$line" | sed -E "s/^${bus_id}: //")
+                device_name=$(echo "$temp_line" | sed -E "s/ \\(${device_id}\\)$//" | sed 's/^\s*//;s/\s*$//')
+                
+                if [ -n "$bus_id" ] && [ -n "$device_name" ] && [ -n "$device_id" ]; then
+                    echo "${bus_id}|${device_name}|${device_id}" >> "$device_info_file"
+                    bashio::log.debug "Stored device info: Bus=${bus_id}, Name='${device_name}', ID=${device_id}"
+                fi
+            fi
         done
     fi
 else

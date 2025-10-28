@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.0-beta] - 2025-10-28
+
+### Changed
+
+- Enhanced device detachment logging to include device descriptions (Bus ID and Server IP) instead of just port numbers for better troubleshooting.
+- Improved detach script error handling and made it executable.
+
 ## [0.1.3] - 2024-12-21
 
 ### Changed
