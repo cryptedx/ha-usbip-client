@@ -31,7 +31,7 @@ if /usr/local/bin/mount_devices; then
             fi
             
             device_info="Bus ID: ${bus_id}, Server: ${server_ip}, Device: ${device_name} (${device_id})"
-            bashio::log.info "Attached device: ${device_info}"
+            bashio::log.info "Attached device:\\n\t${device_info}"
             echo "${bus_id}|${server_ip}|${device_name}|${device_id}" >> "$device_info_file"
         fi
     done < "/usr/local/bin/mount_devices"
@@ -45,6 +45,8 @@ else
     bashio::log.error "Failed to attach USB/IP devices. Is the USB/IP server online and device(s) USB attached?"
 fi
 
+bashio::log.info "🟢 USB/IP service has started"
+
 # Keep the service running
-bashio::log.info "Keeping service alive."
+bashio::log.info "🟢 Keeping service alive."
 exec sleep infinity

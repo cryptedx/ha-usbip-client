@@ -1,7 +1,7 @@
 #!/command/with-contenv bashio
 # shellcheck disable=SC1008
 
-bashio::log.info "Detaching USB/IP devices"
+bashio::log.info "🔴 Container stopping - detaching USB/IP devices"
 
 # Check if usbip command is available
 if ! command -v usbip >/dev/null 2>&1; then
@@ -86,10 +86,10 @@ else
                 if [ -n "$port" ]; then
                     bashio::log.debug "Attempting to detach device on port ${port}: ${device_desc}"
                     if usbip detach -p "${port}" 2>/dev/null; then
-                        bashio::log.info "Successfully detached device on port ${port}:\\n${device_desc}"
+                        bashio::log.info "Successfully detached device on port ${port}:\\n\t${device_desc}"
                         detached_count=$((detached_count + 1))
                     else
-                        bashio::log.warning "Failed to detach device on port ${port}:\\n${device_desc}"
+                        bashio::log.warning "Failed to detach device on port ${port}:\\n\t${device_desc}"
                         failed_count=$((failed_count + 1))
                     fi
                 else
@@ -109,3 +109,4 @@ else
 fi
 
 bashio::log.info "USB/IP device cleanup finished"
+bashio::log.info "🔴 Container stopped"
