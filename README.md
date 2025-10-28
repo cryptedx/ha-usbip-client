@@ -20,6 +20,11 @@ Huge thanks to [irakhlin's hassio-usbip-mounter](https://github.com/irakhlin/has
 - Exposes remote USB devices for use in Home Assistant.
 - Configurable log levels for easier debugging.
 
+## Todo
+
+- [ ] Add devices by it's identifier. Usbip does not support it natively but you could list the devices, search for the device ID and then get the bus_id and attach it as always.
+- [ ] create webui where logs can be inspected live and devices, discovered/polled, attached, detached via a dropdown
+
 ## Installation
 
 1. Add it to your Home Assistant add-on store as a custom repository.
