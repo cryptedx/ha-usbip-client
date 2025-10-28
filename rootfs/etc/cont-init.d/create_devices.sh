@@ -3,13 +3,13 @@
 bashio::config.require 'log_level'
 bashio::log.level "$(bashio::config 'log_level')"
 
-declare server_address
+declare usbipd_server_address
 declare bus_id
 declare script_directory="/usr/local/bin"
 declare mount_script="/usr/local/bin/mount_devices"
-declare discovery_server_address
+declare usbipd_server_address
 
-discovery_server_address=$(bashio::config 'discovery_server_address')
+usbipd_server_address=$(bashio::config 'usbipd_server_address')
 
 bashio::log.info ""
 bashio::log.info "-----------------------------------------------------------------------"
@@ -42,15 +42,15 @@ echo 'mount -o remount -t sysfs sysfs /sys' >>"${mount_script}"
 bashio::log.debug "Mount script initialization complete."
 
 # Discover available devices
-bashio::log.info "Discovering devices from server ${discovery_server_address}."
+bashio::log.info "Discovering devices from server ${usbipd_server_address}."
 device_info_file="/tmp/device_details.txt"
 rm -f "$device_info_file"
 
-if available_devices=$(usbip list -r "${discovery_server_address}" 2>/dev/null); then
+if available_devices=$(usbip list -r "${usbipd_server_address}" 2>/dev/null); then
     if [ -z "$available_devices" ]; then
-        bashio::log.warning "No devices found on server ${discovery_server_address}."
+        bashio::log.warning "No devices found on server ${usbipd_server_address}."
     else
-        bashio::log.info "Available devices from ${discovery_server_address}:"
+        bashio::log.info "Available devices from ${usbipd_server_address}:"
         echo "$available_devices" | while read -r line; do
             bashio::log.info "$line"
             
@@ -71,24 +71,53 @@ if available_devices=$(usbip list -r "${discovery_server_address}" 2>/dev/null);
         done
     fi
 else
-    bashio::log.error "Failed to retrieve device list from server ${discovery_server_address}."
+    bashio::log.error "Failed to retrieve device list from server ${usbipd_server_address}."
 fi
 
 # Loop through configured devices
 bashio::log.info "Iterating over configured devices."
-for device in $(bashio::config 'devices|keys'); do
-    server_address=$(bashio::config "devices[${device}].server_address")
-    bus_id=$(bashio::config "devices[${device}].bus_id")
+devices_count=$(bashio::config 'devices|length')
+bashio::log.debug "Found ${devices_count} configured devices"
 
-    bashio::log.info "Adding device from server ${server_address} on bus ${bus_id}"
+for ((i = 0; i < devices_count; i++)); do
+    device_name=$(bashio::config "devices[${i}].name")
+    device_or_bus_id=$(bashio::config "devices[${i}].device_or_bus_id")
+
+    bashio::log.debug "Device ${i} (${device_name}): identifier='${device_or_bus_id}'"
+
+    # Validate configuration
+    if [ -z "$device_or_bus_id" ] || [ "$device_or_bus_id" = "null" ]; then
+        bashio::log.warning "Device ${i} (${device_name}): device_or_bus_id is empty, skipping"
+        continue
+    fi
+
+    # Auto-detect format: device_id looks like XXXX:XXXX, bus_id looks like X-X.X or X-X.X.X
+    if [[ "$device_or_bus_id" =~ ^[0-9a-fA-F]{4}:[0-9a-fA-F]{4}$ ]]; then
+        # It's a device_id in format XXXX:XXXX
+        bashio::log.info "Device ${i} (${device_name}): Detected device_id format (${device_or_bus_id})"
+        
+        # Find the bus_id by matching device_id in discovered devices
+        bus_id=$(grep "${device_or_bus_id}" "$device_info_file" 2>/dev/null | cut -d'|' -f1)
+        
+        if [ -z "$bus_id" ]; then
+            bashio::log.warning "Device ${i} (${device_name}): device_id ${device_or_bus_id} not found on server ${usbipd_server_address}"
+            continue
+        fi
+        bashio::log.info "Device ${i} (${device_name}): Found bus_id ${bus_id} for device_id ${device_or_bus_id}"
+        
+    else
+        # Assume it's a bus_id in format like 1-1.2 or 1-1.1.3
+        bashio::log.info "Device ${i} (${device_name}): Using bus_id format (${device_or_bus_id})"
+        bus_id="$device_or_bus_id"
+    fi
 
     # Detach any existing attachments
-    bashio::log.debug "Detaching device ${bus_id} from server ${server_address} if already attached."
-    echo "/usr/sbin/usbip detach -r ${server_address} -b ${bus_id} >/dev/null 2>&1 || true" >>"${mount_script}"
+    bashio::log.debug "Device ${i} (${device_name}): Detaching device ${bus_id} from server ${usbipd_server_address} if already attached."
+    echo "/usr/sbin/usbip detach -r ${usbipd_server_address} -b ${bus_id} >/dev/null 2>&1 || true" >>"${mount_script}"
 
     # Attach the device
-    bashio::log.debug "Attaching device ${bus_id} from server ${server_address}."
-    echo "/usr/sbin/usbip attach --remote=${server_address} --busid=${bus_id}" >>"${mount_script}"
+    bashio::log.debug "Device ${i} (${device_name}): Attaching device ${bus_id} from server ${usbipd_server_address}."
+    echo "/usr/sbin/usbip attach --remote=${usbipd_server_address} --busid=${bus_id}" >>"${mount_script}"
 done
 
 bashio::log.info "Device configuration complete. Ready to attach devices."

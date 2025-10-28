@@ -24,15 +24,15 @@ privileged:
   - SYS_NICE
 options:
   log_level: info
-  discovery_server_address: "192.168.1.44"
+  usbipd_server_address: "192.168.1.44"
   devices:
-    - server_address: "192.168.1.44"
-      bus_id: "1-1.1.3"
-    - server_address: "192.168.1.44"
-      bus_id: "1-1.2"
+    - name: "Aeotec Z-Stick Gen5 (ZW090) - UZB"
+      device_or_bus_id: "0658:0200"
+    - name: "Silicon Labs : CP210x UART Bridge"
+      device_or_bus_id: "10c4:ea60"
 schema:
   log_level: list(trace|debug|info|notice|warning|error|fatal)
-  discovery_server_address: str
+  usbipd_server_address: str
   devices:
-    - server_address: str
-      bus_id: str
+    - name: str
+      device_or_bus_id: str

@@ -14,6 +14,8 @@ This is a Home Assistant add-on that acts as a USB/IP client. It connects to an 
 
 Huge thanks to [irakhlin's hassio-usbip-mounter](https://github.com/irakhlin/hassio-usbip-mounter) for the inspiration! While trying out his addon, I encountered some strange behavior with my HA addons, so I had to remove it, leaving me with an unresolved challenge — how to achieve high availability on my Proxmox cluster. So, I decided to create my own USB/IP addon, and here it is.
 
+Special thanks to [rogerfar](https://github.com/rogerfar) and [Rene-Sackers](https://github.com/Rene-Sackers) for [their great ideas and discussions](https://github.com/cryptedx/ha-usbip-client/pull/8), which made it possible to mount devices via device ID in addition to bus ID.
+
 ## Features
 
 - Connects to a remote USB/IP server.
@@ -22,8 +24,9 @@ Huge thanks to [irakhlin's hassio-usbip-mounter](https://github.com/irakhlin/has
 
 ## Todo
 
-- [ ] Add devices by it's identifier. Usbip does not support it natively but you could list the devices, search for the device ID and then get the bus_id and attach it as always.
 - [ ] create webui where logs can be inspected live and devices, discovered/polled, attached, detached via a dropdown
+- [ ] How to check if other containers which rely on this are still healthy? 45df7312-zigbee2mqtt and core-zwave-js
+- [ ] Notify user if usb device has failed, etc.
 
 ## Installation
 
@@ -41,24 +44,24 @@ Huge thanks to [irakhlin's hassio-usbip-mounter](https://github.com/irakhlin/has
 The add-on requires the following configuration options:
 
 - **log_level**: (Optional) Sets the verbosity of the add-on logs. Default is `info`. Available options are `trace`, `debug`, `info`, `notice`, `warning`, `error`, `fatal`.
-- **discovery_server_address**: The IP address of the USB/IP server used for device discovery.
+- **usbipd_server_address**: The IP address of the USB/IP server.
 - **devices**: A list of devices with the following options:
-  - **server_address**: The IP address of the USB/IP server.
-  - **bus_id**: The bus ID of the USB device on the USB/IP server. Example: `1-1.1.3` or `1-1.2`.
+  - **name**: The name of the USB device.
+  - **device_or_bus_id**: The bus ID or device ID of the USB device on the USB/IP server. Example: `1-1.1.3` or `0658:0200`.
 
 Example configuration:
 
 ```yaml
 log_level: info
-discovery_server_address: "192.168.1.44"
+usbipd_server_address: "192.168.1.44"
 devices:
-  - server_address: "192.168.1.44"
-    bus_id: "1-1.1.3"
-  - server_address: "192.168.1.44"
-    bus_id: "1-1.2"
+  - name: "Zigbee Stick"
+    device_or_bus_id: "1-1.1.3"
+  - name: "Z-Wave Stick"
+    device_or_bus_id: "1-1.2"
 ```
 
-Replace `192.168.1.44` with your USB/IP server IP address and provide the correct bus IDs of the USB devices.
+Replace `192.168.1.44` with your USB/IP server IP address and provide the correct bus IDs or device IDs of the USB devices.
 
 ## Usage
 
