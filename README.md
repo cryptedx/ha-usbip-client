@@ -39,7 +39,15 @@ Special thanks to [rogerfar](https://github.com/rogerfar) and [Rene-Sackers](htt
 4. Turn off protection mode. [Read more here about it](#security-considerations)
 5. Start the add-on.
 
-## Configuration
+## Development Branch
+
+⚠️ **Warning**: The development branch contains the latest features and bug fixes but may be unstable. Use at your own risk.
+
+To install the development version of the **USB/IP Client** add-on:
+
+1. Add the repository URL with the dev branch: `https://github.com/cryptedx/ha-usbip-client.git#dev`
+2. Follow the same installation steps as above.
+3. Note that you may need to reinstall the add-on when switching between stable and development versions.
 
 The add-on requires the following configuration options:
 
