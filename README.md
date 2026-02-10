@@ -24,9 +24,10 @@ Special thanks to [rogerfar](https://github.com/rogerfar) and [Rene-Sackers](htt
 
 ## Todo
 
-- [ ] create webui where logs can be inspected live and devices, discovered/polled, attached, detached via a dropdown
+- [X] create webui where logs can be inspected live and devices, discovered/polled, attached, detached via a dropdown
 - [ ] How to check if other containers which rely on this are still healthy? 45df7312-zigbee2mqtt and core-zwave-js
 - [ ] Notify user if usb device has failed, etc.
+- [ ] Change all shell scripts to Python for better error handling and maintainability
 
 ## Installation
 

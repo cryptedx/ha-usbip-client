@@ -56,6 +56,9 @@ fi
 
 bashio::log.info "Detach operation complete: ${detached_count} detached, ${failed_count} failed"
 
+# Write detach event for WebUI
+echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"type\":\"detach_all\",\"device\":\"\",\"server\":\"\",\"detail\":\"Container stop: ${detached_count} detached, ${failed_count} failed\"}" >> /tmp/usbip_events.jsonl 2>/dev/null || true
+
 # Clean up temp files
 rm -f /tmp/attached_devices.txt /tmp/device_details.txt
 

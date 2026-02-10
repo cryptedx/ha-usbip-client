@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.4.0-beta] - 2026-02-10
+
+### Added
+
+- **WebUI**: Terminal-style web dashboard accessible via Home Assistant ingress (sidebar panel).
+  - **Dashboard**: Real-time server status with latency indicators, attached device count, quick-action buttons.
+  - **Devices**: View attached devices, attach/detach individual or all devices, bulk operations with checkboxes.
+  - **Discovery**: Discover remote USB devices from any server, network subnet scanner to find USB/IP servers.
+  - **Live Logs**: WebSocket-powered real-time log viewer with level filtering, pause/resume, and copy-to-clipboard.
+  - **Events Timeline**: Persistent event log tracking all attach/detach/discover/config operations.
+  - **Config Editor**: Edit all configuration options (log level, server, delay, devices) directly from the UI.
+  - **Backup & Restore**: Export/import configuration as JSON files.
+- **Network Server Scanner**: Scan a subnet for USB/IP servers (port 3240 probe).
+- **Connection Health Monitor**: Background health checks every 30s with latency display.
+- **USB Device Database Lookup**: Resolve vendor:product IDs to human-readable names using installed `hwids-usb`.
+- **HA Notifications**: Push persistent notifications to Home Assistant on device attach/detach events.
+- **Terminal Themes**: 5 color schemes (Green, Amber, Blue, Dracula, Matrix) with CRT scanline effect.
+- **Bulk Operations**: Attach-all / Detach-all buttons with selective multi-device operations.
+- **Event Logging**: JSONL-based event log at `/tmp/usbip_events.jsonl` written by init, service, and cleanup scripts.
+
+### Changed
+
+- Version bump to 0.4.0-beta.
+- Dockerfile now installs Python 3, Flask, Flask-SocketIO, and gevent for the WebUI backend.
+- Added s6 service `webui` for the Flask web server (runs alongside existing `usbip` service).
+- Config schema now includes `ingress: true`, `ingress_port: 8099`, `panel_icon: mdi:console`.
+
 ## [0.3.0-beta] - 2026-02-10
 
 ### Fixed

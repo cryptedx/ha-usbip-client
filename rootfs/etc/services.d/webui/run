@@ -1,0 +1,6 @@
+#!/command/with-contenv bashio
+# shellcheck disable=SC1008
+
+bashio::log.info "Starting WebUI service on port 8099..."
+
+exec python3 /usr/local/bin/webui/app.py

@@ -6,7 +6,14 @@ RUN apk add --no-cache \
     kmod \
     linux-tools-usbip \
     hwids-usb \
-    device-mapper-libs
+    device-mapper-libs \
+    python3 \
+    py3-pip \
+    && pip3 install --no-cache-dir --break-system-packages \
+    flask==3.1.0 \
+    flask-socketio==5.5.1 \
+    gevent==24.11.1 \
+    gevent-websocket==0.10.1
 
 # Copy root filesystem
 COPY rootfs /

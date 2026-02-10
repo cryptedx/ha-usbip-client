@@ -199,3 +199,9 @@ exit 0
 SCRIPT_FOOTER
 
 bashio::log.info "Device configuration complete. Ready to attach devices."
+
+# Write discovery events for WebUI
+if [ -f "$device_info_file" ]; then
+    dev_count=$(wc -l < "$device_info_file" 2>/dev/null || echo 0)
+    echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"type\":\"discover\",\"device\":\"\",\"server\":\"${default_server}\",\"detail\":\"Discovered ${dev_count} device(s) during init\"}" >> /tmp/usbip_events.jsonl
+fi

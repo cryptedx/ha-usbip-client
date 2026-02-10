@@ -1,0 +1,7 @@
+#!/command/with-contenv bashio
+# shellcheck disable=SC1008
+
+bashio::log.info "WebUI service stopped (exit code: ${1})"
+
+# Don't halt the entire app if the WebUI crashes
+# s6 will automatically restart it

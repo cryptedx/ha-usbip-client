@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>USB/IP Terminal</title>
+  <link rel="stylesheet" href="{{ ingress_path }}/static/style.css?v={{ version }}">
+</head>
+<body>
+  <div id="scanline-overlay"></div>
+  <div id="app">
+
+    <!-- HEADER -->
+    <header id="header">
+      <pre id="ascii-logo">
+╭──────────────────────────────────────╮
+│  ██╗   ██╗███████╗██████╗ /IP       │
+│  ██║   ██║██╔════╝██╔══██╗  CLIENT  │
+│  ██║   ██║███████╗██████╔╝ ───────  │
+│  ██║   ██║╚════██║██╔══██╗ v0.4.0β  │
+│  ╚██████╔╝███████║██████╔╝          │
+│   ╚═════╝ ╚══════╝╚═════╝           │
+╰──────────────────────────────────────╯</pre>
+      <div id="header-status">
+        <span id="clock"></span>
+        <span id="status-badge" class="badge badge-ok">● ONLINE</span>
+        <button id="theme-btn" onclick="cycleTheme()" title="Change theme">◐</button>
+      </div>
+    </header>
+
+    <!-- TABS -->
+    <nav id="tabs">
+      <button class="tab active" data-tab="dashboard">Dashboard</button>
+      <button class="tab" data-tab="devices">Devices</button>
+      <button class="tab" data-tab="discovery">Discovery</button>
+      <button class="tab" data-tab="logs">Logs</button>
+      <button class="tab" data-tab="events">Events</button>
+      <button class="tab" data-tab="config">Config</button>
+    </nav>
+
+    <!-- TOAST container -->
+    <div id="toast-container"></div>
+
+    <!-- ============ DASHBOARD TAB ============ -->
+    <section id="tab-dashboard" class="tab-content active">
+      <div class="panel-row">
+        <div class="panel">
+          <h3>» Server Status</h3>
+          <div id="dash-servers" class="mono-list">Loading...</div>
+        </div>
+        <div class="panel">
+          <h3>» Attached Devices</h3>
+          <div id="dash-device-count" class="big-number">-</div>
+          <div id="dash-device-summary" class="mono-list"></div>
+        </div>
+      </div>
+      <div class="panel-row">
+        <div class="panel full">
+          <h3>» Quick Actions</h3>
+          <div class="btn-row">
+            <button class="btn" onclick="attachAll()">▶ ATTACH ALL</button>
+            <button class="btn btn-warn" onclick="detachAll()">■ DETACH ALL</button>
+            <button class="btn btn-dim" onclick="refreshDashboard()">↻ REFRESH</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ DEVICES TAB ============ -->
+    <section id="tab-devices" class="tab-content">
+      <div class="panel">
+        <h3>» Attached Devices <button class="btn btn-sm btn-dim" onclick="refreshDevices()">↻</button></h3>
+        <div class="table-wrap">
+        <table id="attached-table">
+          <thead>
+            <tr>
+              <th><input type="checkbox" id="select-all-attached" onchange="toggleSelectAll(this, 'attached-table')"></th>
+              <th>Port</th>
+              <th>Device</th>
+              <th>ID</th>
+              <th>Server</th>
+              <th>Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="attached-body">
+            <tr><td colspan="7" class="dim">Loading...</td></tr>
+          </tbody>
+        </table>
+        </div>
+        <div class="btn-row" style="margin-top:.5rem">
+          <button class="btn btn-warn btn-sm" onclick="detachSelected()">■ DETACH SELECTED</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>» Attach Device</h3>
+        <div class="form-row">
+          <label>Server:</label>
+          <input type="text" id="attach-server" placeholder="192.168.1.44">
+          <label>Bus ID:</label>
+          <input type="text" id="attach-busid" placeholder="1-1.2">
+          <label>Name:</label>
+          <input type="text" id="attach-name" placeholder="My Device">
+          <button class="btn btn-sm" onclick="attachSingle()">▶ ATTACH</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ DISCOVERY TAB ============ -->
+    <section id="tab-discovery" class="tab-content">
+      <div class="panel">
+        <h3>» Discover Remote Devices</h3>
+        <div class="form-row">
+          <label>Server IP:</label>
+          <input type="text" id="discover-server" placeholder="192.168.1.44">
+          <button class="btn btn-sm" onclick="discoverDevices()">⌕ DISCOVER</button>
+        </div>
+        <div class="table-wrap">
+        <table id="discover-table">
+          <thead>
+            <tr><th>Bus ID</th><th>Device</th><th>ID</th><th>USB Name</th><th>Action</th></tr>
+          </thead>
+          <tbody id="discover-body">
+            <tr><td colspan="5" class="dim">Enter a server IP and click Discover</td></tr>
+          </tbody>
+        </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>» Network Scanner</h3>
+        <div class="form-row">
+          <label>Subnet:</label>
+          <input type="text" id="scan-subnet" placeholder="192.168.1.0/24">
+          <button class="btn btn-sm" onclick="scanNetwork()">⌕ SCAN</button>
+        </div>
+        <div id="scan-results" class="mono-list"></div>
+      </div>
+    </section>
+
+    <!-- ============ LOGS TAB ============ -->
+    <section id="tab-logs" class="tab-content">
+      <div class="panel full">
+        <h3>» Live Logs
+          <span class="log-controls">
+            <button class="btn btn-xs" onclick="toggleLogPause()" id="log-pause-btn">⏸ PAUSE</button>
+            <button class="btn btn-xs btn-dim" onclick="copyLogs()">⎘ COPY</button>
+            <button class="btn btn-xs btn-dim" onclick="clearLogView()">✕ CLEAR</button>
+          </span>
+        </h3>
+        <div class="log-filters">
+          <button class="log-filter active" data-level="all" onclick="setLogFilter('all', this)">ALL</button>
+          <button class="log-filter" data-level="trace" onclick="setLogFilter('trace', this)">TRACE</button>
+          <button class="log-filter" data-level="debug" onclick="setLogFilter('debug', this)">DEBUG</button>
+          <button class="log-filter" data-level="info" onclick="setLogFilter('info', this)">INFO</button>
+          <button class="log-filter" data-level="warning" onclick="setLogFilter('warning', this)">WARN</button>
+          <button class="log-filter" data-level="error" onclick="setLogFilter('error', this)">ERROR</button>
+        </div>
+        <div id="log-terminal"></div>
+      </div>
+    </section>
+
+    <!-- ============ EVENTS TAB ============ -->
+    <section id="tab-events" class="tab-content">
+      <div class="panel full">
+        <h3>» Device Event Timeline
+          <button class="btn btn-xs btn-dim" onclick="refreshEvents()">↻</button>
+          <button class="btn btn-xs btn-warn" onclick="clearEvents()">✕ CLEAR</button>
+        </h3>
+        <div id="events-timeline"></div>
+      </div>
+    </section>
+
+    <!-- ============ CONFIG TAB ============ -->
+    <section id="tab-config" class="tab-content">
+      <div class="panel">
+        <h3>» Configuration</h3>
+        <div class="config-form" id="config-form">
+          <div class="form-group">
+            <label>Log Level:</label>
+            <select id="cfg-log-level">
+              <option>trace</option><option>debug</option><option selected>info</option>
+              <option>notice</option><option>warning</option><option>error</option><option>fatal</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Server Address:</label>
+            <input type="text" id="cfg-server" placeholder="192.168.1.44">
+          </div>
+          <div class="form-group">
+            <label>Attach Delay (s):</label>
+            <input type="number" id="cfg-delay" min="0" max="30" value="2">
+          </div>
+          <h4>» Devices</h4>
+          <div id="cfg-devices-list"></div>
+          <button class="btn btn-sm btn-dim" onclick="addDeviceRow()" style="margin-top:.5rem">+ ADD DEVICE</button>
+
+          <div class="btn-row" style="margin-top:1rem">
+            <button class="btn" onclick="saveConfig()">💾 SAVE CONFIG</button>
+            <button class="btn btn-dim" onclick="loadConfig()">↻ RELOAD</button>
+          </div>
+          <p class="dim" style="margin-top:.5rem">⚠ Saving config requires an app restart for changes to take full effect.</p>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>» Backup &amp; Restore</h3>
+        <div class="btn-row">
+          <button class="btn btn-dim" onclick="backupConfig()">⬇ EXPORT BACKUP</button>
+          <button class="btn btn-dim" onclick="document.getElementById('restore-file').click()">⬆ IMPORT BACKUP</button>
+          <input type="file" id="restore-file" accept=".json" style="display:none" onchange="restoreConfig(this)">
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <script>const INGRESS_PATH = "{{ ingress_path }}";</script>
+  <script src="{{ ingress_path }}/static/app.js?v={{ version }}"></script>
+</body>
+</html>

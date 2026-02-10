@@ -28,10 +28,13 @@ fi
 
 if [ "$attached_devices" -eq 0 ]; then
     bashio::log.error "No USB/IP devices were attached. Is the USB/IP server online and device(s) USB attached?"
+    echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"type\":\"attach_fail\",\"device\":\"\",\"server\":\"\",\"detail\":\"No devices attached during startup\"}" >> /tmp/usbip_events.jsonl
 elif [ "$mount_exit_code" -ne 0 ]; then
     bashio::log.warning "${attached_devices} device(s) attached, but some devices failed. Check configuration and server."
+    echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"type\":\"attach_ok\",\"device\":\"\",\"server\":\"\",\"detail\":\"${attached_devices} device(s) attached (partial)\"}" >> /tmp/usbip_events.jsonl
 else
     bashio::log.info "${attached_devices} device(s) successfully attached."
+    echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"type\":\"attach_ok\",\"device\":\"\",\"server\":\"\",\"detail\":\"${attached_devices} device(s) attached successfully\"}" >> /tmp/usbip_events.jsonl
 fi
 
 bashio::log.info "🟢 USB/IP service has started"

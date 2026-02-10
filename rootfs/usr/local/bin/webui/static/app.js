@@ -1,0 +1,541 @@
+/* ============================================================
+   USB/IP Terminal WebUI — Frontend JavaScript
+   ============================================================ */
+
+const API = INGRESS_PATH;
+let logPaused = false;
+let logFilter = 'all';
+let allLogLines = []; // master unfiltered log buffer
+
+// ---- Themes ----
+const THEMES = ['green', 'amber', 'blue', 'dracula', 'matrix'];
+let currentTheme = localStorage.getItem('usbip-theme') || 'green';
+
+function applyTheme(t) {
+    currentTheme = t;
+    if (t === 'green') document.documentElement.removeAttribute('data-theme');
+    else document.documentElement.setAttribute('data-theme', t);
+    localStorage.setItem('usbip-theme', t);
+}
+
+function cycleTheme() {
+    const idx = THEMES.indexOf(currentTheme);
+    const next = THEMES[(idx + 1) % THEMES.length];
+    applyTheme(next);
+    toast(`Theme: ${next.toUpperCase()}`);
+}
+
+// ---- Init ----
+document.addEventListener('DOMContentLoaded', () => {
+    applyTheme(currentTheme);
+    initTabs();
+    startClock();
+    refreshDashboard();
+    loadConfig();
+    // Start log polling immediately
+    fetchAndUpdateLogs();
+    setInterval(() => { if (!logPaused) fetchAndUpdateLogs(); }, 4000);
+});
+
+// ---- Clock ----
+function startClock() {
+    const el = document.getElementById('clock');
+    const tick = () => {
+        const now = new Date();
+        el.textContent = now.toLocaleTimeString('en-US', { hour12: false });
+    };
+    tick();
+    setInterval(tick, 1000);
+}
+
+// ---- Tabs ----
+function initTabs() {
+    document.querySelectorAll('.tab').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+
+            // Auto-refresh on tab switch
+            const tab = btn.dataset.tab;
+            if (tab === 'dashboard') refreshDashboard();
+            else if (tab === 'devices') refreshDevices();
+            else if (tab === 'events') refreshEvents();
+            else if (tab === 'logs') fetchInitialLogs();
+        });
+    });
+}
+
+// ---- Toast notifications ----
+function toast(msg, type = '') {
+    const container = document.getElementById('toast-container');
+    const el = document.createElement('div');
+    el.className = `toast ${type ? 'toast-' + type : ''}`;
+    el.textContent = `> ${msg}`;
+    container.appendChild(el);
+    setTimeout(() => el.remove(), 4000);
+}
+
+// ---- API helper ----
+async function api(path, opts = {}) {
+    const url = `${API}${path}`;
+    try {
+        const resp = await fetch(url, {
+            headers: { 'Content-Type': 'application/json' },
+            ...opts,
+        });
+        return await resp.json();
+    } catch (e) {
+        toast(`Network error: ${e.message}`, 'error');
+        return { ok: false, error: e.message };
+    }
+}
+
+// ---- Dashboard ----
+async function refreshDashboard() {
+    const [status, health] = await Promise.all([
+        api('/api/status'),
+        api('/api/health'),
+    ]);
+
+    // Servers
+    const serversEl = document.getElementById('dash-servers');
+    if (health.ok && health.servers) {
+        const entries = Object.entries(health.servers);
+        if (entries.length === 0) {
+            serversEl.innerHTML = '<span class="dim">No servers configured</span>';
+        } else {
+            serversEl.innerHTML = entries.map(([ip, s]) => {
+                const latClass = !s.online ? 'latency-bad' : s.latency_ms < 50 ? 'latency-good' : s.latency_ms < 200 ? 'latency-mid' : 'latency-bad';
+                const icon = s.online ? '●' : '○';
+                const lat = s.online ? `${s.latency_ms}ms` : 'OFFLINE';
+                return `<div class="item"><span>${icon} ${ip}</span><span class="${latClass}">${lat}</span></div>`;
+            }).join('');
+        }
+    } else {
+        serversEl.innerHTML = '<span class="dim">Health check pending...</span>';
+    }
+
+    // Devices
+    const countEl = document.getElementById('dash-device-count');
+    const summaryEl = document.getElementById('dash-device-summary');
+    if (status.ok) {
+        const devs = status.devices || [];
+        countEl.textContent = devs.length;
+        if (devs.length === 0) {
+            summaryEl.innerHTML = '<span class="dim">No devices attached</span>';
+        } else {
+            summaryEl.innerHTML = devs.map(d => {
+                const name = d.usb_name || d.device_id || `port ${d.port}`;
+                const srv = d.server || '?';
+                return `<div class="item"><span>Port ${d.port}: ${esc(name)}</span><span class="dim">${esc(srv)}</span></div>`;
+            }).join('');
+        }
+    } else {
+        countEl.textContent = '?';
+        summaryEl.innerHTML = '<span class="dim">Could not fetch status</span>';
+    }
+
+    // Badge
+    const badge = document.getElementById('status-badge');
+    if (status.ok && (status.devices || []).length > 0) {
+        badge.className = 'badge badge-ok';
+        badge.textContent = '● ONLINE';
+    } else {
+        badge.className = 'badge badge-warn';
+        badge.textContent = '○ NO DEVICES';
+    }
+}
+
+// Auto-refresh dashboard every 15s when visible
+setInterval(() => {
+    if (document.getElementById('tab-dashboard').classList.contains('active')) {
+        refreshDashboard();
+    }
+}, 15000);
+
+// ---- Devices ----
+async function refreshDevices() {
+    const data = await api('/api/status');
+    const tbody = document.getElementById('attached-body');
+    if (!data.ok || !data.devices || data.devices.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="dim">No devices attached</td></tr>';
+        return;
+    }
+    tbody.innerHTML = data.devices.map(d => {
+        const name = d.usb_name || d.info || '-';
+        return `<tr>
+      <td><input type="checkbox" class="dev-check" data-port="${d.port}"></td>
+      <td>${d.port}</td>
+      <td>${esc(name)}</td>
+      <td>${esc(d.device_id || '-')}</td>
+      <td>${esc(d.server || d.remote_busid || '-')}</td>
+      <td><span class="badge badge-ok">${esc(d.status || 'attached')}</span></td>
+      <td><button class="btn btn-warn btn-xs" onclick="detachOne(${d.port})">DETACH</button></td>
+    </tr>`;
+    }).join('');
+}
+
+function toggleSelectAll(master, tableId) {
+    const checks = document.querySelectorAll(`#${tableId} .dev-check`);
+    checks.forEach(c => c.checked = master.checked);
+}
+
+async function detachOne(port) {
+    const data = await api('/api/detach', { method: 'POST', body: JSON.stringify({ port }) });
+    toast(data.ok ? `Port ${port} detached` : `Detach failed: ${data.detail}`, data.ok ? '' : 'error');
+    refreshDevices();
+    refreshDashboard();
+}
+
+async function detachSelected() {
+    const checks = document.querySelectorAll('#attached-table .dev-check:checked');
+    if (checks.length === 0) { toast('No devices selected', 'warn'); return; }
+    for (const c of checks) {
+        await api('/api/detach', { method: 'POST', body: JSON.stringify({ port: parseInt(c.dataset.port) }) });
+    }
+    toast(`Detached ${checks.length} device(s)`);
+    refreshDevices();
+    refreshDashboard();
+}
+
+async function attachSingle() {
+    const server = document.getElementById('attach-server').value.trim();
+    const busid = document.getElementById('attach-busid').value.trim();
+    const name = document.getElementById('attach-name').value.trim() || busid;
+    if (!server || !busid) { toast('Server and Bus ID required', 'warn'); return; }
+
+    toast('Attaching...', '');
+    const data = await api('/api/attach', { method: 'POST', body: JSON.stringify({ server, busid, name }) });
+    toast(data.ok ? `Attached ${name}` : `Failed: ${data.detail}`, data.ok ? '' : 'error');
+    refreshDevices();
+    refreshDashboard();
+}
+
+async function attachAll() {
+    toast('Attaching all configured devices...', '');
+    const data = await api('/api/attach-all', { method: 'POST' });
+    if (data.ok) {
+        const ok = data.results.filter(r => r.ok).length;
+        const fail = data.results.filter(r => !r.ok).length;
+        toast(`Attached: ${ok}, Failed: ${fail}`, fail > 0 ? 'warn' : '');
+    } else {
+        toast('Attach-all failed', 'error');
+    }
+    refreshDevices();
+    refreshDashboard();
+}
+
+async function detachAll() {
+    toast('Detaching all devices...', '');
+    const data = await api('/api/detach-all', { method: 'POST' });
+    if (data.ok) {
+        const ok = data.results.filter(r => r.ok).length;
+        toast(`Detached ${ok} device(s)`);
+    } else {
+        toast('Detach-all failed', 'error');
+    }
+    refreshDevices();
+    refreshDashboard();
+}
+
+// ---- Discovery ----
+async function discoverDevices() {
+    const server = document.getElementById('discover-server').value.trim();
+    if (!server) { toast('Enter a server IP', 'warn'); return; }
+
+    const tbody = document.getElementById('discover-body');
+    tbody.innerHTML = '<tr><td colspan="5" class="dim"><span class="spinner"></span> Discovering...</td></tr>';
+
+    const data = await api(`/api/discover?server=${encodeURIComponent(server)}`);
+    if (!data.ok || !data.devices || data.devices.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="dim">No devices found</td></tr>';
+        return;
+    }
+    tbody.innerHTML = data.devices.map(d => `<tr>
+    <td>${esc(d.busid)}</td>
+    <td>${esc(d.name)}</td>
+    <td>${esc(d.device_id)}</td>
+    <td class="dim">${esc(d.usb_name || '-')}</td>
+    <td><button class="btn btn-xs" onclick="quickAttach('${esc(d.server)}','${esc(d.busid)}','${esc(d.name)}')">▶ ATTACH</button></td>
+  </tr>`).join('');
+}
+
+function quickAttach(server, busid, name) {
+    document.getElementById('attach-server').value = server;
+    document.getElementById('attach-busid').value = busid;
+    document.getElementById('attach-name').value = name;
+    // Switch to devices tab
+    document.querySelector('[data-tab="devices"]').click();
+    setTimeout(() => attachSingle(), 100);
+}
+
+async function scanNetwork() {
+    const subnet = document.getElementById('scan-subnet').value.trim();
+    if (!subnet) { toast('Enter a subnet', 'warn'); return; }
+
+    const el = document.getElementById('scan-results');
+    el.innerHTML = '<span class="spinner"></span> Scanning... (this may take a moment)';
+
+    const data = await api('/api/scan', { method: 'POST', body: JSON.stringify({ subnet }) });
+    if (!data.ok) {
+        el.innerHTML = `<span class="dim">Error: ${esc(data.error || 'unknown')}</span>`;
+        return;
+    }
+    if (data.servers.length === 0) {
+        el.innerHTML = '<span class="dim">No USB/IP servers found</span>';
+        return;
+    }
+    el.innerHTML = data.servers.map(s => {
+        const devList = (s.devices || []).map(d =>
+            `<div class="item"><span>${esc(d.busid)} — ${esc(d.name)}</span><span class="dim">${esc(d.device_id)}</span></div>`
+        ).join('') || '<span class="dim">No devices exported</span>';
+        return `<div class="scan-server">
+      <div class="scan-server-header" onclick="this.nextElementSibling.classList.toggle('open')">
+        <span>● ${esc(s.server)}</span>
+        <span class="latency-good">${s.latency_ms}ms — ${s.devices.length} device(s)</span>
+      </div>
+      <div class="scan-devices">${devList}</div>
+    </div>`;
+    }).join('');
+}
+
+// ---- Logs (polling-based, client-side filtering) ----
+async function fetchAndUpdateLogs() {
+    // Always fetch ALL logs (no server-side filter)
+    const data = await api('/api/logs');
+    if (!data.ok || !data.lines) return;
+
+    allLogLines = data.lines;
+
+    // Apply client-side filter for the main Logs tab
+    const filtered = getFilteredLines(allLogLines);
+    renderLogTerminal('log-terminal', filtered);
+}
+
+function getFilteredLines(lines) {
+    if (logFilter === 'all') return lines;
+    return lines.filter(ln => {
+        const lower = ln.toLowerCase();
+        // Bashio format: [HH:MM:SS] LEVEL: msg  |  s6 format: s6-rc: info: ...
+        if (logFilter === 'error') return lower.includes(' error') || lower.includes(' fatal');
+        if (logFilter === 'warning') return lower.includes(' warning') || lower.includes(' warn');
+        if (logFilter === 'info') return lower.includes('] info:') || lower.includes(': info:');
+        if (logFilter === 'debug') return lower.includes(' debug');
+        if (logFilter === 'trace') return lower.includes(' trace');
+        return true;
+    });
+}
+
+function renderLogTerminal(elementId, lines) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+
+    // Build a content hash to avoid unnecessary re-renders
+    const hash = lines.length + ':' + (lines.length > 0 ? lines[lines.length - 1].substring(0, 40) : '');
+    if (el.dataset.contentHash === hash) return;
+    el.dataset.contentHash = hash;
+
+    const fragment = document.createDocumentFragment();
+    if (lines.length === 0) {
+        const div = document.createElement('div');
+        div.className = 'log-line dim';
+        div.textContent = logFilter !== 'all'
+            ? `No ${logFilter.toUpperCase()} level logs found.`
+            : 'Waiting for logs...';
+        fragment.appendChild(div);
+    } else {
+        for (const line of lines) {
+            const div = document.createElement('div');
+            div.className = `log-line ${getLogLevelClass(line)}`;
+            div.textContent = line;
+            fragment.appendChild(div);
+        }
+    }
+    el.innerHTML = '';
+    el.appendChild(fragment);
+
+    // Auto-scroll
+    if (!logPaused) el.scrollTop = el.scrollHeight;
+}
+
+function getLogLevelClass(line) {
+    const lower = line.toLowerCase();
+    // Bashio format: [HH:MM:SS] LEVEL: msg  |  s6 format: s6-rc: info: ...
+    if (lower.includes(' error') || lower.includes(' fatal')) return 'level-error';
+    if (lower.includes(' warning')) return 'level-warning';
+    if (lower.includes('] info:') || lower.includes(': info:')) return 'level-info';
+    if (lower.includes(' debug')) return 'level-debug';
+    if (lower.includes(' trace')) return 'level-trace';
+    return '';
+}
+
+async function fetchInitialLogs() {
+    await fetchAndUpdateLogs();
+}
+
+// ---- Log controls ----
+function toggleLogPause() {
+    logPaused = !logPaused;
+    const btn = document.getElementById('log-pause-btn');
+    if (btn) btn.textContent = logPaused ? '▶ RESUME' : '⏸ PAUSE';
+    toast(logPaused ? 'Log paused' : 'Log resumed');
+}
+
+function copyLogs() {
+    const terminal = document.getElementById('log-terminal');
+    const text = Array.from(terminal.querySelectorAll('.log-line')).map(l => l.textContent).join('\n');
+    navigator.clipboard.writeText(text).then(() => toast('Logs copied to clipboard'));
+}
+
+function clearLogView() {
+    document.getElementById('log-terminal').innerHTML = '';
+    toast('Log view cleared');
+}
+
+function setLogFilter(level, btn) {
+    logFilter = level;
+    document.querySelectorAll('.log-filter').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    // Apply filter client-side immediately from cached data
+    const filtered = getFilteredLines(allLogLines);
+    // Clear content hash to force re-render
+    document.getElementById('log-terminal').dataset.contentHash = '';
+    renderLogTerminal('log-terminal', filtered);
+}
+
+// ---- Events ----
+async function refreshEvents() {
+    const data = await api('/api/events');
+    const el = document.getElementById('events-timeline');
+    if (!data.ok || !data.events || data.events.length === 0) {
+        el.innerHTML = '<span class="dim">No events recorded</span>';
+        return;
+    }
+    // Show newest first
+    const events = data.events.reverse();
+    el.innerHTML = events.map(e => {
+        const ts = new Date(e.ts).toLocaleString();
+        return `<div class="event-entry">
+      <span class="event-ts">${esc(ts)}</span>
+      <span class="event-type ${esc(e.type)}">${esc(e.type)}</span>
+      <span class="event-detail">${esc(e.device || '')} ${esc(e.server || '')} — ${esc(e.detail)}</span>
+    </div>`;
+    }).join('');
+}
+
+async function clearEvents() {
+    await api('/api/events/clear', { method: 'POST' });
+    toast('Events cleared');
+    refreshEvents();
+}
+
+// ---- Config ----
+async function loadConfig() {
+    const data = await api('/api/config');
+    if (!data.ok || !data.config) return;
+    const cfg = data.config;
+
+    document.getElementById('cfg-log-level').value = cfg.log_level || 'info';
+    document.getElementById('cfg-server').value = cfg.usbipd_server_address || '';
+    document.getElementById('cfg-delay').value = cfg.attach_delay ?? 2;
+
+    // Populate discover server field too
+    const discSrv = document.getElementById('discover-server');
+    if (!discSrv.value) discSrv.value = cfg.usbipd_server_address || '';
+
+    // Populate attach server field
+    const attSrv = document.getElementById('attach-server');
+    if (!attSrv.value) attSrv.value = cfg.usbipd_server_address || '';
+
+    // Populate scan subnet
+    const scanSub = document.getElementById('scan-subnet');
+    if (!scanSub.value && cfg.usbipd_server_address) {
+        const parts = cfg.usbipd_server_address.split('.');
+        if (parts.length === 4) scanSub.value = `${parts[0]}.${parts[1]}.${parts[2]}.0/24`;
+    }
+
+    // Devices
+    const container = document.getElementById('cfg-devices-list');
+    container.innerHTML = '';
+    (cfg.devices || []).forEach(d => addDeviceRow(d.name, d.device_or_bus_id, d.server || ''));
+}
+
+function addDeviceRow(name = '', devId = '', server = '') {
+    const container = document.getElementById('cfg-devices-list');
+    const row = document.createElement('div');
+    row.className = 'device-row';
+    row.innerHTML = `
+    <input type="text" placeholder="Name" value="${esc(name)}" class="cfg-dev-name">
+    <input type="text" placeholder="Device/Bus ID" value="${esc(devId)}" class="cfg-dev-id">
+    <input type="text" placeholder="Server (optional)" value="${esc(server)}" class="cfg-dev-server">
+    <button class="btn btn-xs btn-error" onclick="this.parentElement.remove()">✕</button>
+  `;
+    container.appendChild(row);
+}
+
+async function saveConfig() {
+    const devices = [];
+    document.querySelectorAll('.device-row').forEach(row => {
+        const name = row.querySelector('.cfg-dev-name').value.trim();
+        const id = row.querySelector('.cfg-dev-id').value.trim();
+        const server = row.querySelector('.cfg-dev-server').value.trim();
+        if (name || id) {
+            const dev = { name: name || id, device_or_bus_id: id };
+            if (server) dev.server = server;
+            devices.push(dev);
+        }
+    });
+
+    const delayVal = parseInt(document.getElementById('cfg-delay').value);
+
+    const config = {
+        log_level: document.getElementById('cfg-log-level').value,
+        usbipd_server_address: document.getElementById('cfg-server').value.trim(),
+        attach_delay: isNaN(delayVal) ? 2 : delayVal,
+        devices,
+    };
+
+    toast('Saving configuration...');
+    const data = await api('/api/config', { method: 'POST', body: JSON.stringify(config) });
+    toast(data.ok ? 'Configuration saved! Restart app to apply.' : 'Save failed', data.ok ? '' : 'error');
+}
+
+async function backupConfig() {
+    const data = await api('/api/config/backup');
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `usbip-config-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('Config exported');
+}
+
+function restoreConfig(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        try {
+            const config = JSON.parse(e.target.result);
+            const data = await api('/api/config/restore', { method: 'POST', body: JSON.stringify(config) });
+            toast(data.ok ? 'Config restored! Restart app to apply.' : 'Restore failed', data.ok ? '' : 'error');
+            loadConfig();
+        } catch (err) {
+            toast('Invalid JSON file', 'error');
+        }
+    };
+    reader.readAsText(file);
+    input.value = '';
+}
+
+// ---- Utilities ----
+function esc(str) {
+    if (!str) return '';
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+}
