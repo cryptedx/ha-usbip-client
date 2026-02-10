@@ -7,42 +7,31 @@ bashio::log.info "Starting USB/IP devices attachment process."
 
 # Run the attach device script
 bashio::log.info "Running the mount_devices script."
-if /usr/local/bin/mount_devices; then
-    bashio::log.info "USB/IP devices attached successfully."
-    attached_devices=0
-    device_info_file="/tmp/attached_devices.txt"
-    rm -f "$device_info_file"
-    bashio::log.info "Reading the mount script for attached devices..."
-    while read -r line; do
-        if [[ "$line" == *"attach --remote="* ]]; then
-            attached_devices=$((attached_devices + 1))
-            server_ip=$(echo "$line" | sed -E 's/.*--remote=([0-9.]+).*/\1/')
-            bus_id=$(echo "$line" | sed -E 's/.*--busid=([0-9.-]+).*/\1/')
-            
-            # Look up device name and ID from the device details file
-            device_name="Unknown device"
-            device_id="unknown"
-            if [ -f "/tmp/device_details.txt" ]; then
-                device_info=$(grep "^${bus_id}|" "/tmp/device_details.txt")
-                if [ -n "$device_info" ]; then
-                    device_name=$(echo "$device_info" | cut -d'|' -f2)
-                    device_id=$(echo "$device_info" | cut -d'|' -f3)
-                fi
-            fi
-            
-            device_info="Bus ID: ${bus_id}, Server: ${server_ip}, Device: ${device_name} (${device_id})"
-            bashio::log.info "Attached device:\\n\t${device_info}"
-            echo "${bus_id}|${server_ip}|${device_name}|${device_id}" >> "$device_info_file"
-        fi
-    done < "/usr/local/bin/mount_devices"
+mount_exit_code=0
+/usr/local/bin/mount_devices || mount_exit_code=$?
 
-    if [[ $attached_devices -eq 0 ]]; then
-        bashio::log.warning "No devices were attached. Please check your configuration."
-    else
-        bashio::log.info "$attached_devices device(s) successfully attached."
-    fi
+# Check actual attachment status via usbip port (with brief delay for kernel to settle)
+sleep 1
+attached_devices=0
+device_info_file="/tmp/attached_devices.txt"
+rm -f "$device_info_file"
+
+if ports_output=$(usbip port 2>/dev/null); then
+    # Log each attached port
+    while IFS= read -r port_line; do
+        port_num=$(echo "$port_line" | sed -E 's/^Port ([0-9]+):.*/\1/')
+        bashio::log.info "Attached device on port ${port_num}: $(echo "$port_line" | sed -E 's/^Port [0-9]+:\s*//')"
+        echo "${port_num}" >> "$device_info_file"
+        attached_devices=$((attached_devices + 1))
+    done <<< "$(echo "$ports_output" | grep -E '^Port [0-9]+')"
+fi
+
+if [ "$attached_devices" -eq 0 ]; then
+    bashio::log.error "No USB/IP devices were attached. Is the USB/IP server online and device(s) USB attached?"
+elif [ "$mount_exit_code" -ne 0 ]; then
+    bashio::log.warning "${attached_devices} device(s) attached, but some devices failed. Check configuration and server."
 else
-    bashio::log.error "Failed to attach USB/IP devices. Is the USB/IP server online and device(s) USB attached?"
+    bashio::log.info "${attached_devices} device(s) successfully attached."
 fi
 
 bashio::log.info "🟢 USB/IP service has started"

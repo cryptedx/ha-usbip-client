@@ -9,104 +9,55 @@ if ! command -v usbip >/dev/null 2>&1; then
     exit 0
 fi
 
-# Read device information from the file created during attachment
-device_info_file="/tmp/attached_devices.txt"
-if [ ! -f "$device_info_file" ]; then
-    bashio::log.info "No device information file found. Checking for attached devices..."
-    # Fallback to parsing usbip port output if file doesn't exist
-    if ! ports_output=$(usbip port 2>/dev/null); then
-        bashio::log.warning "Failed to get USB/IP port information"
-        exit 0
+# Always use 'usbip port' to determine what is actually attached
+# This is the most reliable method — no dependency on temp files or index matching
+detached_count=0
+failed_count=0
+
+if ! ports_output=$(usbip port 2>/dev/null); then
+    bashio::log.warning "Failed to get USB/IP port information. Attempting blind detach..."
+    # Fallback: try detaching ports 0-15 blindly
+    for port in $(seq 0 15); do
+        usbip detach -p "${port}" >/dev/null 2>&1 && detached_count=$((detached_count + 1))
+    done
+    if [ "$detached_count" -gt 0 ]; then
+        bashio::log.info "Blind detach recovered ${detached_count} device(s)."
     fi
-    
-    # Parse the output to extract port and device information
-    ports=""
-    port_device_list=""
-    
-    current_port=""
-    while IFS= read -r line; do
-        # Look for port lines
-        if echo "$line" | grep -q '^Port [0-9]\+:'; then
-            current_port=$(echo "$line" | sed -E 's/^Port ([0-9]+):.*/\1/')
-            ports="$ports $current_port"
-        # Look for device description lines (typically follow port lines)
-        elif [ -n "$current_port" ] && echo "$line" | grep -q '^\s*[0-9.-]\+:\s'; then
-            device_desc=$(echo "$line" | sed 's/^\s*//;s/\s*$//')
-            port_device_list="${port_device_list}${current_port}|${device_desc}\n"
-            current_port=""  # Reset after finding device info
-        fi
-    done <<< "$ports_output"
-    
-    ports=$(echo "$ports" | sed 's/^ *//')
-    
+else
+    # Parse all port numbers from usbip port output
+    ports=$(echo "$ports_output" | grep -oE '^Port [0-9]+:' | grep -oE '[0-9]+')
+
     if [ -z "$ports" ]; then
         bashio::log.info "No USB/IP devices currently attached."
     else
-        bashio::log.info "Found attached devices on ports: $ports"
-        detached_count=0
-        failed_count=0
-        
+        bashio::log.info "Found attached USB/IP ports: $(echo $ports | tr '\n' ' ')"
+
         for port in $ports; do
-            # Find device description for this port
-            device_desc=$(printf '%s\n' "$port_device_list" | grep "^$port|" | cut -d'|' -f2)
+            # Try to get device description from the port output for logging
+            device_desc=$(echo "$ports_output" | grep -A2 "^Port ${port}:" | tail -1 | sed 's/^\s*//;s/\s*$//')
             if [ -z "$device_desc" ]; then
                 device_desc="Unknown device"
             fi
-            bashio::log.debug "Attempting to detach device on port ${port}: ${device_desc}"
+
+            bashio::log.debug "Detaching port ${port}: ${device_desc}"
             if usbip detach -p "${port}" 2>/dev/null; then
-                bashio::log.info "Successfully detached device on port ${port}: ${device_desc}"
+                bashio::log.info "Successfully detached port ${port}: ${device_desc}"
                 detached_count=$((detached_count + 1))
             else
-                bashio::log.warning "Failed to detach device on port ${port}: ${device_desc}"
+                bashio::log.warning "Failed to detach port ${port}: ${device_desc}"
                 failed_count=$((failed_count + 1))
             fi
+
+            # Small delay between detach operations to avoid race conditions
+            sleep 0.5
         done
-        
-        bashio::log.info "Detach operation complete: $detached_count detached, $failed_count failed"
     fi
-else
-    # Read device information from file and detach all ports with descriptions
-    bashio::log.info "Reading device information from attachment file..."
-    detached_count=0
-    failed_count=0
-    
-    # Get current attached ports
-    if ports_output=$(usbip port 2>/dev/null); then
-        current_ports=$(echo "$ports_output" | grep -E '^Port [0-9]+:' | sed -E 's/^Port ([0-9]+):.*/\1/')
-        
-        # Read device descriptions from file
-        device_index=0
-        while IFS='|' read -r bus_id server_ip device_name device_id; do
-            if [ -n "$bus_id" ] && [ -n "$server_ip" ]; then
-                device_desc="${device_name} (${device_id}) - Bus ID: ${bus_id}, Server: ${server_ip}"
-                
-                # Get the corresponding port (ports are assigned in order)
-                port=$(echo "$current_ports" | sed -n "$((device_index + 1))p")
-                
-                if [ -n "$port" ]; then
-                    bashio::log.debug "Attempting to detach device on port ${port}: ${device_desc}"
-                    if usbip detach -p "${port}" 2>/dev/null; then
-                        bashio::log.info "Successfully detached device on port ${port}:\\n\t${device_desc}"
-                        detached_count=$((detached_count + 1))
-                    else
-                        bashio::log.warning "Failed to detach device on port ${port}:\\n\t${device_desc}"
-                        failed_count=$((failed_count + 1))
-                    fi
-                else
-                    bashio::log.warning "No corresponding port found for device: ${device_desc}"
-                    failed_count=$((failed_count + 1))
-                fi
-                
-                device_index=$((device_index + 1))
-            fi
-        done < "$device_info_file"
-    else
-        bashio::log.warning "Could not get port information for device detachment"
-    fi
-    
-    bashio::log.info "Detach operation complete: $detached_count detached, $failed_count failed"
-    rm -f "$device_info_file"
 fi
+
+bashio::log.info "Detach operation complete: ${detached_count} detached, ${failed_count} failed"
+
+# Clean up temp files
+rm -f /tmp/attached_devices.txt /tmp/device_details.txt
 
 bashio::log.info "USB/IP device cleanup finished"
 bashio::log.info "🔴 Container stopped"

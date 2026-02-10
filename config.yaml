@@ -1,6 +1,6 @@
 name: "HA USB/IP Client (Beta)"
 description: "A USB/IP client to connect to an existing USB/IP server and access remote USB devices. ⚠️ BETA VERSION - May contain bugs and breaking changes."
-version: "0.2.0-beta"
+version: "0.3.0-beta"
 slug: "ha_usbip_client"
 icon: "icon.png"
 arch:
@@ -25,6 +25,7 @@ privileged:
 options:
   log_level: info
   usbipd_server_address: "192.168.1.44"
+  attach_delay: 2
   devices:
     - name: "Aeotec Z-Stick Gen5 (ZW090) - UZB"
       device_or_bus_id: "0658:0200"
@@ -33,6 +34,8 @@ options:
 schema:
   log_level: list(trace|debug|info|notice|warning|error|fatal)
   usbipd_server_address: str
+  attach_delay: "int(0,30)?"
   devices:
     - name: str
       device_or_bus_id: str
+      server: "str?"
