@@ -1,4 +1,4 @@
-# USB/IP Client Home Assistant Add-on
+# USB/IP Client Home Assistant App
 
 ![Supports aarch64 Architecture][aarch64-shield]
 ![Supports amd64 Architecture][amd64-shield]
@@ -8,11 +8,11 @@
 
 ![Project Maintenance][maintenance-shield]
 
-This is a Home Assistant add-on that acts as a USB/IP client. It connects to an existing USB/IP server to access remote USB devices, making them available to Home Assistant.
+This is a Home Assistant app (formerly called add-on) that acts as a USB/IP client. It connects to an existing USB/IP server to access remote USB devices, making them available to Home Assistant.
 
 ## Background story
 
-Huge thanks to [irakhlin's hassio-usbip-mounter](https://github.com/irakhlin/hassio-usbip-mounter) for the inspiration! While trying out his addon, I encountered some strange behavior with my HA addons, so I had to remove it, leaving me with an unresolved challenge — how to achieve high availability on my Proxmox cluster. So, I decided to create my own USB/IP addon, and here it is.
+Huge thanks to [irakhlin's hassio-usbip-mounter](https://github.com/irakhlin/hassio-usbip-mounter) for the inspiration! While trying out his app, I encountered some strange behavior with my HA apps, so I had to remove it, leaving me with an unresolved challenge — how to achieve high availability on my Proxmox cluster. So, I decided to create my own USB/IP app, and here it is.
 
 Special thanks to [rogerfar](https://github.com/rogerfar) and [Rene-Sackers](https://github.com/Rene-Sackers) for [their great ideas and discussions](https://github.com/cryptedx/ha-usbip-client/pull/8), which made it possible to mount devices via device ID in addition to bus ID.
 
@@ -30,28 +30,28 @@ Special thanks to [rogerfar](https://github.com/rogerfar) and [Rene-Sackers](htt
 
 ## Installation
 
-1. Add it to your Home Assistant add-on store as a custom repository.
+1. Add it to your Home Assistant app store as a custom repository.
 
-    [![Open your Home Assistant instance and show the add add-on repository dialog with a specific repository URL pre-filled.](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https://github.com/cryptedx/ha-usbip-client)
+    [![Open your Home Assistant instance and show the add app repository dialog with a specific repository URL pre-filled.](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https://github.com/cryptedx/ha-usbip-client)
 
-2. Install the **USB/IP Client** add-on.
-3. Configure the add-on options to specify the USB/IP server IP address, USB device bus IDs, and desired log level.
+2. Install the **USB/IP Client** app.
+3. Configure the app options to specify the USB/IP server IP address, USB device bus IDs, and desired log level.
 4. Turn off protection mode. [Read more here about it](#security-considerations)
-5. Start the add-on.
+5. Start the app.
 
 ## Development Branch
 
 ⚠️ **Warning**: The development branch contains the latest features and bug fixes but may be unstable. Use at your own risk.
 
-To install the development version of the **USB/IP Client** add-on:
+To install the development version of the **USB/IP Client** app:
 
 1. Add the repository URL with the dev branch: `https://github.com/cryptedx/ha-usbip-client.git#dev`
 2. Follow the same installation steps as above.
-3. Note that you may need to reinstall the add-on when switching between stable and development versions.
+3. Note that you may need to reinstall the app when switching between stable and development versions.
 
-The add-on requires the following configuration options:
+The app requires the following configuration options:
 
-- **log_level**: (Optional) Sets the verbosity of the add-on logs. Default is `info`. Available options are `trace`, `debug`, `info`, `notice`, `warning`, `error`, `fatal`.
+- **log_level**: (Optional) Sets the verbosity of the app logs. Default is `info`. Available options are `trace`, `debug`, `info`, `notice`, `warning`, `error`, `fatal`.
 - **usbipd_server_address**: The IP address of the USB/IP server.
 - **devices**: A list of devices with the following options:
   - **name**: The name of the USB device.
@@ -73,32 +73,32 @@ Replace `192.168.1.44` with your USB/IP server IP address and provide the correc
 
 ## Usage
 
-- Once the add-on is configured and started, it will connect to the specified USB/IP server and attach to the USB devices.
+- Once the app is configured and started, it will connect to the specified USB/IP server and attach to the USB devices.
 - The devices will then be available for use in Home Assistant integrations.
 - Adjust the `log_level` in the configuration to control the verbosity of the logs for troubleshooting.
 
 ## Security Considerations
 
-This add-on requires elevated privileges to access and manage USB devices, which has potential security implications:
+This app requires elevated privileges to access and manage USB devices, which has potential security implications:
 
-- **Full Access**: The add-on is granted full access to the host system, which allows it to interact directly with USB devices and kernel modules.
-- **Kernel Modules**: The add-on loads the vhci-hcd kernel module to enable USB/IP functionality. Loading kernel modules can potentially introduce vulnerabilities if not properly managed.
-- **Host Network**: The add-on uses the host's network stack (host_network: true). This means that any vulnerabilities in the USB/IP protocol could potentially impact the host system.
-- **Privileged Operations**: The add-on requires several Linux capabilities (NET_ADMIN, SYS_ADMIN, SYS_RAWIO, etc.) to perform USB management operations. These permissions are powerful and, if exploited, could compromise the host system.
+- **Full Access**: The app is granted full access to the host system, which allows it to interact directly with USB devices and kernel modules.
+- **Kernel Modules**: The app loads the vhci-hcd kernel module to enable USB/IP functionality. Loading kernel modules can potentially introduce vulnerabilities if not properly managed.
+- **Host Network**: The app uses the host's network stack (host_network: true). This means that any vulnerabilities in the USB/IP protocol could potentially impact the host system.
+- **Privileged Operations**: The app requires several Linux capabilities (NET_ADMIN, SYS_ADMIN, SYS_RAWIO, etc.) to perform USB management operations. These permissions are powerful and, if exploited, could compromise the host system.
 
 It is recommended to:
 
-- Only use this add-on in a trusted network environment.
-- Regularly update the add-on to incorporate security patches.
+- Only use this app in a trusted network environment.
+- Regularly update the app to incorporate security patches.
 - Limit access to the Home Assistant instance to reduce exposure.
 
-## Related Automation for Add-on Management
+## Related Automation for App Management
 
-To automate the management of other Home Assistant add-ons based on the status of this USB/IP Client add-on, you can use the following automation.
+To automate the management of other Home Assistant apps based on the status of this USB/IP Client app, you can use the following automation.
 
-*Note: The feedback of the addon status is very sluggish at the time I created this automation. This means that if you stop the USB/IP Client Home Assistant add-on, for example, it takes 1-5 minutes for the status of the sensor to be updated!*
+*Note: The feedback of the app status is very sluggish at the time I created this automation. This means that if you stop the USB/IP Client Home Assistant app, for example, it takes 1-5 minutes for the status of the sensor to be updated!*
 
-**Access Add-on Entities:**
+**Access App Entities:**
 
 1. Navigate to Settings > Devices & Services.
 2. Locate and select Home Assistant Supervisor from the device list.
@@ -106,16 +106,16 @@ To automate the management of other Home Assistant add-ons based on the status o
 
 **Enable the Running State Sensor:**
 
-1. In the entities list, find the binary sensor corresponding to the add-on you wish to monitor. These sensors are typically named in the format binary_sensor.[addon_name]_running.
+1. In the entities list, find the binary sensor corresponding to the app you wish to monitor. These sensors are typically named in the format binary_sensor.[app_name]_running.
 2. Click on the desired sensor to open its details.
 3. Click on the Settings (cog) icon in the top-right corner.
 4. Toggle the Enabled switch to activate the sensor.
 5. Click Update to save your changes.
 
 ```yaml
-alias: USB/IP Client Home Assistant Add-on Management
+alias: USB/IP Client Home Assistant App Management
 description: >-
-  Starts or stops add-ons when the USB/IP client is on/off, with an optional
+  Starts or stops apps when the USB/IP client is on/off, with an optional
   startup delay.
 triggers:
   - entity_id:
@@ -137,39 +137,39 @@ actions:
           - delay:
               seconds: "{{ start_delay }}"
           - repeat:
-              for_each: "{{ managed_addons }}"
+              for_each: "{{ managed_apps }}"
               sequence:
                 - if:
                     - condition: template
-                      value_template: "{{ is_state(repeat.item.addon_sensor, 'off') }}"
+                      value_template: "{{ is_state(repeat.item.app_sensor, 'off') }}"
                   then:
                     - data:
-                        addon: "{{ repeat.item.addon_slug }}"
+                        addon: "{{ repeat.item.app_slug }}"
                       action: hassio.addon_start
       - conditions:
           - condition: template
             value_template: "{{ trigger.id == 'usbip_stop' }}"
         sequence:
           - repeat:
-              for_each: "{{ managed_addons }}"
+              for_each: "{{ managed_apps }}"
               sequence:
                 - if:
                     - condition: template
-                      value_template: "{{ is_state(repeat.item.addon_sensor, 'on') }}"
+                      value_template: "{{ is_state(repeat.item.app_sensor, 'on') }}"
                   then:
                     - data:
-                        addon: "{{ repeat.item.addon_slug }}"
+                        addon: "{{ repeat.item.app_slug }}"
                       action: hassio.addon_stop
 mode: single
 variables:
   start_delay: 0
-  managed_addons:
-    - addon_name: Zigbee2MQTT
-      addon_sensor: binary_sensor.zigbee2mqtt_running
-      addon_slug: 45df7312_zigbee2mqtt
-    - addon_name: Z-Wave JS
-      addon_sensor: binary_sensor.zwave_js_running
-      addon_slug: core_zwave_js
+  managed_apps:
+    - app_name: Zigbee2MQTT
+      app_sensor: binary_sensor.zigbee2mqtt_running
+      app_slug: 45df7312_zigbee2mqtt
+    - app_name: Z-Wave JS
+      app_sensor: binary_sensor.zwave_js_running
+      app_slug: core_zwave_js
 
 ```
 

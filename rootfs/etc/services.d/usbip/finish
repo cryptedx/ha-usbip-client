@@ -2,7 +2,7 @@
 # shellcheck disable=SC1008
 
 if [[ "${1}" -ne 0 ]] && [[ "${1}" -ne 256 ]]; then
-  bashio::log.warning "usbip crashed, halting add-on"
+  bashio::log.warning "usbip crashed, halting app"
   /run/s6/basedir/bin/halt
 fi
 

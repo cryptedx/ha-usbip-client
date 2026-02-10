@@ -1,7 +1,7 @@
 ARG BUILD_FROM
 FROM ${BUILD_FROM}
 
-# Install requirements for add-on
+# Install requirements for app
 RUN apk add --no-cache \
     kmod \
     linux-tools-usbip \

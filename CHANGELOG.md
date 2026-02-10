@@ -6,7 +6,7 @@
 
 - **Issue #11**: Multiple devices from the same server failing to attach due to race condition. Added configurable delay (`attach_delay`, default 2s) and retry logic (3 attempts per device) between consecutive attach operations.
 - **Issue #10**: Restored per-device server address support. Each device can now specify an optional `server` field to override the global `usbipd_server_address`, enabling attachment from multiple USB/IP servers simultaneously.
-- **Issue #9**: Unreliable device detachment on add-on stop. Rewrote detach logic to always query actual kernel state via `usbip port` instead of relying on fragile temp file / index-based port matching. Added blind detach fallback if port query fails.
+- **Issue #9**: Unreliable device detachment on app stop. Rewrote detach logic to always query actual kernel state via `usbip port` instead of relying on fragile temp file / index-based port matching. Added blind detach fallback if port query fails.
 
 ### Added
 
@@ -40,7 +40,7 @@
 
 ### Breaking Changes
 
-- **UPGRADE NOTE**: When upgrading from v0.1.x or earlier, you must completely reinstall the add-on (uninstall, activate "Also permanently delete this add-on's data" → install) for the new configuration format to take effect. Turn off protection mode. [Read more here about it](#security-considerations)
+- **UPGRADE NOTE**: When upgrading from v0.1.x or earlier, you must completely reinstall the app (uninstall, activate "Also permanently delete this app's data" → install) for the new configuration format to take effect. Turn off protection mode. [Read more here about it](#security-considerations)
 
 ## [0.1.3] - 2024-12-21
 
@@ -52,14 +52,14 @@
 
 ### Added
 
-- `log_level` option to configure the verbosity of the add-on logs.
+- `log_level` option to configure the verbosity of the app logs.
 - Enhanced scripts to respect the `log_level` setting for better debugging.
 
 ## [0.1.1] - 2024-10-09
 
 ### Added
 
-- `repository.yaml` file for Home Assistant add-on repository metadata, enabling add-on discovery and compatibility with Home Assistant.
+- `repository.yaml` file for Home Assistant app repository metadata, enabling app discovery and compatibility with Home Assistant.
 
 ## [0.1.0] - 2024-10-07
 

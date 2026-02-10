@@ -20,7 +20,7 @@ fi
 
 bashio::log.info ""
 bashio::log.info "-----------------------------------------------------------------------"
-bashio::log.info "-------------------- Starting USB/IP Client Add-on --------------------"
+bashio::log.info "-------------------- Starting USB/IP Client App --------------------"
 bashio::log.info "-----------------------------------------------------------------------"
 bashio::log.info ""
 
