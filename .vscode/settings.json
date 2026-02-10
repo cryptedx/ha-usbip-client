@@ -1,0 +1,46 @@
+{
+    "files.associations": {
+        "*.yaml": "home-assistant"
+    },
+    "actionButtons": {
+        "defaultColor": "#ffffff", // Default color for buttons (optional)
+        "loadNpmCommands": false, // Disable automatic npm commands
+        "commands": [
+            {
+                "name": "▶️ Start HA USBIP",
+                "singleInstance": true,
+                "focus": true,
+                "color": "green",
+                "command": "ha addons start local_ha_usbip_client"
+            },
+            {
+                "name": "🛑 Stop HA USBIP",
+                "singleInstance": true,
+                "focus": true,
+                "color": "red",
+                "command": "ha addons stop local_ha_usbip_client"
+            },
+            {
+                "name": "🔄 Restart HA USBIP",
+                "singleInstance": true,
+                "focus": true,
+                "color": "blue",
+                "command": "ha addons restart local_ha_usbip_client"
+            },
+            {
+                "name": "🛠️ Rebuild HA USBIP",
+                "singleInstance": true,
+                "focus": true,
+                "color": "orange",
+                "command": "ha addons rebuild local_ha_usbip_client"
+            },
+            {
+                "name": "📜 Logs HA USBIP (follow)",
+                "singleInstance": true,
+                "focus": true,
+                "color": "purple",
+                "command": "ha addons logs local_ha_usbip_client --follow"
+            }
+        ]
+    }
+}

@@ -14,6 +14,5 @@ __pycache__/
 *.img
 
 # Ignore VSCode settings
-.vscode/
 .aider*
 .github/*
