@@ -1,44 +1,89 @@
-#!/command/with-contenv bashio
-# shellcheck disable=SC1008
-bashio::config.require 'log_level'
-bashio::log.level "$(bashio::config 'log_level')"
+#!/command/with-contenv python3
+"""s6 service run script: Attach USB/IP devices and keep the service alive.
 
-bashio::log.info "Starting USB/IP devices attachment process."
+Reads the device manifest created by init_devices.py, remounts sysfs,
+attaches all devices, verifies attachment, and then sleeps forever
+(s6 will call ``finish`` if this process exits).
+"""
 
-# Run the attach device script
-bashio::log.info "Running the mount_devices script."
-mount_exit_code=0
-/usr/local/bin/mount_devices || mount_exit_code=$?
+import signal
+import sys
+import time
 
-# Check actual attachment status via usbip port (with brief delay for kernel to settle)
-sleep 1
-attached_devices=0
-device_info_file="/tmp/attached_devices.txt"
-rm -f "$device_info_file"
+from usbip_lib.config import get_addon_config
+from usbip_lib.events import write_event
+from usbip_lib.logging_setup import setup_logging
+from usbip_lib.usbip import (
+    attach_all_from_manifest,
+    parse_usbip_port,
+    read_device_manifest,
+    remount_sysfs,
+    write_attached_devices_file,
+)
 
-if ports_output=$(usbip port 2>/dev/null); then
-    # Log each attached port
-    while IFS= read -r port_line; do
-        port_num=$(echo "$port_line" | sed -E 's/^Port ([0-9]+):.*/\1/')
-        bashio::log.info "Attached device on port ${port_num}: $(echo "$port_line" | sed -E 's/^Port [0-9]+:\s*//')"
-        echo "${port_num}" >> "$device_info_file"
-        attached_devices=$((attached_devices + 1))
-    done <<< "$(echo "$ports_output" | grep -E '^Port [0-9]+')"
-fi
 
-if [ "$attached_devices" -eq 0 ]; then
-    bashio::log.error "No USB/IP devices were attached. Is the USB/IP server online and device(s) USB attached?"
-    echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"type\":\"attach_fail\",\"device\":\"\",\"server\":\"\",\"detail\":\"No devices attached during startup\"}" >> /tmp/usbip_events.jsonl
-elif [ "$mount_exit_code" -ne 0 ]; then
-    bashio::log.warning "${attached_devices} device(s) attached, but some devices failed. Check configuration and server."
-    echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"type\":\"attach_ok\",\"device\":\"\",\"server\":\"\",\"detail\":\"${attached_devices} device(s) attached (partial)\"}" >> /tmp/usbip_events.jsonl
-else
-    bashio::log.info "${attached_devices} device(s) successfully attached."
-    echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"type\":\"attach_ok\",\"device\":\"\",\"server\":\"\",\"detail\":\"${attached_devices} device(s) attached successfully\"}" >> /tmp/usbip_events.jsonl
-fi
+def main() -> int:
+    config = get_addon_config()
+    log_level = config.get("log_level", "info")
+    logger = setup_logging(log_level, name="usbip_run")
 
-bashio::log.info "🟢 USB/IP service has started"
+    logger.info("Starting USB/IP devices attachment process.")
 
-# Keep the service running
-bashio::log.info "🟢 Keeping service alive."
-exec sleep infinity
+    # Read the device manifest
+    manifest = read_device_manifest()
+    if not manifest:
+        logger.warning("No devices in manifest. Nothing to attach.")
+
+    # Remount sysfs (required for USB/IP in containers)
+    remount_sysfs()
+
+    # Attach all devices
+    succeeded, failed = attach_all_from_manifest(manifest)
+
+    # Verify via usbip port
+    time.sleep(1)
+    attached = parse_usbip_port()
+    attached_count = len(attached)
+
+    # Write port numbers to file
+    port_numbers = [d["port"] for d in attached]
+    write_attached_devices_file(port_numbers)
+
+    # Log results and write events
+    if attached_count == 0:
+        logger.error(
+            "No USB/IP devices were attached. "
+            "Is the USB/IP server online and device(s) USB attached?"
+        )
+        write_event("attach_fail", "No devices attached during startup")
+    elif failed > 0:
+        logger.warning(
+            "%d device(s) attached, but some devices failed. "
+            "Check configuration and server.",
+            attached_count,
+        )
+        write_event("attach_ok", f"{attached_count} device(s) attached (partial)")
+    else:
+        logger.info("%d device(s) successfully attached.", attached_count)
+        write_event("attach_ok", f"{attached_count} device(s) attached successfully")
+
+    # Log each attached device
+    for d in attached:
+        logger.info(
+            "Attached device on port %d: %s", d["port"], d.get("info", "")
+        )
+
+    logger.info("\U0001f7e2 USB/IP service has started")
+    logger.info("\U0001f7e2 Keeping service alive.")
+
+    # Keep the service running — s6 will restart if this exits
+    try:
+        while True:
+            signal.pause()
+    except KeyboardInterrupt:
+        pass
+
+    return 0
+
+
+sys.exit(main())

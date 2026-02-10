@@ -19,9 +19,15 @@
 - **Terminal Themes**: 5 color schemes (Green, Amber, Blue, Dracula, Matrix) with CRT scanline effect.
 - **Bulk Operations**: Attach-all / Detach-all buttons with selective multi-device operations.
 - **Event Logging**: JSONL-based event log at `/tmp/usbip_events.jsonl` written by init, service, and cleanup scripts.
+- **Python shared library** (`usbip_lib`): Reusable package for USB/IP operations, config, events, and logging.
+- **Test suite**: 114 pytest tests (unit + integration) with 92% library coverage.
 
 ### Changed
 
+- **All shell scripts replaced with Python**: `load_modules`, `init_devices`, `detach_devices`, and all s6 `run`/`finish` scripts.
+  - Shared logic extracted to `rootfs/usr/local/lib/usbip_lib/` (constants, logging, events, config, usbip modules).
+  - Generated bash `mount_devices` script replaced by JSON device manifest (`/tmp/device_manifest.json`).
+  - WebUI (`app.py`) refactored to use the shared library, removing ~150 lines of duplicated helpers.
 - Version bump to 0.4.0-beta.
 - Dockerfile now installs Python 3, Flask, Flask-SocketIO, and gevent for the WebUI backend.
 - Added s6 service `webui` for the Flask web server (runs alongside existing `usbip` service).

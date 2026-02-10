@@ -1,9 +1,24 @@
-#!/command/with-contenv bashio
-# shellcheck disable=SC1008
+#!/command/with-contenv python3
+"""s6 service finish script: Handle usbip service exit.
 
-if [[ "${1}" -ne 0 ]] && [[ "${1}" -ne 256 ]]; then
-  bashio::log.warning "usbip crashed, halting app"
-  /run/s6/basedir/bin/halt
-fi
+If the service crashed (non-zero exit code, excluding 256), halt the
+entire container. Otherwise, s6 will automatically restart the service.
+"""
 
-bashio::log.info "usbip stopped, restarting..."
+import logging
+import os
+import sys
+
+logger = logging.getLogger("usbip_finish")
+handler = logging.StreamHandler(sys.stdout)
+handler.setFormatter(logging.Formatter("[%(name)s] %(levelname)s: %(message)s"))
+logger.addHandler(handler)
+logger.setLevel(logging.INFO)
+
+exit_code = int(sys.argv[1]) if len(sys.argv) > 1 else 0
+
+if exit_code != 0 and exit_code != 256:
+    logger.warning("usbip crashed (exit code %d), halting app", exit_code)
+    os.execv("/run/s6/basedir/bin/halt", ["/run/s6/basedir/bin/halt"])
+else:
+    logger.info("usbip stopped, restarting...")

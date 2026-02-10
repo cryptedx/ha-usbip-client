@@ -1,7 +1,17 @@
-#!/command/with-contenv bashio
-# shellcheck disable=SC1008
+#!/command/with-contenv python3
+"""s6 service finish script: Log WebUI exit.
 
-bashio::log.info "WebUI service stopped (exit code: ${1})"
+Does NOT halt the container — s6 will automatically restart the service.
+"""
 
-# Don't halt the entire app if the WebUI crashes
-# s6 will automatically restart it
+import logging
+import sys
+
+logger = logging.getLogger("webui_finish")
+handler = logging.StreamHandler(sys.stdout)
+handler.setFormatter(logging.Formatter("[%(name)s] %(levelname)s: %(message)s"))
+logger.addHandler(handler)
+logger.setLevel(logging.INFO)
+
+exit_code = sys.argv[1] if len(sys.argv) > 1 else "unknown"
+logger.info("WebUI service stopped (exit code: %s)", exit_code)

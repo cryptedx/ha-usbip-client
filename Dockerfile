@@ -18,8 +18,11 @@ RUN apk add --no-cache \
 # Copy root filesystem
 COPY rootfs /
 
+# Make usbip_lib importable from all scripts
+ENV PYTHONPATH=/usr/local/lib
+
 # Ensure scripts are executable
-RUN chmod +x /etc/cont-init.d/*.sh \
-    && chmod +x /etc/cont-finish.d/*.sh \
+RUN chmod +x /etc/cont-init.d/*.py \
+    && chmod +x /etc/cont-finish.d/*.py \
     && chmod +x /etc/services.d/*/run \
     && chmod +x /etc/services.d/*/finish

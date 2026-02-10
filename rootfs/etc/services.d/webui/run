@@ -1,6 +1,16 @@
-#!/command/with-contenv bashio
-# shellcheck disable=SC1008
+#!/command/with-contenv python3
+"""s6 service run script: Launch the Flask WebUI."""
 
-bashio::log.info "Starting WebUI service on port 8099..."
+import logging
+import os
+import sys
 
-exec python3 /usr/local/bin/webui/app.py
+logger = logging.getLogger("webui_run")
+handler = logging.StreamHandler(sys.stdout)
+handler.setFormatter(logging.Formatter("[%(name)s] %(levelname)s: %(message)s"))
+logger.addHandler(handler)
+logger.setLevel(logging.INFO)
+
+logger.info("Starting WebUI service on port 8099...")
+
+os.execvp("python3", ["python3", "/usr/local/bin/webui/app.py"])
