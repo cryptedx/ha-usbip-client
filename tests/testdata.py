@@ -61,7 +61,9 @@ SAMPLE_ADDON_CONFIG = {
         {"name": "Z-Wave Stick", "device_or_bus_id": "0658:0200"},
         {"name": "Zigbee Stick", "device_or_bus_id": "1-1.3"},
     ],
-}
+    # Default logging behavior for UI auto-scroll
+    "log_auto_scroll": "when_not_paused",
+} 
 
 SAMPLE_SUPERVISOR_INFO_RESPONSE = {
     "result": "ok",

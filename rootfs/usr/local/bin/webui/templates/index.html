@@ -191,6 +191,19 @@
             </select>
           </div>
           <div class="form-group">
+            <label>Log Auto-Scroll:</label>
+            <select id="cfg-log-auto-scroll" aria-describedby="cfg-log-autoscroll-hint">
+              <option value="when_not_paused">When not paused</option>
+              <option value="always">Always</option>
+            </select>
+            <span class="dim hint" tabindex="0" role="button" id="cfg-log-autoscroll-hint" aria-label="Log auto-scroll help">ℹ
+              <span class="tooltip" role="tooltip">
+                <strong>When not paused:</strong> Auto-scrolls only if logs are not paused.<br>
+                <strong>Always:</strong> Always scroll to newest logs when the Logs tab is active.
+              </span>
+            </span>
+          </div>
+          <div class="form-group">
             <label>Server Address:</label>
             <input type="text" id="cfg-server" placeholder="192.168.1.44">
           </div>

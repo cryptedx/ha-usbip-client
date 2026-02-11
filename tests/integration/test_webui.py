@@ -161,9 +161,16 @@ class TestApiConfig:
         data = resp.get_json()
         assert data["ok"] is True
         assert "config" in data
+        # New default should be present
+        assert data["config"].get("log_auto_scroll") == "when_not_paused"
 
     def test_set(self, client, mock_usbip_env):
         resp = client.post("/api/config", json={"log_level": "debug"})
+        data = resp.get_json()
+        assert data["ok"] is True
+
+    def test_set_auto_scroll(self, client, mock_usbip_env):
+        resp = client.post("/api/config", json={"log_auto_scroll": "always"})
         data = resp.get_json()
         assert data["ok"] is True
 

@@ -11,40 +11,40 @@
                 "singleInstance": true,
                 "focus": true,
                 "color": "green",
-                "command": "ha addons start local_ha_usbip_client"
+                "command": "ha apps start local_ha_usbip_client"
             },
             {
                 "name": "🛑 Stop HA USBIP",
                 "singleInstance": true,
                 "focus": true,
                 "color": "red",
-                "command": "ha addons stop local_ha_usbip_client"
+                "command": "ha apps stop local_ha_usbip_client"
             },
             {
                 "name": "🔄 Restart HA USBIP",
                 "singleInstance": true,
                 "focus": true,
                 "color": "blue",
-                "command": "ha addons restart local_ha_usbip_client"
+                "command": "ha apps restart local_ha_usbip_client"
             },
             {
                 "name": "🛠️ Rebuild HA USBIP",
                 "singleInstance": true,
                 "focus": true,
                 "color": "orange",
-                "command": "ha addons rebuild local_ha_usbip_client"
+                "command": "ha apps rebuild local_ha_usbip_client"
             },
             {
                 "name": "📜 Logs HA USBIP (follow)",
                 "singleInstance": true,
                 "focus": true,
                 "color": "purple",
-                "command": "ha addons logs local_ha_usbip_client --follow"
+                "command": "ha apps logs local_ha_usbip_client --follow"
             }
         ]
     },
-    "python.analysis.extraPaths": [
-        "rootfs/usr/local/lib"
-    ],
+
+    // NOTE: Configure `extraPaths` in `pyrightconfig.json` (do not set
+    // `python.analysis.extraPaths` here when `pyrightconfig.json` is present)
     "python.defaultInterpreterPath": "/usr/bin/python3"
 }

@@ -41,6 +41,10 @@ options:
       device_or_bus_id: "0658:0200"
     - name: "Silicon Labs : CP210x UART Bridge"
       device_or_bus_id: "10c4:ea60"
+  # Auto-scroll behavior for Logs page
+  # 'when_not_paused' = scroll when logs are not paused (default)
+  # 'always' = always scroll to bottom when new logs arrive or when switching to Logs tab
+  log_auto_scroll: when_not_paused
 schema:
   log_level: list(trace|debug|info|notice|warning|error|fatal)
   usbipd_server_address: str
@@ -55,3 +59,4 @@ schema:
     - name: str
       device_or_bus_id: str
       server: "str?"
+  log_auto_scroll: list(when_not_paused|always)

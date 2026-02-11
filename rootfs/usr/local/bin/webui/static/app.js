@@ -6,6 +6,8 @@ const API = INGRESS_PATH;
 let logPaused = false;
 let logFilter = 'all';
 let allLogLines = []; // master unfiltered log buffer
+// Controls whether the logs auto-scroll: 'when_not_paused' or 'always'
+let logAutoScroll = 'when_not_paused';
 
 // ---- Themes ----
 const THEMES = ['green', 'amber', 'blue', 'dracula', 'matrix'];
@@ -35,6 +37,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Start log polling immediately
     fetchAndUpdateLogs();
     setInterval(() => { if (!logPaused) fetchAndUpdateLogs(); }, 4000);
+
+    // Initialize tooltip tap/click behavior for touch devices
+    initTooltips();
 });
 
 // ---- Clock ----
@@ -62,7 +67,12 @@ function initTabs() {
             if (tab === 'dashboard') refreshDashboard();
             else if (tab === 'devices') refreshDevices();
             else if (tab === 'events') refreshEvents();
-            else if (tab === 'logs') fetchInitialLogs();
+            else if (tab === 'logs') {
+                fetchInitialLogs().then(() => {
+                    // Ensure we scroll to the latest logs when switching to Logs tab
+                    scrollLogToBottom('log-terminal');
+                });
+            }
         });
     });
 }
@@ -331,6 +341,14 @@ async function fetchAndUpdateLogs() {
     // Apply client-side filter for the main Logs tab
     const filtered = getFilteredLines(allLogLines);
     renderLogTerminal('log-terminal', filtered);
+    // If the Logs tab is active, ensure we're scrolled to latest based on preference
+    const logsTab = document.getElementById('tab-logs');
+    const logsVisible = logsTab && logsTab.classList.contains('active');
+    if (logsVisible) {
+        if (logAutoScroll === 'always' || (logAutoScroll === 'when_not_paused' && !logPaused)) {
+            scrollLogToBottom('log-terminal');
+        }
+    }
 }
 
 function getFilteredLines(lines) {
@@ -375,8 +393,10 @@ function renderLogTerminal(elementId, lines) {
     el.innerHTML = '';
     el.appendChild(fragment);
 
-    // Auto-scroll
-    if (!logPaused) el.scrollTop = el.scrollHeight;
+    // Auto-scroll: only when Logs tab is visible and not paused
+    const logsTab = document.getElementById('tab-logs');
+    const logsVisible = logsTab && logsTab.classList.contains('active');
+    if (!logPaused && logsVisible) scrollLogToBottom('log-terminal');
 }
 
 function getLogLevelClass(line) {
@@ -388,6 +408,17 @@ function getLogLevelClass(line) {
     if (lower.includes(' debug')) return 'level-debug';
     if (lower.includes(' trace')) return 'level-trace';
     return '';
+}
+
+function scrollLogToBottom(elementId = 'log-terminal') {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    // Element might have been hidden prior to activation; wait for layout to settle
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            el.scrollTop = el.scrollHeight;
+        });
+    });
 }
 
 async function fetchInitialLogs() {
@@ -578,6 +609,60 @@ function esc(str) {
     d.textContent = str;
     return d.innerHTML;
 }
+
+// ---------------------------------------------------------------------------
+// Tooltips: enable tap-to-toggle on touch devices and accessible hide-on-outside/Escape
+// ---------------------------------------------------------------------------
+function initTooltips() {
+    // Toggle tooltip visibility on click/tap
+    document.querySelectorAll('.hint').forEach(h => {
+        h.setAttribute('aria-expanded', 'false');
+        // Click/tap handler
+        h.addEventListener('click', (ev) => {
+            // Toggle visible state
+            const visible = h.classList.toggle('tooltip-visible');
+            h.setAttribute('aria-expanded', visible ? 'true' : 'false');
+            // Close other tooltips
+            if (visible) {
+                document.querySelectorAll('.hint.tooltip-visible').forEach(other => {
+                    if (other !== h) {
+                        other.classList.remove('tooltip-visible');
+                        other.setAttribute('aria-expanded', 'false');
+                    }
+                });
+            }
+            // Prevent click from bubbling to document handler immediately
+            ev.stopPropagation();
+        });
+
+        // Close tooltip when it loses focus (keyboard users)
+        h.addEventListener('blur', () => {
+            h.classList.remove('tooltip-visible');
+            h.setAttribute('aria-expanded', 'false');
+        });
+    });
+
+    // Click outside closes any visible tooltips
+    document.addEventListener('click', (ev) => {
+        if (!ev.target.closest('.hint')) {
+            document.querySelectorAll('.hint.tooltip-visible').forEach(h => {
+                h.classList.remove('tooltip-visible');
+                h.setAttribute('aria-expanded', 'false');
+            });
+        }
+    });
+
+    // Escape closes tooltips
+    document.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Escape') {
+            document.querySelectorAll('.hint.tooltip-visible').forEach(h => {
+                h.classList.remove('tooltip-visible');
+                h.setAttribute('aria-expanded', 'false');
+            });
+        }
+    });
+}
+
 
 // ---- Dependent Add-ons ----
 let _selectedDependentAddons = []; // current selection
