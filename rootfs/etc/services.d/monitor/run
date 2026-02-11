@@ -1,0 +1,323 @@
+#!/command/with-contenv python3
+"""s6 service run script: Monitor USB/IP devices and dependent add-ons.
+
+Periodically checks that all expected USB/IP devices are still attached.
+If a device is lost, attempts auto-reattach and notifies the user via
+Home Assistant persistent notifications. Also monitors the health of
+configured dependent add-ons and restarts them after successful reattach.
+"""
+
+import json
+import logging
+import os
+import signal
+import sys
+import time
+
+from usbip_lib.config import (
+    get_addon_config,
+    get_addon_state,
+    restart_addon,
+    send_ha_notification,
+)
+from usbip_lib.constants import DEVICE_MANIFEST_FILE
+from usbip_lib.events import write_event
+from usbip_lib.logging_setup import setup_logging
+from usbip_lib.usbip import (
+    attach_device,
+    parse_usbip_port,
+    read_device_manifest,
+)
+
+
+# Per-device cooldown tracking: bus_id -> last_notification_time
+_notification_cooldowns: dict[str, float] = {}
+COOLDOWN_SECONDS = 300  # 5 minutes
+
+# Track previous addon health to avoid repeated alerts
+_addon_health_prev: dict[str, str] = {}
+
+
+def _is_on_cooldown(device_key: str) -> bool:
+    """Check if a device notification is within the cooldown window."""
+    last = _notification_cooldowns.get(device_key, 0)
+    return (time.monotonic() - last) < COOLDOWN_SECONDS
+
+
+def _set_cooldown(device_key: str) -> None:
+    """Record that a notification was sent for a device."""
+    _notification_cooldowns[device_key] = time.monotonic()
+
+
+def _find_missing_devices(
+    manifest: list[dict], attached: list[dict]
+) -> list[dict]:
+    """Compare manifest against currently attached devices.
+
+    Returns list of manifest entries that are NOT found in attached devices.
+    Matching is done by server + bus_id.
+    """
+    attached_set = set()
+    for d in attached:
+        server = d.get("server", "")
+        remote_busid = d.get("remote_busid", "")
+        if server and remote_busid:
+            attached_set.add((server, remote_busid))
+
+    missing = []
+    for dev in manifest:
+        key = (dev.get("server", ""), dev.get("bus_id", ""))
+        if key not in attached_set:
+            missing.append(dev)
+    return missing
+
+
+def _attempt_reattach(
+    device: dict, retries: int, logger: logging.Logger
+) -> bool:
+    """Try to reattach a lost device.
+
+    Args:
+        device: Manifest entry dict with server, bus_id, name, delay.
+        retries: Max number of attach retries.
+        logger: Logger instance.
+
+    Returns:
+        True if reattach succeeded.
+    """
+    server = device["server"]
+    bus_id = device["bus_id"]
+    name = device.get("name", bus_id)
+    delay = device.get("delay", 2)
+
+    logger.info("Attempting reattach of %s (%s) from %s", name, bus_id, server)
+    write_event("reattach_attempt", f"Reattaching {name}", device=name, server=server)
+
+    ok = attach_device(
+        server=server,
+        bus_id=bus_id,
+        device_name=name,
+        retries=retries,
+        delay=delay,
+    )
+
+    if ok:
+        logger.info("Successfully reattached %s (%s)", name, bus_id)
+        write_event("reattach_ok", f"Reattached {name}", device=name, server=server)
+    else:
+        logger.error("Failed to reattach %s (%s) after %d retries", name, bus_id, retries)
+        write_event("reattach_fail", f"Reattach failed for {name}", device=name, server=server)
+
+    return ok
+
+
+def _restart_dependent_addons(
+    dependent_addons: list[dict], restart_retries: int, logger: logging.Logger
+) -> None:
+    """Restart all configured dependent add-ons.
+
+    Args:
+        dependent_addons: List of dicts with 'name' and 'slug' keys.
+        restart_retries: Max restart attempts per add-on.
+        logger: Logger instance.
+    """
+    for addon in dependent_addons:
+        slug = addon.get("slug", "")
+        name = addon.get("name", slug)
+        if not slug:
+            continue
+
+        for attempt in range(1, restart_retries + 1):
+            logger.info(
+                "Restarting %s (%s) — attempt %d/%d",
+                name, slug, attempt, restart_retries,
+            )
+            ok = restart_addon(slug)
+            if ok:
+                logger.info("Successfully restarted %s", name)
+                write_event("addon_restart_ok", f"Restarted {name}", device=name)
+                send_ha_notification(
+                    "USB/IP: Add-on Restarted",
+                    f"{name} was restarted after USB device recovery.",
+                )
+                break
+            logger.warning("Restart attempt %d/%d failed for %s", attempt, restart_retries, name)
+            if attempt < restart_retries:
+                time.sleep(5)
+        else:
+            logger.error("Failed to restart %s after %d attempts", name, restart_retries)
+            write_event("addon_restart_fail", f"Failed to restart {name}", device=name)
+            send_ha_notification(
+                "USB/IP: Add-on Restart Failed",
+                f"Could not restart {name} ({slug}) after {restart_retries} attempts.",
+            )
+
+
+def _check_dependent_addon_health(
+    dependent_addons: list[dict], restart_retries: int, logger: logging.Logger
+) -> None:
+    """Check health of dependent add-ons and notify on state changes.
+
+    Args:
+        dependent_addons: List of dicts with 'name' and 'slug' keys.
+        restart_retries: Max restart attempts per add-on.
+        logger: Logger instance.
+    """
+    for addon in dependent_addons:
+        slug = addon.get("slug", "")
+        name = addon.get("name", slug)
+        if not slug:
+            continue
+
+        state = get_addon_state(slug)
+        prev = _addon_health_prev.get(slug, "started")
+
+        if state != "started" and prev == "started":
+            logger.warning("Dependent add-on %s (%s) is %s", name, slug, state)
+            write_event("addon_health_fail", f"{name} is {state}", device=name)
+            send_ha_notification(
+                "USB/IP: Dependent Add-on Down",
+                f"{name} ({slug}) state: {state}. USB device may have failed.",
+            )
+            # Restart add-on if it's in error state
+            if state == "error":
+                logger.info("Attempting to restart failed add-on %s (%s)", name, slug)
+                for attempt in range(1, restart_retries + 1):
+                    logger.info("Restarting %s (%s) — attempt %d/%d", name, slug, attempt, restart_retries)
+                    ok = restart_addon(slug)
+                    if ok:
+                        logger.info("Successfully restarted %s", name)
+                        write_event("addon_restart_ok", f"Restarted {name}", device=name)
+                        send_ha_notification(
+                            "USB/IP: Add-on Restarted",
+                            f"{name} was restarted due to error state.",
+                        )
+                        break
+                    logger.warning("Restart attempt %d/%d failed for %s", attempt, restart_retries, name)
+                    if attempt < restart_retries:
+                        time.sleep(5)
+                else:
+                    logger.error("Failed to restart %s after %d attempts", name, restart_retries)
+                    write_event("addon_restart_fail", f"Failed to restart {name}", device=name)
+                    send_ha_notification(
+                        "USB/IP: Add-on Restart Failed",
+                        f"Could not restart {name} ({slug}) after {restart_retries} attempts.",
+                    )
+        elif state == "started" and prev != "started":
+            logger.info("Dependent add-on %s (%s) recovered — now %s", name, slug, state)
+            write_event("addon_health_ok", f"{name} recovered", device=name)
+
+        _addon_health_prev[slug] = state
+
+
+def main() -> int:
+    config = get_addon_config()
+    log_level = config.get("log_level", "info")
+    logger = setup_logging(log_level, name="monitor")
+
+    monitor_interval = config.get("monitor_interval", 30)
+    reattach_retries = config.get("reattach_retries", 3)
+    restart_retries = config.get("restart_retries", 3)
+
+    logger.info(
+        "Monitor service started (interval=%ds, reattach_retries=%d, restart_retries=%d)",
+        monitor_interval, reattach_retries, restart_retries,
+    )
+
+    # Wait for the usbip service to do its initial attach
+    logger.debug("Waiting 15s for initial device attachment to complete...")
+    time.sleep(15)
+
+    while True:
+        try:
+            # Re-read config each cycle to pick up changes from WebUI
+            config = get_addon_config()
+            dependent_addons = config.get("dependent_addons", [])
+
+            # Read manifest to know expected devices
+            manifest = read_device_manifest()
+            if not manifest:
+                logger.debug("No device manifest found — nothing to monitor.")
+                time.sleep(monitor_interval)
+                continue
+
+            # Get currently attached devices
+            attached = parse_usbip_port()
+            logger.debug(
+                "Monitor check: %d expected, %d attached",
+                len(manifest), len(attached),
+            )
+
+            # Detect missing devices
+            missing = _find_missing_devices(manifest, attached)
+
+            if missing:
+                logger.warning(
+                    "%d device(s) missing: %s",
+                    len(missing),
+                    ", ".join(d.get("name", d["bus_id"]) for d in missing),
+                )
+
+                reattached_any = False
+
+                for dev in missing:
+                    bus_id = dev.get("bus_id", "")
+                    name = dev.get("name", bus_id)
+                    device_key = f"{dev.get('server', '')}:{bus_id}"
+
+                    # Notify (with cooldown)
+                    if not _is_on_cooldown(device_key):
+                        send_ha_notification(
+                            "USB/IP: Device Lost",
+                            f"{name} ({bus_id}) from {dev.get('server', '?')} is no longer attached. "
+                            f"Attempting reattach...",
+                        )
+                        write_event(
+                            "device_lost",
+                            f"{name} lost",
+                            device=name,
+                            server=dev.get("server", ""),
+                        )
+                        _set_cooldown(device_key)
+
+                    # Attempt reattach
+                    ok = _attempt_reattach(dev, reattach_retries, logger)
+                    if ok:
+                        reattached_any = True
+                        send_ha_notification(
+                            "USB/IP: Device Recovered",
+                            f"{name} ({bus_id}) was successfully reattached.",
+                        )
+                        write_event(
+                            "device_recovered",
+                            f"{name} recovered",
+                            device=name,
+                            server=dev.get("server", ""),
+                        )
+                    else:
+                        if not _is_on_cooldown(f"fail:{device_key}"):
+                            send_ha_notification(
+                                "USB/IP: Reattach Failed",
+                                f"Could not reattach {name} ({bus_id}) after "
+                                f"{reattach_retries} attempts. Manual intervention required.",
+                            )
+                            _set_cooldown(f"fail:{device_key}")
+
+                # Restart dependent addons after successful reattach
+                if reattached_any and dependent_addons:
+                    logger.info("Restarting dependent add-ons after device recovery...")
+                    _restart_dependent_addons(dependent_addons, restart_retries, logger)
+            else:
+                logger.debug("All %d expected device(s) are attached.", len(manifest))
+
+            # Check dependent addon health regardless of device status
+            if dependent_addons:
+                _check_dependent_addon_health(dependent_addons, restart_retries, logger)
+
+        except Exception:
+            logger.exception("Monitor loop error")
+
+        time.sleep(monitor_interval)
+
+
+sys.exit(main())

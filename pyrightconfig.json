@@ -1,0 +1,16 @@
+{
+  "extraPaths": [
+    "rootfs/usr/local/lib"
+  ],
+  "include": [
+    "rootfs/usr/local/lib",
+    "rootfs/usr/local/bin/webui",
+    "rootfs/etc/services.d/monitor",
+    "rootfs/etc/services.d/webui",
+    "tests"
+  ],
+  "pythonPath": "/usr/bin/python3",
+  "typeCheckingMode": "basic",
+  "reportMissingImports": true,
+  "reportMissingTypeStubs": false
+}

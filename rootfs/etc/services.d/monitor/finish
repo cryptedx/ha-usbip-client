@@ -1,0 +1,17 @@
+#!/command/with-contenv python3
+"""s6 service finish script: Log monitor service exit.
+
+Does NOT halt the container — s6 will automatically restart the service.
+"""
+
+import logging
+import sys
+
+logger = logging.getLogger("monitor_finish")
+handler = logging.StreamHandler(sys.stdout)
+handler.setFormatter(logging.Formatter("[%(name)s] %(levelname)s: %(message)s"))
+logger.addHandler(handler)
+logger.setLevel(logging.INFO)
+
+exit_code = sys.argv[1] if len(sys.argv) > 1 else "unknown"
+logger.info("Monitor service stopped (exit code: %s)", exit_code)

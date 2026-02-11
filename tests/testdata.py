@@ -53,6 +53,10 @@ SAMPLE_ADDON_CONFIG = {
     "log_level": "info",
     "usbipd_server_address": "192.168.1.44",
     "attach_delay": 2,
+    "monitor_interval": 30,
+    "reattach_retries": 3,
+    "restart_retries": 3,
+    "dependent_addons": [],
     "devices": [
         {"name": "Z-Wave Stick", "device_or_bus_id": "0658:0200"},
         {"name": "Zigbee Stick", "device_or_bus_id": "1-1.3"},
@@ -95,3 +99,30 @@ SAMPLE_DEVICE_MANIFEST = [
         "retries": 3,
     },
 ]
+
+SAMPLE_ADDONS_LIST_RESPONSE = {
+    "result": "ok",
+    "data": {
+        "addons": [
+            {"slug": "45df7312_zigbee2mqtt", "name": "Zigbee2MQTT", "state": "started"},
+            {"slug": "core_zwave_js", "name": "Z-Wave JS", "state": "started"},
+            {"slug": "core_mosquitto", "name": "Mosquitto", "state": "stopped"},
+            {"slug": "local_ha_usbip_client", "name": "HA USB/IP Client", "state": "started"},
+        ]
+    },
+}
+
+SAMPLE_ADDON_INFO_RESPONSE_STARTED = {
+    "result": "ok",
+    "data": {"state": "started", "slug": "45df7312_zigbee2mqtt", "name": "Zigbee2MQTT"},
+}
+
+SAMPLE_ADDON_INFO_RESPONSE_STOPPED = {
+    "result": "ok",
+    "data": {"state": "stopped", "slug": "core_zwave_js", "name": "Z-Wave JS"},
+}
+
+SAMPLE_ADDON_RESTART_RESPONSE = {
+    "result": "ok",
+    "data": {},
+}

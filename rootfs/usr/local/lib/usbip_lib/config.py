@@ -91,3 +91,60 @@ def send_ha_notification(
         token=token,
         base_url=base_url,
     )
+
+
+# ---------------------------------------------------------------------------
+# Add-on management (dependent containers)
+# ---------------------------------------------------------------------------
+def list_installed_addons(
+    token: str = SUPERVISOR_TOKEN, base_url: str = SUPERVISOR_URL
+) -> list[dict]:
+    """List all installed Home Assistant add-ons.
+
+    Returns:
+        List of dicts with keys: slug, name, state.
+    """
+    resp = supervisor_request("GET", "/addons", token=token, base_url=base_url)
+    if resp.get("result") != "ok":
+        return []
+    addons = resp.get("data", {}).get("addons", [])
+    return [
+        {"slug": a.get("slug", ""), "name": a.get("name", ""), "state": a.get("state", "unknown")}
+        for a in addons
+    ]
+
+
+def get_addon_state(
+    slug: str,
+    token: str = SUPERVISOR_TOKEN,
+    base_url: str = SUPERVISOR_URL,
+) -> str:
+    """Get the state of a specific add-on.
+
+    Args:
+        slug: Add-on slug (e.g., ``45df7312_zigbee2mqtt``).
+
+    Returns:
+        State string (``started``, ``stopped``, ``unknown``).
+    """
+    resp = supervisor_request("GET", f"/addons/{slug}/info", token=token, base_url=base_url)
+    if resp.get("result") == "ok":
+        return resp.get("data", {}).get("state", "unknown")
+    return "unknown"
+
+
+def restart_addon(
+    slug: str,
+    token: str = SUPERVISOR_TOKEN,
+    base_url: str = SUPERVISOR_URL,
+) -> bool:
+    """Restart a Home Assistant add-on.
+
+    Args:
+        slug: Add-on slug.
+
+    Returns:
+        True if restart was successful.
+    """
+    resp = supervisor_request("POST", f"/addons/{slug}/restart", token=token, base_url=base_url)
+    return resp.get("result") == "ok"

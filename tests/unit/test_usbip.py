@@ -120,6 +120,26 @@ class TestParseUsbipList:
         assert result == []
 
 
+class TestParseUsbipList:
+    def test_success(self, mocker):
+        mocker.patch(
+            "usbip_lib.usbip.run_cmd",
+            return_value=(0, SAMPLE_USBIP_LIST_OUTPUT, ""),
+        )
+        from usbip_lib.usbip import parse_usbip_list
+        result = parse_usbip_list("192.168.1.44")
+        assert len(result) == 2
+
+    def test_command_fails(self, mocker):
+        mocker.patch(
+            "usbip_lib.usbip.run_cmd",
+            return_value=(1, "", "error"),
+        )
+        from usbip_lib.usbip import parse_usbip_list
+        result = parse_usbip_list("192.168.1.44")
+        assert result == []
+
+
 # ---------------------------------------------------------------------------
 # Device ID helpers
 # ---------------------------------------------------------------------------
@@ -214,6 +234,16 @@ class TestLoadKernelModule:
             returncode=1, stdout="", stderr="module not found"
         )
         assert load_kernel_module("vhci-hcd") is False
+
+    def test_lsmod_fails_but_modprobe_ok(self, mocker):
+        mock_run = mocker.patch("usbip_lib.usbip.subprocess.run")
+        # modprobe succeeds, lsmod fails
+        mock_run.side_effect = [
+            mocker.Mock(returncode=0, stdout="", stderr=""),
+            mocker.Mock(returncode=1, stdout="", stderr="lsmod error"),
+        ]
+        # Should still return True since modprobe succeeded
+        assert load_kernel_module("vhci-hcd") is True
 
 
 # ---------------------------------------------------------------------------

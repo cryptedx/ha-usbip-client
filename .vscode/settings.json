@@ -42,5 +42,9 @@
                 "command": "ha addons logs local_ha_usbip_client --follow"
             }
         ]
-    }
+    },
+    "python.analysis.extraPaths": [
+        "rootfs/usr/local/lib"
+    ],
+    "python.defaultInterpreterPath": "/usr/bin/python3"
 }

@@ -2,6 +2,9 @@
 
 from .config import (
     get_addon_config,
+    get_addon_state,
+    list_installed_addons,
+    restart_addon,
     send_ha_notification,
     set_addon_config,
     supervisor_request,
@@ -43,6 +46,9 @@ from .usbip import (
 __all__ = [
     # config
     "get_addon_config",
+    "get_addon_state",
+    "list_installed_addons",
+    "restart_addon",
     "set_addon_config",
     "supervisor_request",
     "send_ha_notification",

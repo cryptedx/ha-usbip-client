@@ -146,6 +146,25 @@ async function refreshDashboard() {
         badge.className = 'badge badge-warn';
         badge.textContent = '○ NO DEVICES';
     }
+
+    // Dependent add-ons health
+    const addonsEl = document.getElementById('dash-addons');
+    const addonHealth = await api('/api/addon-health');
+    if (addonHealth.ok && addonHealth.addons && addonHealth.addons.length > 0) {
+        addonsEl.innerHTML = addonHealth.addons.map(a => {
+            const isUp = a.state === 'started';
+            const icon = isUp ? '●' : '○';
+            const cls = isUp ? 'badge-ok' : 'badge-error';
+            return `<div class="item">
+                <span>${icon} ${esc(a.name)}</span>
+                <span><span class="badge ${cls}">${esc(a.state.toUpperCase())}</span>
+                ${!isUp ? `<button class="btn btn-xs" onclick="restartAddon('${esc(a.slug)}','${esc(a.name)}')">RESTART</button>` : ''}
+                </span>
+            </div>`;
+        }).join('');
+    } else if (addonHealth.ok && addonHealth.addons && addonHealth.addons.length === 0) {
+        addonsEl.innerHTML = '<span class="dim">No dependent add-ons configured</span>';
+    }
 }
 
 // Auto-refresh dashboard every 15s when visible
@@ -460,6 +479,17 @@ async function loadConfig() {
     const container = document.getElementById('cfg-devices-list');
     container.innerHTML = '';
     (cfg.devices || []).forEach(d => addDeviceRow(d.name, d.device_or_bus_id, d.server || ''));
+
+    // Monitoring settings
+    const monInterval = document.getElementById('cfg-monitor-interval');
+    if (monInterval) monInterval.value = cfg.monitor_interval ?? 30;
+    const reattRetries = document.getElementById('cfg-reattach-retries');
+    if (reattRetries) reattRetries.value = cfg.reattach_retries ?? 3;
+    const restRetries = document.getElementById('cfg-restart-retries');
+    if (restRetries) restRetries.value = cfg.restart_retries ?? 3;
+
+    // Load dependent add-ons selection
+    loadDependentAddonsConfig(cfg.dependent_addons || []);
 }
 
 function addDeviceRow(name = '', devId = '', server = '') {
@@ -494,8 +524,17 @@ async function saveConfig() {
         log_level: document.getElementById('cfg-log-level').value,
         usbipd_server_address: document.getElementById('cfg-server').value.trim(),
         attach_delay: isNaN(delayVal) ? 2 : delayVal,
+        monitor_interval: parseInt(document.getElementById('cfg-monitor-interval')?.value) || 30,
+        reattach_retries: parseInt(document.getElementById('cfg-reattach-retries')?.value) || 3,
+        restart_retries: parseInt(document.getElementById('cfg-restart-retries')?.value) || 3,
         devices,
     };
+
+    // Preserve dependent_addons from current config (saved separately)
+    const curCfg = await api('/api/config');
+    if (curCfg.ok && curCfg.config) {
+        config.dependent_addons = curCfg.config.dependent_addons || [];
+    }
 
     toast('Saving configuration...');
     const data = await api('/api/config', { method: 'POST', body: JSON.stringify(config) });
@@ -538,4 +577,93 @@ function esc(str) {
     const d = document.createElement('div');
     d.textContent = str;
     return d.innerHTML;
+}
+
+// ---- Dependent Add-ons ----
+let _selectedDependentAddons = []; // current selection
+
+async function restartAddon(slug, name) {
+    toast(`Restarting ${name}...`);
+    const data = await api('/api/addon-restart', { method: 'POST', body: JSON.stringify({ slug }) });
+    toast(data.ok ? `${name} restarted` : `Restart failed`, data.ok ? '' : 'error');
+    refreshDashboard();
+}
+
+function loadDependentAddonsConfig(addons) {
+    _selectedDependentAddons = addons || [];
+    renderDependentAddonsList();
+}
+
+function renderDependentAddonsList() {
+    const el = document.getElementById('cfg-dependent-addons-list');
+    if (!el) return;
+    if (_selectedDependentAddons.length === 0) {
+        el.innerHTML = '<span class="dim">No add-ons selected. Click DISCOVER to find installed add-ons.</span>';
+        return;
+    }
+    el.innerHTML = _selectedDependentAddons.map((a, i) => `
+        <div class="device-row">
+            <input type="text" value="${esc(a.name)}" class="dep-addon-name" readonly>
+            <input type="text" value="${esc(a.slug)}" class="dep-addon-slug" readonly>
+            <button class="btn btn-xs btn-error" onclick="removeDependentAddon(${i})">\u2715</button>
+        </div>
+    `).join('');
+}
+
+function removeDependentAddon(index) {
+    _selectedDependentAddons.splice(index, 1);
+    renderDependentAddonsList();
+}
+
+async function loadAvailableAddons() {
+    toast('Discovering installed add-ons...');
+    const data = await api('/api/addons');
+    if (!data.ok || !data.addons) {
+        toast('Could not fetch add-ons', 'error');
+        return;
+    }
+    // Filter out self and show selection dialog
+    const available = data.addons.filter(a => a.slug !== 'local_ha_usbip_client' && a.slug !== 'ha_usbip_client');
+    if (available.length === 0) {
+        toast('No other add-ons found');
+        return;
+    }
+    // Build a selection overlay
+    const selectedSlugs = new Set(_selectedDependentAddons.map(a => a.slug));
+    const el = document.getElementById('cfg-dependent-addons-list');
+    el.innerHTML = `
+        <div style="max-height:300px;overflow-y:auto;border:1px solid var(--dim);padding:.5rem;margin-bottom:.5rem">
+        ${available.map(a => {
+        const checked = selectedSlugs.has(a.slug) ? 'checked' : '';
+        const stateClass = a.state === 'started' ? 'badge-ok' : 'badge-error';
+        return `<label style="display:flex;align-items:center;gap:.5rem;padding:.2rem 0;cursor:pointer">
+                <input type="checkbox" class="dep-addon-check" data-slug="${esc(a.slug)}" data-name="${esc(a.name)}" ${checked}>
+                <span>${esc(a.name)}</span>
+                <span class="badge ${stateClass}" style="font-size:.7rem">${esc(a.state)}</span>
+                <span class="dim" style="font-size:.7rem">${esc(a.slug)}</span>
+            </label>`;
+    }).join('')}
+        </div>
+        <button class="btn btn-sm" onclick="applyAddonSelection()">\u2713 APPLY SELECTION</button>
+    `;
+    toast(`Found ${available.length} add-on(s)`);
+}
+
+function applyAddonSelection() {
+    const checks = document.querySelectorAll('.dep-addon-check:checked');
+    _selectedDependentAddons = Array.from(checks).map(c => ({
+        name: c.dataset.name,
+        slug: c.dataset.slug,
+    }));
+    renderDependentAddonsList();
+    toast(`${_selectedDependentAddons.length} add-on(s) selected`);
+}
+
+async function saveDependentAddons() {
+    toast('Saving dependent add-ons...');
+    const data = await api('/api/dependent-addons', {
+        method: 'POST',
+        body: JSON.stringify({ dependent_addons: _selectedDependentAddons }),
+    });
+    toast(data.ok ? 'Dependent add-ons saved!' : 'Save failed', data.ok ? '' : 'error');
 }

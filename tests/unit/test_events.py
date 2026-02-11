@@ -86,3 +86,9 @@ class TestReadEvents:
         assert len(result) == 2
         assert result[0]["type"] == "good"
         assert result[1]["type"] == "also_good"
+
+    def test_handles_os_error(self, mocker, tmp_events_file):
+        # Mock open to raise OSError
+        mocker.patch("builtins.open", side_effect=OSError("Permission denied"))
+        result = read_events(events_file=tmp_events_file)
+        assert result == []

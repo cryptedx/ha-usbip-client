@@ -64,6 +64,12 @@
           </div>
         </div>
       </div>
+      <div class="panel-row">
+        <div class="panel full">
+          <h3>» Dependent Add-ons</h3>
+          <div id="dash-addons" class="mono-list"><span class="dim">No dependent add-ons configured</span></div>
+        </div>
+      </div>
     </section>
 
     <!-- ============ DEVICES TAB ============ -->
@@ -192,6 +198,19 @@
             <label>Attach Delay (s):</label>
             <input type="number" id="cfg-delay" min="0" max="30" value="2">
           </div>
+          <h4>» Monitoring</h4>
+          <div class="form-group">
+            <label>Monitor Interval (s):</label>
+            <input type="number" id="cfg-monitor-interval" min="10" max="300" value="30">
+          </div>
+          <div class="form-group">
+            <label>Reattach Retries:</label>
+            <input type="number" id="cfg-reattach-retries" min="0" max="10" value="3">
+          </div>
+          <div class="form-group">
+            <label>Restart Retries:</label>
+            <input type="number" id="cfg-restart-retries" min="0" max="10" value="3">
+          </div>
           <h4>» Devices</h4>
           <div id="cfg-devices-list"></div>
           <button class="btn btn-sm btn-dim" onclick="addDeviceRow()" style="margin-top:.5rem">+ ADD DEVICE</button>
@@ -210,6 +229,16 @@
           <button class="btn btn-dim" onclick="backupConfig()">⬇ EXPORT BACKUP</button>
           <button class="btn btn-dim" onclick="document.getElementById('restore-file').click()">⬆ IMPORT BACKUP</button>
           <input type="file" id="restore-file" accept=".json" style="display:none" onchange="restoreConfig(this)">
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>» Dependent Add-ons</h3>
+        <p class="dim" style="margin-bottom:.5rem">Select add-ons that depend on USB devices from this add-on. They will be monitored and restarted after device recovery.</p>
+        <div id="cfg-dependent-addons-list"></div>
+        <div class="btn-row" style="margin-top:.5rem">
+          <button class="btn btn-sm" onclick="loadAvailableAddons()">↻ DISCOVER ADD-ONS</button>
+          <button class="btn btn-sm" onclick="saveDependentAddons()">💾 SAVE SELECTION</button>
         </div>
       </div>
     </section>

@@ -21,12 +21,19 @@ Special thanks to [rogerfar](https://github.com/rogerfar) and [Rene-Sackers](htt
 - Connects to a remote USB/IP server.
 - Exposes remote USB devices for use in Home Assistant.
 - Configurable log levels for easier debugging.
+- **USB Device Monitoring**: Automatically detects lost USB devices and attempts reattachment with configurable retries and cooldowns.
+- **Auto-Reattach**: Failed devices are reattached automatically after disconnection, with notifications sent to Home Assistant.
+- **Dependent Add-on Health Monitoring**: Monitors the health of dependent add-ons (e.g., Zigbee2MQTT, Z-Wave JS) and restarts them if they enter error state.
+- **WebUI Dashboard**: Terminal-style web interface for device management, live logs, event timeline, and configuration editing.
+- **Network Server Discovery**: Scan subnet for available USB/IP servers.
+- **Bulk Operations**: Attach/detach all devices at once.
+- **Real-time Notifications**: Push notifications to Home Assistant on device events.
 
 ## Todo
 
 - [X] create webui where logs can be inspected live and devices, discovered/polled, attached, detached via a dropdown
-- [ ] How to check if other containers which rely on this are still healthy? 45df7312-zigbee2mqtt and core-zwave-js
-- [ ] Notify user if usb device has failed, etc.
+- [X] How to check if other containers which rely on this are still healthy? 45df7312-zigbee2mqtt and core-zwave-js
+- [X] Notify user if usb device has failed, etc.
 - [X] Change all shell scripts to Python for better error handling and maintainability
 
 ## Installation
@@ -54,6 +61,11 @@ The app requires the following configuration options:
 
 - **log_level**: (Optional) Sets the verbosity of the app logs. Default is `info`. Available options are `trace`, `debug`, `info`, `notice`, `warning`, `error`, `fatal`.
 - **usbipd_server_address**: The IP address of the USB/IP server.
+- **attach_delay**: (Optional) Delay in seconds between device attachment attempts. Default is `2`. Range: 0-30.
+- **monitor_interval**: (Optional) Interval in seconds for device health monitoring. Default is `30`. Range: 10-300.
+- **reattach_retries**: (Optional) Number of retries for device reattachment. Default is `3`. Range: 0-10.
+- **restart_retries**: (Optional) Number of retries for add-on restart. Default is `3`. Range: 0-10.
+- **dependent_addons**: (Optional) List of dependent add-ons to monitor and restart if they fail. Each entry has `name` and `slug`.
 - **devices**: A list of devices with the following options:
   - **name**: The name of the USB device.
   - **device_or_bus_id**: The bus ID or device ID of the USB device on the USB/IP server. Example: `1-1.1.3` or `0658:0200`.
@@ -63,6 +75,15 @@ Example configuration:
 ```yaml
 log_level: info
 usbipd_server_address: "192.168.1.44"
+attach_delay: 2
+monitor_interval: 30
+reattach_retries: 3
+restart_retries: 3
+dependent_addons:
+  - name: "Zigbee2MQTT"
+    slug: "45df7312_zigbee2mqtt"
+  - name: "Z-Wave JS"
+    slug: "core_zwave_js"
 devices:
   - name: "Zigbee Stick"
     device_or_bus_id: "1-1.1.3"

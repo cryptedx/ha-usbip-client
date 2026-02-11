@@ -12,6 +12,9 @@ from flask_socketio import SocketIO
 
 from usbip_lib.config import (
     get_addon_config,
+    get_addon_state,
+    list_installed_addons,
+    restart_addon,
     send_ha_notification,
     set_addon_config,
     supervisor_request,
@@ -436,6 +439,53 @@ def api_notify():
     message = data.get("message", "Test notification")
     send_ha_notification(title, message)
     return jsonify({"ok": True})
+
+
+@app.route("/api/addons")
+def api_addons():
+    """List all installed Home Assistant add-ons."""
+    addons = list_installed_addons()
+    return jsonify({"ok": True, "addons": addons})
+
+
+@app.route("/api/addon-health")
+def api_addon_health():
+    """Check health of configured dependent add-ons."""
+    config = get_addon_config()
+    dependent = config.get("dependent_addons", [])
+    results = []
+    for addon in dependent:
+        slug = addon.get("slug", "")
+        name = addon.get("name", slug)
+        if not slug:
+            continue
+        state = get_addon_state(slug)
+        results.append({"slug": slug, "name": name, "state": state})
+    return jsonify({"ok": True, "addons": results})
+
+
+@app.route("/api/addon-restart", methods=["POST"])
+def api_addon_restart():
+    """Restart a specific add-on by slug."""
+    data = request.get_json(force=True)
+    slug = data.get("slug", "").strip()
+    if not slug:
+        return jsonify({"ok": False, "error": "slug required"}), 400
+    ok = restart_addon(slug)
+    return jsonify({"ok": ok})
+
+
+@app.route("/api/dependent-addons", methods=["POST"])
+def api_dependent_addons_save():
+    """Save dependent add-ons selection to add-on config."""
+    data = request.get_json(force=True)
+    addons_list = data.get("dependent_addons", [])
+    config = get_addon_config()
+    config["dependent_addons"] = addons_list
+    resp = set_addon_config(config)
+    ok = resp.get("result") == "ok"
+    write_event("config_change", f"Updated dependent add-ons: {len(addons_list)} selected")
+    return jsonify({"ok": ok})
 
 
 @app.route("/api/logs")

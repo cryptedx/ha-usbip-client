@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.5.0-beta] - 2026-02-11
+
+### Added
+
+- **USB Device Monitoring**: Continuous monitoring of attached USB devices with automatic reattachment on failure.
+  - Configurable `monitor_interval` (10-300s, default 30s) for health check frequency.
+  - Configurable `reattach_retries` (0-10, default 3) for device reattachment attempts.
+  - Cooldown period (5 minutes) between failure notifications to prevent spam.
+  - Home Assistant notifications on device loss and recovery.
+- **Dependent Add-on Health Monitoring**: Monitors health of dependent add-ons and restarts them if they enter error state.
+  - Configurable `dependent_addons` list with `name` and `slug` for each add-on.
+  - Configurable `restart_retries` (0-10, default 3) for add-on restart attempts.
+  - Automatic restart of failed add-ons (e.g., Zigbee2MQTT, Z-Wave JS) with notifications.
+  - State change tracking to avoid repeated alerts for ongoing issues.
+- **Enhanced Monitor Service**: New s6 service (`monitor/run`) for background device and add-on health monitoring.
+  - Runs every `monitor_interval` seconds, checking device attachment and add-on states.
+  - Integrates with existing event logging and notification systems.
+- **Improved Error Handling**: Better handling of Supervisor API errors and device attachment failures.
+- **Test Coverage**: Increased test coverage to 93% (from 88%) with additional unit tests for error paths.
+
+### Changed
+
+- **Version Bump**: Updated to 0.5.0-beta to reflect new monitoring capabilities.
+- **README Updates**: Added documentation for new configuration options and features.
+- **Monitor Integration**: WebUI now displays dependent add-on health status and allows selection from discovered add-ons.
+
+### Fixed
+
+- **Dependent Add-on Restart**: Fixed issue where add-ons in error state were not automatically restarted. Now properly detects error states and attempts restart with retry logic.
+
 ## [0.4.0-beta] - 2026-02-10
 
 ### Added
