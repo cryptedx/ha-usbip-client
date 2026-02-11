@@ -51,6 +51,19 @@ Here are some screenshots of the WebUI and key features:
 - **Configuration editor**  
   ![Config][screenshot-config]
 
+## Fixes
+
+**Summary**
+
+| Severity | Count | Key points |
+|---|---:|---|
+| **Critical** | 2 | Removed duplicate test class; SIGTERM was not handled (services now correctly respond to SIGTERM) |
+| **High** | 4 | Fixed missing API authentication; resolved version inconsistencies between components; made the monitor module unit-testable; corrected CORS configuration* |
+| **Medium** | 10 | Fixed log de-duplication bug; resolved multiple race conditions; added missing tests; removed unnecessary capabilities |
+| **Low** | 8+ | Style fixes, updated outdated documentation, cleaned import patterns, removed unnecessary emojis |
+
+*Note: The CORS fix restricts allowed origins (e.g., local/ingress) and prevents insecure cross-origin requests.
+
 ## Todo
 
 - [X] create webui where logs can be inspected live and devices, discovered/polled, attached, detached via a dropdown

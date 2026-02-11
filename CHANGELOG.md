@@ -30,6 +30,17 @@
 
 - **Dependent Add-on Restart**: Fixed issue where add-ons in error state were not automatically restarted. Now properly detects error states and attempts restart with retry logic.
 
+**Summary of fixes**
+
+| Severity | Count | Key points |
+|---|---:|---|
+| **Critical** | 2 | Duplicate test class (duplicate tests removed); SIGTERM was swallowed (services now correctly handle SIGTERM) |
+| **High** | 4 | Missing API authentication; version inconsistency between components; monitor module not unit-testable; misconfigured CORS* |
+| **Medium** | 10 | Fixed log de-duplication bug; various race conditions resolved; added missing tests; removed unnecessary Linux capabilities |
+| **Low** | 8+ | Style fixes, updated outdated documentation, cleaned import patterns, removed extraneous emojis |
+
+*Note: The CORS fix restricts the allowed origins for the WebUI to safe values (e.g., localhost/ingress) and prevents unintended cross-origin requests.
+
 ## [0.4.0-beta] - 2026-02-10
 
 ### Added
