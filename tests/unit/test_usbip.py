@@ -1,6 +1,5 @@
 """Unit tests for usbip_lib.usbip module."""
 
-import json
 import subprocess
 
 import pytest

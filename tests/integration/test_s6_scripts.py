@@ -6,7 +6,6 @@ without actually running s6-overlay. All system calls are mocked.
 
 import json
 import os
-import sys
 
 import pytest
 
@@ -17,7 +16,6 @@ from testdata import (
     SAMPLE_SUPERVISOR_INFO_RESPONSE,
     SAMPLE_USBIP_LIST_OUTPUT,
     SAMPLE_USBIP_PORT_OUTPUT,
-    SAMPLE_USBIP_PORT_SINGLE,
 )
 
 

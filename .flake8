@@ -1,0 +1,7 @@
+[flake8]
+exclude = .venv,venv,__pycache__,docs,build,dist
+max-line-length = 88
+
+# Tests often import fixtures/constants that look unused to static checks
+per-file-ignores =
+    tests/*: F401
