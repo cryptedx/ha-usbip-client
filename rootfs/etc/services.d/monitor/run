@@ -7,10 +7,7 @@ Home Assistant persistent notifications. Also monitors the health of
 configured dependent add-ons and restarts them after successful reattach.
 """
 
-import json
 import logging
-import os
-import signal
 import sys
 import time
 
@@ -20,7 +17,6 @@ from usbip_lib.config import (
     restart_addon,
     send_ha_notification,
 )
-from usbip_lib.constants import DEVICE_MANIFEST_FILE
 from usbip_lib.events import write_event
 from usbip_lib.logging_setup import setup_logging
 from usbip_lib.usbip import (
