@@ -34,22 +34,22 @@ Special thanks to [rogerfar](https://github.com/rogerfar) and [Rene-Sackers](htt
 Here are some screenshots of the WebUI and key features:
 
 - **Dashboard**  
-  ![Dashboard](./docs/images/10-dashboard.png)
+  ![Dashboard][screenshot-dashboard]
 
 - **Devices list**  
-  ![Devices](./docs/images/20-devices.png)
+  ![Devices][screenshot-devices]
 
 - **Server discovery**  
-  ![Discovery](./docs/images/30-discovery.png)
+  ![Discovery][screenshot-discovery]
 
 - **Live logs**  
-  ![Logs](./docs/images/40-logs.png)
+  ![Logs][screenshot-logs]
 
 - **Event timeline**  
-  ![Events](./docs/images/50-events.png)
+  ![Events][screenshot-events]
 
 - **Configuration editor**  
-  ![Config](./docs/images/60-config.png)
+  ![Config][screenshot-config]
 
 ## Todo
 
@@ -247,3 +247,10 @@ This project is licensed under the MIT License.
 [armv7-shield]: https://img.shields.io/badge/armv7-yes-green.svg
 [i386-shield]: https://img.shields.io/badge/i386-yes-green.svg
 [maintenance-shield]: https://img.shields.io/maintenance/yes/2026.svg
+
+[screenshot-dashboard]: https://raw.githubusercontent.com/cryptedx/ha-usbip-client/main/docs/images/10-dashboard.png
+[screenshot-devices]: https://raw.githubusercontent.com/cryptedx/ha-usbip-client/main/docs/images/20-devices.png
+[screenshot-discovery]: https://raw.githubusercontent.com/cryptedx/ha-usbip-client/main/docs/images/30-discovery.png
+[screenshot-logs]: https://raw.githubusercontent.com/cryptedx/ha-usbip-client/main/docs/images/40-logs.png
+[screenshot-events]: https://raw.githubusercontent.com/cryptedx/ha-usbip-client/main/docs/images/50-events.png
+[screenshot-config]: https://raw.githubusercontent.com/cryptedx/ha-usbip-client/main/docs/images/60-config.png
