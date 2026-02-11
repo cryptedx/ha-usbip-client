@@ -1,6 +1,9 @@
 ARG BUILD_FROM
 FROM ${BUILD_FROM}
 
+# Install Python dependencies
+COPY requirements.txt /tmp/requirements.txt
+
 # Install requirements for app
 RUN apk add --no-cache \
     kmod \
@@ -10,10 +13,8 @@ RUN apk add --no-cache \
     python3 \
     py3-pip \
     && pip3 install --no-cache-dir --break-system-packages \
-    flask==3.1.0 \
-    flask-socketio==5.5.1 \
-    gevent==24.11.1 \
-    gevent-websocket==0.10.1
+    -r /tmp/requirements.txt \
+    && rm /tmp/requirements.txt
 
 # Copy root filesystem
 COPY rootfs /

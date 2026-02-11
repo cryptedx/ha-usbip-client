@@ -5,38 +5,17 @@ import time
 
 import pytest
 
-# The monitor run script is not a normal importable module, so we test
-# the core logic functions by importing them via importlib after adding
-# the services.d path.  However, the functions we need to test are pure
-# functions that we can extract.  Instead, we replicate the key logic
-# from the monitor service and test it here.
+from usbip_lib.monitor import (
+    attempt_reattach,
+    check_dependent_addon_health,
+    clear_cooldowns,
+    find_missing_devices,
+    is_on_cooldown,
+    restart_dependent_addons,
+    set_cooldown,
+)
 
 from testdata import SAMPLE_DEVICE_MANIFEST
-
-
-# ---------------------------------------------------------------------------
-# Re-implement the pure logic from monitor/run for testability
-# ---------------------------------------------------------------------------
-def find_missing_devices(
-    manifest: list[dict], attached: list[dict]
-) -> list[dict]:
-    """Compare manifest against currently attached devices.
-
-    Returns list of manifest entries NOT found in attached devices.
-    """
-    attached_set = set()
-    for d in attached:
-        server = d.get("server", "")
-        remote_busid = d.get("remote_busid", "")
-        if server and remote_busid:
-            attached_set.add((server, remote_busid))
-
-    missing = []
-    for dev in manifest:
-        key = (dev.get("server", ""), dev.get("bus_id", ""))
-        if key not in attached_set:
-            missing.append(dev)
-    return missing
 
 
 # Sample attached device data (mimics parse_usbip_port output)
@@ -117,18 +96,11 @@ class TestFindMissingDevices:
 class TestNotificationCooldown:
     """Test the cooldown logic from the monitor service."""
 
+    def setup_method(self):
+        """Reset cooldowns before each test."""
+        clear_cooldowns()
+
     def test_cooldown_tracking(self):
-        # Simulate the cooldown dict from the monitor
-        cooldowns: dict[str, float] = {}
-        cooldown_seconds = 300
-
-        def is_on_cooldown(key: str) -> bool:
-            last = cooldowns.get(key, 0)
-            return (time.monotonic() - last) < cooldown_seconds
-
-        def set_cooldown(key: str) -> None:
-            cooldowns[key] = time.monotonic()
-
         device_key = "192.168.1.44:1-1.4"
 
         # Not on cooldown initially
@@ -141,16 +113,12 @@ class TestNotificationCooldown:
         # Different key is not on cooldown
         assert not is_on_cooldown("192.168.1.44:1-1.3")
 
-    def test_cooldown_expires(self):
-        """Cooldown with a very short window should expire immediately."""
-        cooldowns: dict[str, float] = {}
-        cooldown_seconds = 0  # immediate expiry
+    def test_cooldown_expires(self, mocker):
+        """Cooldown should respect the configured window."""
+        # Patch COOLDOWN_SECONDS to 0 so it expires immediately
+        mocker.patch("usbip_lib.monitor.COOLDOWN_SECONDS", 0)
 
-        def is_on_cooldown(key: str) -> bool:
-            last = cooldowns.get(key, 0)
-            return (time.monotonic() - last) < cooldown_seconds
-
-        cooldowns["test"] = time.monotonic()
+        set_cooldown("test")
         assert not is_on_cooldown("test")
 
 

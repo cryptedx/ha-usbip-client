@@ -260,8 +260,7 @@ async function detachAll() {
     toast('Detaching all devices...', '');
     const data = await api('/api/detach-all', { method: 'POST' });
     if (data.ok) {
-        const ok = data.results.filter(r => r.ok).length;
-        toast(`Detached ${ok} device(s)`);
+        toast(`Detached ${data.detached} device(s)`);
     } else {
         toast('Detach-all failed', 'error');
     }
@@ -392,11 +391,6 @@ function renderLogTerminal(elementId, lines) {
     }
     el.innerHTML = '';
     el.appendChild(fragment);
-
-    // Auto-scroll: only when Logs tab is visible and not paused
-    const logsTab = document.getElementById('tab-logs');
-    const logsVisible = logsTab && logsTab.classList.contains('active');
-    if (!logPaused && logsVisible) scrollLogToBottom('log-terminal');
 }
 
 function getLogLevelClass(line) {
@@ -413,11 +407,13 @@ function getLogLevelClass(line) {
 function scrollLogToBottom(elementId = 'log-terminal') {
     const el = document.getElementById(elementId);
     if (!el) return;
-    // Element might have been hidden prior to activation; wait for layout to settle
+    // Immediate scroll attempt
+    el.scrollTop = el.scrollHeight;
+    // Deferred scroll to handle post-layout recalc (important inside iframes)
     requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-            el.scrollTop = el.scrollHeight;
-        });
+        el.scrollTop = el.scrollHeight;
+        // Final fallback after browser paint
+        setTimeout(() => { el.scrollTop = el.scrollHeight; }, 50);
     });
 }
 
@@ -519,6 +515,12 @@ async function loadConfig() {
     const restRetries = document.getElementById('cfg-restart-retries');
     if (restRetries) restRetries.value = cfg.restart_retries ?? 3;
 
+    // Log auto-scroll preference
+    const autoScrollVal = cfg.log_auto_scroll || 'when_not_paused';
+    logAutoScroll = autoScrollVal;
+    const autoScrollEl = document.getElementById('cfg-log-auto-scroll');
+    if (autoScrollEl) autoScrollEl.value = autoScrollVal;
+
     // Load dependent add-ons selection
     loadDependentAddonsConfig(cfg.dependent_addons || []);
 }
@@ -551,6 +553,11 @@ async function saveConfig() {
 
     const delayVal = parseInt(document.getElementById('cfg-delay').value);
 
+    // Read auto-scroll preference and apply it immediately
+    const autoScrollEl = document.getElementById('cfg-log-auto-scroll');
+    const autoScrollVal = autoScrollEl ? autoScrollEl.value : 'when_not_paused';
+    logAutoScroll = autoScrollVal;
+
     const config = {
         log_level: document.getElementById('cfg-log-level').value,
         usbipd_server_address: document.getElementById('cfg-server').value.trim(),
@@ -558,6 +565,7 @@ async function saveConfig() {
         monitor_interval: parseInt(document.getElementById('cfg-monitor-interval')?.value) || 30,
         reattach_retries: parseInt(document.getElementById('cfg-reattach-retries')?.value) || 3,
         restart_retries: parseInt(document.getElementById('cfg-restart-retries')?.value) || 3,
+        log_auto_scroll: autoScrollVal,
         devices,
     };
 

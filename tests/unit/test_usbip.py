@@ -119,7 +119,7 @@ class TestParseUsbipList:
         assert result == []
 
 
-class TestParseUsbipList:
+class TestParseUsbipListCmd:
     def test_success(self, mocker):
         mocker.patch(
             "usbip_lib.usbip.run_cmd",

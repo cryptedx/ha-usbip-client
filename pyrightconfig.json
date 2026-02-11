@@ -1,6 +1,7 @@
 {
   "extraPaths": [
-    "rootfs/usr/local/lib"
+    "rootfs/usr/local/lib",
+    "rootfs/usr/local/bin/webui"
   ],
   "include": [
     "rootfs/usr/local/lib",

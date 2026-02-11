@@ -6,8 +6,9 @@ import os
 import re
 import threading
 import time
+import urllib.request
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, g, jsonify, render_template, request
 from flask_socketio import SocketIO
 
 from usbip_lib.config import (
@@ -25,6 +26,7 @@ from usbip_lib.constants import (
 )
 from usbip_lib.events import now_iso, read_events, write_event
 from usbip_lib.usbip import (
+    detach_all,
     lookup_usb_name,
     parse_usbip_list,
     parse_usbip_port,
@@ -47,13 +49,14 @@ app = Flask(
     static_folder="/usr/local/bin/webui/static",
 )
 app.config["SECRET_KEY"] = os.urandom(24).hex()
-socketio = SocketIO(app, async_mode="gevent", cors_allowed_origins="*")
+socketio = SocketIO(app, async_mode="gevent", cors_allowed_origins=["http://localhost", "http://127.0.0.1"])
 
 # ---------------------------------------------------------------------------
 # In-memory state
 # ---------------------------------------------------------------------------
 log_buffer: list[str] = []
 log_lock = threading.Lock()
+_log_seq: int = 0  # monotonic sequence counter for dedup
 health_state: dict = {}  # server_ip -> {latency_ms, online, last_check}
 health_lock = threading.Lock()
 
@@ -63,8 +66,7 @@ health_lock = threading.Lock()
 # ---------------------------------------------------------------------------
 def _fetch_logs_direct() -> list[str]:
     """Fetch logs directly from Supervisor API (bypass buffer)."""
-    import urllib.request
-
+    global _log_seq
     try:
         url = f"{SUPERVISOR_URL}/addons/self/logs"
         headers = {
@@ -80,11 +82,14 @@ def _fetch_logs_direct() -> list[str]:
                 content = raw.decode("latin-1", errors="replace")
             content = re.sub(r"\x1b\[[0-9;]*m", "", content)
             lines = [ln.strip() for ln in content.strip().split("\n") if ln.strip()]
-            # Also populate buffer for future calls
+            # Populate buffer with new lines (sequence-based dedup)
             with log_lock:
-                for ln in lines[-500:]:
-                    if ln not in log_buffer[-50:]:
+                existing = set(f"{i}:{ln}" for i, ln in enumerate(log_buffer[-500:]))
+                for idx, ln in enumerate(lines[-500:]):
+                    # Use positional check: only skip if exact same content at same tail position
+                    if f"{idx}:{ln}" not in existing:
                         log_buffer.append(ln)
+                        _log_seq += 1
                 while len(log_buffer) > LOG_BUFFER_MAX:
                     log_buffer.pop(0)
             return lines[-500:]
@@ -127,7 +132,7 @@ def _health_checker():
 
 def _log_tailer():
     """Tail the s6 log output and push to WebSocket clients."""
-    import urllib.request
+    global _log_seq
 
     while True:
         try:
@@ -145,25 +150,31 @@ def _log_tailer():
                 except UnicodeDecodeError:
                     content = raw.decode("latin-1", errors="replace")
                 # Strip ANSI escape codes
-                import re as _re
-                content = _re.sub(r"\x1b\[[0-9;]*m", "", content)
+                content = re.sub(r"\x1b\[[0-9;]*m", "", content)
                 lines = content.strip().split("\n")
                 new_lines = []
                 with log_lock:
-                    buf_len = len(log_buffer)
-                    # Take only lines beyond what we already have
+                    # Compare tail of fetched lines against tail of buffer
+                    # to find genuinely new lines
+                    buf_tail = log_buffer[-500:] if log_buffer else []
                     start_idx = max(0, len(lines) - 500)
-                    for ln in lines[start_idx:]:
-                        cleaned = ln.strip()
-                        if not cleaned:
-                            continue
-                        # Simple dedup: skip if it matches the last N buffer entries
-                        if buf_len > 0 and cleaned == log_buffer[-1]:
-                            continue
-                        if cleaned not in set(log_buffer[-50:]):
-                            new_lines.append(cleaned)
-                            log_buffer.append(cleaned)
-                            buf_len += 1
+                    candidate_lines = [ln.strip() for ln in lines[start_idx:] if ln.strip()]
+
+                    # Find where new content starts by matching
+                    # the last known buffer lines against the fetched tail
+                    match_start = 0
+                    if buf_tail and candidate_lines:
+                        # Find the last buf_tail line in candidate_lines
+                        last_buf = buf_tail[-1]
+                        for i in range(len(candidate_lines) - 1, -1, -1):
+                            if candidate_lines[i] == last_buf:
+                                match_start = i + 1
+                                break
+
+                    for ln in candidate_lines[match_start:]:
+                        new_lines.append(ln)
+                        log_buffer.append(ln)
+                        _log_seq += 1
                     # Trim buffer
                     while len(log_buffer) > LOG_BUFFER_MAX:
                         log_buffer.pop(0)
@@ -186,14 +197,14 @@ def _log_tailer():
 # ---------------------------------------------------------------------------
 @app.before_request
 def _inject_ingress():
-    request.ingress_path = request.headers.get("X-Ingress-Path", "")
+    g.ingress_path = request.headers.get("X-Ingress-Path", "")
 
 
 @app.context_processor
 def _template_globals():
     return {
-        "ingress_path": getattr(request, "ingress_path", ""),
-        "version": "0.4.1",
+        "ingress_path": g.get("ingress_path", ""),
+        "version": "0.5.0-beta",
     }
 
 
@@ -272,16 +283,9 @@ def api_detach():
 
 @app.route("/api/detach-all", methods=["POST"])
 def api_detach_all():
-    devices = parse_usbip_port()
-    results = []
-    for d in devices:
-        port = str(d["port"])
-        rc, _, err = run_cmd(["usbip", "detach", "-p", port])
-        results.append({"port": d["port"], "ok": rc == 0})
-        time.sleep(0.5)
-    ok_count = sum(1 for r in results if r["ok"])
-    write_event("detach_all", f"Detached {ok_count}/{len(results)} devices")
-    return jsonify({"ok": True, "results": results})
+    detached, failed = detach_all()
+    write_event("detach_all", f"Detached {detached}/{detached + failed} devices")
+    return jsonify({"ok": True, "detached": detached, "failed": failed})
 
 
 @app.route("/api/attach-all", methods=["POST"])

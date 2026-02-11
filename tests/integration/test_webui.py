@@ -152,7 +152,8 @@ class TestApiDetachAll:
         resp = client.post("/api/detach-all")
         data = resp.get_json()
         assert data["ok"] is True
-        assert "results" in data
+        assert "detached" in data
+        assert "failed" in data
 
 
 class TestApiConfig:

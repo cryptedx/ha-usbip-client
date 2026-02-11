@@ -20,6 +20,15 @@ from .constants import (
 )
 from .events import now_iso, read_events, write_event
 from .logging_setup import setup_logging
+from .monitor import (
+    attempt_reattach,
+    check_dependent_addon_health,
+    clear_cooldowns,
+    find_missing_devices,
+    is_on_cooldown,
+    restart_dependent_addons,
+    set_cooldown,
+)
 from .usbip import (
     attach_all_from_manifest,
     attach_device,
@@ -66,6 +75,14 @@ __all__ = [
     "read_events",
     # logging
     "setup_logging",
+    # monitor
+    "find_missing_devices",
+    "attempt_reattach",
+    "restart_dependent_addons",
+    "check_dependent_addon_health",
+    "is_on_cooldown",
+    "set_cooldown",
+    "clear_cooldowns",
     # usbip
     "run_cmd",
     "parse_usbip_port",
