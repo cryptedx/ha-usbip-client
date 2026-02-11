@@ -18,7 +18,6 @@ from .constants import (
     USB_IDS_FILE,
     USBIP_PORT,
 )
-from .events import write_event
 
 logger = logging.getLogger("usbip")
 

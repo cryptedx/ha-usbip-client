@@ -2,7 +2,6 @@
 """s6 cont-finish script: Detach all USB/IP devices on container shutdown."""
 
 import logging
-import os
 import sys
 
 from usbip_lib.events import write_event

@@ -17,11 +17,8 @@ from usbip_lib.config import (
     restart_addon,
     send_ha_notification,
     set_addon_config,
-    supervisor_request,
 )
 from usbip_lib.constants import (
-    ATTACHED_DEVICES_FILE,
-    DEVICE_DETAILS_FILE,
     EVENTS_FILE,
     SUPERVISOR_TOKEN,
     SUPERVISOR_URL,
