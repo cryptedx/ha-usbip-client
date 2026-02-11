@@ -1,5 +1,6 @@
 """Unit tests for the monitor service logic."""
 
+import json
 import time
 
 import pytest
