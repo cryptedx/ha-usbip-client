@@ -261,9 +261,9 @@ This project is licensed under the MIT License.
 [i386-shield]: https://img.shields.io/badge/i386-yes-green.svg
 [maintenance-shield]: https://img.shields.io/maintenance/yes/2026.svg
 
-[screenshot-dashboard]: https://raw.githubusercontent.com/cryptedx/ha-usbip-client/main/docs/images/10-dashboard.png
-[screenshot-devices]: https://raw.githubusercontent.com/cryptedx/ha-usbip-client/main/docs/images/20-devices.png
-[screenshot-discovery]: https://raw.githubusercontent.com/cryptedx/ha-usbip-client/main/docs/images/30-discovery.png
-[screenshot-logs]: https://raw.githubusercontent.com/cryptedx/ha-usbip-client/main/docs/images/40-logs.png
-[screenshot-events]: https://raw.githubusercontent.com/cryptedx/ha-usbip-client/main/docs/images/50-events.png
-[screenshot-config]: https://raw.githubusercontent.com/cryptedx/ha-usbip-client/main/docs/images/60-config.png
+[screenshot-dashboard]: https://raw.githubusercontent.com/cryptedx/ha-usbip-client/dev/docs/images/10-dashboard.png
+[screenshot-devices]: https://raw.githubusercontent.com/cryptedx/ha-usbip-client/dev/docs/images/20-devices.png
+[screenshot-discovery]: https://raw.githubusercontent.com/cryptedx/ha-usbip-client/dev/docs/images/30-discovery.png
+[screenshot-logs]: https://raw.githubusercontent.com/cryptedx/ha-usbip-client/dev/docs/images/40-logs.png
+[screenshot-events]: https://raw.githubusercontent.com/cryptedx/ha-usbip-client/dev/docs/images/50-events.png
+[screenshot-config]: https://raw.githubusercontent.com/cryptedx/ha-usbip-client/dev/docs/images/60-config.png
