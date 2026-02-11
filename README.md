@@ -29,6 +29,28 @@ Special thanks to [rogerfar](https://github.com/rogerfar) and [Rene-Sackers](htt
 - **Bulk Operations**: Attach/detach all devices at once.
 - **Real-time Notifications**: Push notifications to Home Assistant on device events.
 
+## Screenshots
+
+Here are some screenshots of the WebUI and key features:
+
+- **Dashboard**  
+  ![Dashboard](./docs/images/10-dashboard.png)
+
+- **Devices list**  
+  ![Devices](./docs/images/20-devices.png)
+
+- **Server discovery**  
+  ![Discovery](./docs/images/30-discovery.png)
+
+- **Live logs**  
+  ![Logs](./docs/images/40-logs.png)
+
+- **Event timeline**  
+  ![Events](./docs/images/50-events.png)
+
+- **Configuration editor**  
+  ![Config](./docs/images/60-config.png)
+
 ## Todo
 
 - [X] create webui where logs can be inspected live and devices, discovered/polled, attached, detached via a dropdown
