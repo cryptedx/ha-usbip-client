@@ -79,8 +79,7 @@ Here are some screenshots of the WebUI and key features:
 
 2. Install the **USB/IP Client** app.
 3. Configure the app options to specify the USB/IP server IP address, USB device bus IDs, and desired log level.
-4. Turn off protection mode. [Read more here about it](#security-considerations)
-5. Start the app.
+4. Start the app.
 
 ## Development Branch
 
