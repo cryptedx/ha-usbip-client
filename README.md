@@ -8,7 +8,7 @@
 
 ![Project Maintenance][maintenance-shield]
 
-This is a Home Assistant app (formerly called add-on) that acts as a USB/IP client. It connects to an existing USB/IP server to access remote USB devices, making them available to Home Assistant.
+This is a Home Assistant app that acts as a USB/IP client. It connects to an existing USB/IP server to access remote USB devices, making them available to Home Assistant.
 
 ## Background story
 
@@ -27,7 +27,7 @@ For development, contribution, architecture details, and release automation see 
 - Configurable log levels for easier debugging.
 - **USB Device Monitoring**: Automatically detects lost USB devices and attempts reattachment with configurable retries and cooldowns.
 - **Auto-Reattach**: Failed devices are reattached automatically after disconnection, with notifications sent to Home Assistant.
-- **Dependent Add-on Health Monitoring**: Monitors the health of dependent add-ons (e.g., Zigbee2MQTT, Z-Wave JS) and restarts them if they enter error state.
+- **Dependent App Health Monitoring**: Monitors the health of dependent apps (e.g., Zigbee2MQTT, Z-Wave JS) and restarts them if they enter error state.
 - **WebUI Dashboard**: Terminal-style web interface for device management, live logs, event timeline, and configuration editing.
 - **Network Server Discovery**: Scan subnet for available USB/IP servers.
 - **Bulk Operations**: Attach/detach all devices at once.
@@ -58,9 +58,9 @@ For development, contribution, architecture details, and release automation see 
 - **attach_delay**: Optional delay between attachment attempts. Default `2`, range `0-30`.
 - **monitor_interval**: Optional health check interval. Default `30`, range `10-300`.
 - **reattach_retries**: Optional reattach retries. Default `3`, range `0-10`.
-- **restart_retries**: Optional dependent add-on restart retries. Default `3`, range `0-10`.
-- **dependent_addons**: Optional list with `name` and `slug`.
-- **Recommended for dependent add-ons**: Let USB/IP Client manage dependent add-ons and disable **Start on boot** and **Watchdog** for each of them in Home Assistant.
+- **restart_retries**: Optional dependent app restart retries. Default `3`, range `0-10`.
+- **dependent_apps**: Optional list with `name` and `slug`.
+- **Recommended for dependent apps**: Let USB/IP Client manage dependent apps and disable **Start on boot** and **Watchdog** for each of them in Home Assistant.
 - **devices**: Device list containing:
   - **name**: Display name.
   - **device_or_bus_id**: Bus ID (`1-1.1.3`) or USB device ID (`0658:0200`).
@@ -74,7 +74,7 @@ attach_delay: 2
 monitor_interval: 30
 reattach_retries: 3
 restart_retries: 3
-dependent_addons:
+dependent_apps:
   - name: "Zigbee2MQTT"
     slug: "45df7312_zigbee2mqtt"
   - name: "Z-Wave JS"
@@ -111,13 +111,13 @@ devices:
 
 The app performs kernel- and USB-level operations and therefore still requires elevated privileges on the host. Important changes and current facts:
 
-- Protection Mode: **you do not need to disable Protection Mode** for the add-on to run — the app works with Protection Mode enabled.
-- Required capabilities: the add-on requests specific kernel/network capabilities and `vhci-hcd` kernel module to provide USB/IP functionality; unnecessary Linux capabilities were removed in recent releases.
-- Network & host access: the add-on uses the host network stack for USB/IP communication.
+- Protection Mode: **you do not need to disable Protection Mode** for the app to run — the app works with Protection Mode enabled.
+- Required capabilities: the app requests specific kernel/network capabilities and `vhci-hcd` kernel module to provide USB/IP functionality; unnecessary Linux capabilities were removed in recent releases.
+- Network & host access: the app uses the host network stack for USB/IP communication.
 
 Recommendations
 
-- Use the add-on in a trusted network environment and keep Home Assistant updated.
+- Use the app in a trusted network environment and keep Home Assistant updated.
 - Review the `privileged` and `host_network` settings in `config.yaml` before deploying to sensitive hosts.
 - For development or advanced deployment details see `DEVELOPER.md`.
 

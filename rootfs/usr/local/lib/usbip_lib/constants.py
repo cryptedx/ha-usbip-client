@@ -1,4 +1,4 @@
-"""Shared constants for the USB/IP client add-on."""
+"""Shared constants for the USB/IP client app."""
 
 import os
 

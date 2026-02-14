@@ -437,13 +437,13 @@ def detach_all() -> tuple[int, int]:
 # Manifest (replaces generated mount_devices script)
 # ---------------------------------------------------------------------------
 def build_device_manifest(config: dict, discovery_data: list[dict]) -> list[dict]:
-    """Build a device manifest from add-on config and discovery data.
+    """Build a device manifest from app config and discovery data.
 
     Resolves device IDs to bus IDs and returns a list of devices ready
     to attach.
 
     Args:
-        config: Add-on configuration dict (from Supervisor API).
+        config: App configuration dict (from Supervisor API).
         discovery_data: List of discovered devices from :func:`discover_devices`.
 
     Returns:

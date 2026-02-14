@@ -12,11 +12,11 @@ sys.path.insert(
 )
 
 from testdata import (
-    SAMPLE_ADDON_CONFIG,
-    SAMPLE_ADDON_INFO_RESPONSE_STARTED,
-    SAMPLE_ADDON_INFO_RESPONSE_STOPPED,
-    SAMPLE_ADDON_RESTART_RESPONSE,
-    SAMPLE_ADDONS_LIST_RESPONSE,
+    SAMPLE_APP_CONFIG,
+    SAMPLE_APP_INFO_RESPONSE_STARTED,
+    SAMPLE_APP_INFO_RESPONSE_STOPPED,
+    SAMPLE_APP_RESTART_RESPONSE,
+    SAMPLE_APPS_LIST_RESPONSE,
     SAMPLE_DISCOVERY_DATA,
     SAMPLE_SUPERVISOR_INFO_RESPONSE,
     SAMPLE_USBIP_LIST_OUTPUT,
@@ -238,15 +238,15 @@ class TestApiLogs:
 
 
 # ---------------------------------------------------------------------------
-# Add-on management endpoint tests
+# App management endpoint tests
 # ---------------------------------------------------------------------------
 
 
-class TestApiAddons:
-    def test_returns_addon_list(self, client, mock_usbip_env):
-        """GET /api/addons should return all installed add-ons."""
+class TestApiApps:
+    def test_returns_app_list(self, client, mock_usbip_env):
+        """GET /api/apps should return all installed apps."""
 
-        # Override the urlopen mock to return addons list for the addons endpoint
+        # Override the urlopen mock to return apps list for the endpoint
         def _make_response(data):
             import unittest.mock as um
 
@@ -257,19 +257,19 @@ class TestApiAddons:
             return resp
 
         mock_usbip_env["urlopen"].return_value = _make_response(
-            SAMPLE_ADDONS_LIST_RESPONSE
+            SAMPLE_APPS_LIST_RESPONSE
         )
 
-        resp = client.get("/api/addons")
+        resp = client.get("/api/apps")
         data = resp.get_json()
         assert data["ok"] is True
-        assert "addons" in data
-        assert len(data["addons"]) == 4
-        slugs = [a["slug"] for a in data["addons"]]
+        assert "apps" in data
+        assert len(data["apps"]) == 4
+        slugs = [a["slug"] for a in data["apps"]]
         assert "45df7312_zigbee2mqtt" in slugs
 
-    def test_addons_api_error(self, client, mock_usbip_env):
-        """GET /api/addons should return empty list on API error."""
+    def test_apps_api_error(self, client, mock_usbip_env):
+        """GET /api/apps should return empty list on API error."""
         import unittest.mock as um
 
         resp_mock = um.Mock()
@@ -278,27 +278,27 @@ class TestApiAddons:
         resp_mock.__exit__ = um.Mock(return_value=False)
         mock_usbip_env["urlopen"].return_value = resp_mock
 
-        resp = client.get("/api/addons")
+        resp = client.get("/api/apps")
         data = resp.get_json()
         assert data["ok"] is True
-        assert data["addons"] == []
+        assert data["apps"] == []
 
 
-class TestApiAddonHealth:
-    def test_no_dependent_addons(self, client, mock_usbip_env):
-        """GET /api/addon-health with no dependents configured."""
-        resp = client.get("/api/addon-health")
+class TestApiAppHealth:
+    def test_no_dependent_apps(self, client, mock_usbip_env):
+        """GET /api/app-health with no dependents configured."""
+        resp = client.get("/api/app-health")
         data = resp.get_json()
         assert data["ok"] is True
-        assert data["addons"] == []
+        assert data["apps"] == []
 
-    def test_with_dependent_addons(self, client, mock_usbip_env):
-        """GET /api/addon-health with dependents configured."""
+    def test_with_dependent_apps(self, client, mock_usbip_env):
+        """GET /api/app-health with dependents configured."""
         import unittest.mock as um
 
-        # First call returns config with dependent_addons, second returns addon info
-        config_with_deps = dict(SAMPLE_ADDON_CONFIG)
-        config_with_deps["dependent_addons"] = [
+        # First call returns config with dependent_apps, second returns app info
+        config_with_deps = dict(SAMPLE_APP_CONFIG)
+        config_with_deps["dependent_apps"] = [
             {"name": "Zigbee2MQTT", "slug": "45df7312_zigbee2mqtt"},
         ]
         config_resp = {"result": "ok", "data": {"options": config_with_deps}}
@@ -310,60 +310,60 @@ class TestApiAddonHealth:
             resp.__exit__ = um.Mock(return_value=False)
             return resp
 
-        # urlopen is called twice: once for config, once for addon info
+        # urlopen is called twice: once for config, once for app info
         mock_usbip_env["urlopen"].side_effect = [
             _make_response(config_resp),
-            _make_response(SAMPLE_ADDON_INFO_RESPONSE_STARTED),
+            _make_response(SAMPLE_APP_INFO_RESPONSE_STARTED),
         ]
 
-        resp = client.get("/api/addon-health")
+        resp = client.get("/api/app-health")
         data = resp.get_json()
         assert data["ok"] is True
-        assert len(data["addons"]) == 1
-        assert data["addons"][0]["state"] == "started"
-        assert data["addons"][0]["slug"] == "45df7312_zigbee2mqtt"
+        assert len(data["apps"]) == 1
+        assert data["apps"][0]["state"] == "started"
+        assert data["apps"][0]["slug"] == "45df7312_zigbee2mqtt"
 
 
-class TestApiAddonRestart:
+class TestApiAppRestart:
     def test_requires_slug(self, client):
-        """POST /api/addon-restart without slug returns 400."""
-        resp = client.post("/api/addon-restart", json={})
+        """POST /api/app-restart without slug returns 400."""
+        resp = client.post("/api/app-restart", json={})
         assert resp.status_code == 400
 
     def test_restart_success(self, client, mock_usbip_env):
-        """POST /api/addon-restart with valid slug."""
+        """POST /api/app-restart with valid slug."""
         import unittest.mock as um
 
         resp_mock = um.Mock()
-        resp_mock.read.return_value = json.dumps(SAMPLE_ADDON_RESTART_RESPONSE).encode()
+        resp_mock.read.return_value = json.dumps(SAMPLE_APP_RESTART_RESPONSE).encode()
         resp_mock.__enter__ = um.Mock(return_value=resp_mock)
         resp_mock.__exit__ = um.Mock(return_value=False)
         mock_usbip_env["urlopen"].return_value = resp_mock
 
-        resp = client.post("/api/addon-restart", json={"slug": "45df7312_zigbee2mqtt"})
+        resp = client.post("/api/app-restart", json={"slug": "45df7312_zigbee2mqtt"})
         data = resp.get_json()
         assert data["ok"] is True
 
 
-class TestApiDependentAddonsSave:
+class TestApiDependentAppsSave:
     def test_save_selection(self, client, mock_usbip_env):
-        """POST /api/dependent-addons saves selection."""
-        addons_to_save = [
+        """POST /api/dependent-apps saves selection."""
+        apps_to_save = [
             {"name": "Zigbee2MQTT", "slug": "45df7312_zigbee2mqtt"},
             {"name": "Z-Wave JS", "slug": "core_zwave_js"},
         ]
         resp = client.post(
-            "/api/dependent-addons",
-            json={"dependent_addons": addons_to_save},
+            "/api/dependent-apps",
+            json={"dependent_apps": apps_to_save},
         )
         data = resp.get_json()
         assert data["ok"] is True
 
     def test_save_empty_selection(self, client, mock_usbip_env):
-        """POST /api/dependent-addons with empty list."""
+        """POST /api/dependent-apps with empty list."""
         resp = client.post(
-            "/api/dependent-addons",
-            json={"dependent_addons": []},
+            "/api/dependent-apps",
+            json={"dependent_apps": []},
         )
         data = resp.get_json()
         assert data["ok"] is True

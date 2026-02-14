@@ -56,7 +56,7 @@ profile ha_usbip_client flags=(attach_disconnected,mediate_deleted) {
   profile usbip-service flags=(attach_disconnected,mediate_deleted) {
     # Basic service capabilities
     network,
-    signal (receive) peer=*_usbip-addon,
+    signal (receive) peer=*_usbip-app,
 
     # File and device access for USB/IP operations
     /dev/bus/usb/** rw,

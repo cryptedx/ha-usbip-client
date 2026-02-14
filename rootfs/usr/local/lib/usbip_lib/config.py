@@ -1,4 +1,4 @@
-"""Home Assistant Supervisor API client for reading/writing add-on config."""
+"""Home Assistant Supervisor API client for reading/writing app config."""
 
 import json
 import urllib.request
@@ -39,13 +39,13 @@ def supervisor_request(
         return {"result": "error", "message": str(e)}
 
 
-def get_addon_config(
+def get_app_config(
     token: str = SUPERVISOR_TOKEN, base_url: str = SUPERVISOR_URL
 ) -> dict:
-    """Read current add-on options from Supervisor.
+    """Read current app options from Supervisor.
 
     Returns:
-        Dict of add-on configuration options.
+        Dict of app configuration options.
     """
     resp = supervisor_request(
         "GET", "/addons/self/info", token=token, base_url=base_url
@@ -55,12 +55,12 @@ def get_addon_config(
     return {}
 
 
-def set_addon_config(
+def set_app_config(
     options: dict,
     token: str = SUPERVISOR_TOKEN,
     base_url: str = SUPERVISOR_URL,
 ) -> dict:
-    """Write add-on options via Supervisor.
+    """Write app options via Supervisor.
 
     Args:
         options: Dict of options to set.
@@ -99,12 +99,12 @@ def send_ha_notification(
 
 
 # ---------------------------------------------------------------------------
-# Add-on management (dependent containers)
+# App management (dependent containers)
 # ---------------------------------------------------------------------------
-def list_installed_addons(
+def list_installed_apps(
     token: str = SUPERVISOR_TOKEN, base_url: str = SUPERVISOR_URL
 ) -> list[dict]:
-    """List all installed Home Assistant add-ons.
+    """List all installed Home Assistant apps.
 
     Returns:
         List of dicts with keys: slug, name, state.
@@ -112,26 +112,26 @@ def list_installed_addons(
     resp = supervisor_request("GET", "/addons", token=token, base_url=base_url)
     if resp.get("result") != "ok":
         return []
-    addons = resp.get("data", {}).get("addons", [])
+    app_entries = resp.get("data", {}).get("addons", [])
     return [
         {
             "slug": a.get("slug", ""),
             "name": a.get("name", ""),
             "state": a.get("state", "unknown"),
         }
-        for a in addons
+        for a in app_entries
     ]
 
 
-def get_addon_state(
+def get_app_state(
     slug: str,
     token: str = SUPERVISOR_TOKEN,
     base_url: str = SUPERVISOR_URL,
 ) -> str:
-    """Get the state of a specific add-on.
+    """Get the state of a specific app.
 
     Args:
-        slug: Add-on slug (e.g., ``45df7312_zigbee2mqtt``).
+        slug: App slug (e.g., ``45df7312_zigbee2mqtt``).
 
     Returns:
         State string (``started``, ``stopped``, ``unknown``).
@@ -144,15 +144,15 @@ def get_addon_state(
     return "unknown"
 
 
-def restart_addon(
+def restart_app(
     slug: str,
     token: str = SUPERVISOR_TOKEN,
     base_url: str = SUPERVISOR_URL,
 ) -> bool:
-    """Restart a Home Assistant add-on.
+    """Restart a Home Assistant app.
 
     Args:
-        slug: Add-on slug.
+        slug: App slug.
 
     Returns:
         True if restart was successful.

@@ -10,7 +10,7 @@ import os
 import pytest
 
 from testdata import (
-    SAMPLE_ADDON_CONFIG,
+    SAMPLE_APP_CONFIG,
     SAMPLE_DEVICE_MANIFEST,
     SAMPLE_DISCOVERY_DATA,
     SAMPLE_SUPERVISOR_INFO_RESPONSE,
@@ -111,7 +111,7 @@ class TestInitDevicesLogic:
         write_device_details_file(discovery, mock_full_env["details_file"])
         assert os.path.exists(mock_full_env["details_file"])
 
-        manifest = build_device_manifest(SAMPLE_ADDON_CONFIG, discovery)
+        manifest = build_device_manifest(SAMPLE_APP_CONFIG, discovery)
         write_device_manifest(manifest, mock_full_env["manifest_file"])
         assert os.path.exists(mock_full_env["manifest_file"])
 
@@ -123,7 +123,7 @@ class TestInitDevicesLogic:
     def test_resolves_device_ids(self, mock_full_env):
         from usbip_lib.usbip import build_device_manifest
 
-        manifest = build_device_manifest(SAMPLE_ADDON_CONFIG, SAMPLE_DISCOVERY_DATA)
+        manifest = build_device_manifest(SAMPLE_APP_CONFIG, SAMPLE_DISCOVERY_DATA)
         # 0658:0200 should resolve to 1-1.4
         assert manifest[0]["bus_id"] == "1-1.4"
         assert manifest[0]["name"] == "Z-Wave Stick"

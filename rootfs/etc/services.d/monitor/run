@@ -1,10 +1,10 @@
 #!/command/with-contenv python3
-"""s6 service run script: Monitor USB/IP devices and dependent add-ons.
+"""s6 service run script: Monitor USB/IP devices and dependent apps.
 
 Periodically checks that all expected USB/IP devices are still attached.
 If a device is lost, attempts auto-reattach and notifies the user via
 Home Assistant persistent notifications. Also monitors the health of
-configured dependent add-ons and restarts them after successful reattach.
+configured dependent apps and restarts them after successful reattach.
 """
 
 import logging
@@ -12,17 +12,17 @@ import sys
 import time
 
 from usbip_lib.config import (
-    get_addon_config,
+    get_app_config,
     send_ha_notification,
 )
 from usbip_lib.events import write_event
 from usbip_lib.logging_setup import setup_logging
 from usbip_lib.monitor import (
     attempt_reattach,
-    check_dependent_addon_health,
+    check_dependent_app_health,
     find_missing_devices,
     is_on_cooldown,
-    restart_dependent_addons,
+    restart_dependent_apps,
     set_cooldown,
 )
 from usbip_lib.usbip import (
@@ -32,7 +32,7 @@ from usbip_lib.usbip import (
 
 
 def main() -> int:
-    config = get_addon_config()
+    config = get_app_config()
     log_level = config.get("log_level", "info")
     logger = setup_logging(log_level, name="monitor")
 
@@ -52,8 +52,10 @@ def main() -> int:
     while True:
         try:
             # Re-read config each cycle to pick up changes from WebUI
-            config = get_addon_config()
-            dependent_addons = config.get("dependent_addons", [])
+            config = get_app_config()
+            dependent_apps = config.get("dependent_apps") or config.get(
+                "dependent_addons", []
+            )
 
             # Read manifest to know expected devices
             manifest = read_device_manifest()
@@ -124,16 +126,16 @@ def main() -> int:
                             )
                             set_cooldown(f"fail:{device_key}")
 
-                # Restart dependent addons after successful reattach
-                if reattached_any and dependent_addons:
-                    logger.info("Restarting dependent add-ons after device recovery...")
-                    restart_dependent_addons(dependent_addons, restart_retries, logger)
+                # Restart dependent apps after successful reattach
+                if reattached_any and dependent_apps:
+                    logger.info("Restarting dependent apps after device recovery...")
+                    restart_dependent_apps(dependent_apps, restart_retries, logger)
             else:
                 logger.debug("All %d expected device(s) are attached.", len(manifest))
 
-            # Check dependent addon health regardless of device status
-            if dependent_addons:
-                check_dependent_addon_health(dependent_addons, restart_retries, logger)
+            # Check dependent app health regardless of device status
+            if dependent_apps:
+                check_dependent_app_health(dependent_apps, restart_retries, logger)
 
         except (SystemExit, KeyboardInterrupt):
             logger.info("Monitor service shutting down.")

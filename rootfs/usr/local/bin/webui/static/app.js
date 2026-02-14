@@ -2,7 +2,15 @@
    USB/IP Terminal WebUI — Frontend JavaScript
    ============================================================ */
 
-const API = INGRESS_PATH;
+const API_BASE = (typeof INGRESS_PATH === 'string' ? INGRESS_PATH : '').replace(/\/+$/, '');
+
+function buildApiUrl(path) {
+    const value = `${path || ''}`;
+    if (!value) return API_BASE || '';
+    if (value.startsWith('http://') || value.startsWith('https://')) return value;
+    const normalizedPath = value.startsWith('/') ? value : `/${value}`;
+    return API_BASE ? `${API_BASE}${normalizedPath}` : normalizedPath;
+}
 let logPaused = false;
 let logFilter = 'all';
 let allLogLines = []; // master unfiltered log buffer
@@ -89,13 +97,38 @@ function toast(msg, type = '') {
 
 // ---- API helper ----
 async function api(path, opts = {}) {
-    const url = `${API}${path}`;
+    const url = buildApiUrl(path);
     try {
         const resp = await fetch(url, {
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+            },
             ...opts,
         });
-        return await resp.json();
+        const raw = await resp.text();
+        let data = {};
+        if (raw) {
+            try {
+                data = JSON.parse(raw);
+            } catch (e) {
+                const msg = `Invalid API response (${resp.status}) from ${path}`;
+                toast(msg, 'error');
+                return { ok: false, error: msg, status: resp.status, url };
+            }
+        }
+
+        if (!data || typeof data !== 'object') {
+            data = {};
+        }
+
+        if (!resp.ok && data.ok === undefined) {
+            data.ok = false;
+        }
+        if (!resp.ok && !data.error) {
+            data.error = `HTTP ${resp.status}`;
+        }
+        return data;
     } catch (e) {
         toast(`Network error: ${e.message}`, 'error');
         return { ok: false, error: e.message };
@@ -157,23 +190,26 @@ async function refreshDashboard() {
         badge.textContent = '○ NO DEVICES';
     }
 
-    // Dependent add-ons health
-    const addonsEl = document.getElementById('dash-addons');
-    const addonHealth = await api('/api/addon-health');
-    if (addonHealth.ok && addonHealth.addons && addonHealth.addons.length > 0) {
-        addonsEl.innerHTML = addonHealth.addons.map(a => {
+    // Dependent apps health
+    const appsEl = document.getElementById('dash-apps');
+    const appHealth = await api('/api/app-health');
+    const dependentApps = appHealth.apps || appHealth.addons || [];
+    if (appHealth.ok && dependentApps.length > 0) {
+        appsEl.innerHTML = dependentApps.map(a => {
             const isUp = a.state === 'started';
             const icon = isUp ? '●' : '○';
             const cls = isUp ? 'badge-ok' : 'badge-error';
             return `<div class="item">
                 <span>${icon} ${esc(a.name)}</span>
                 <span><span class="badge ${cls}">${esc(a.state.toUpperCase())}</span>
-                ${!isUp ? `<button class="btn btn-xs" onclick="restartAddon('${esc(a.slug)}','${esc(a.name)}')">RESTART</button>` : ''}
+                ${!isUp ? `<button class="btn btn-xs" onclick="restartApp('${esc(a.slug)}','${esc(a.name)}')">RESTART</button>` : ''}
                 </span>
             </div>`;
         }).join('');
-    } else if (addonHealth.ok && addonHealth.addons && addonHealth.addons.length === 0) {
-        addonsEl.innerHTML = '<span class="dim">No dependent add-ons configured</span>';
+    } else if (appHealth.ok && dependentApps.length === 0) {
+        appsEl.innerHTML = '<span class="dim">No dependent apps configured</span>';
+    } else {
+        appsEl.innerHTML = `<span class="dim">App health unavailable: ${esc(appHealth.error || 'unknown error')}</span>`;
     }
 }
 
@@ -521,8 +557,8 @@ async function loadConfig() {
     const autoScrollEl = document.getElementById('cfg-log-auto-scroll');
     if (autoScrollEl) autoScrollEl.value = autoScrollVal;
 
-    // Load dependent add-ons selection
-    loadDependentAddonsConfig(cfg.dependent_addons || []);
+    // Load dependent apps selection
+    loadDependentAppsConfig(cfg.dependent_apps || cfg.dependent_addons || []);
 }
 
 function addDeviceRow(name = '', devId = '', server = '') {
@@ -569,10 +605,10 @@ async function saveConfig() {
         devices,
     };
 
-    // Preserve dependent_addons from current config (saved separately)
+    // Preserve dependent_apps from current config (saved separately)
     const curCfg = await api('/api/config');
     if (curCfg.ok && curCfg.config) {
-        config.dependent_addons = curCfg.config.dependent_addons || [];
+        config.dependent_apps = curCfg.config.dependent_apps || curCfg.config.dependent_addons || [];
     }
 
     toast('Saving configuration...');
@@ -672,91 +708,92 @@ function initTooltips() {
 }
 
 
-// ---- Dependent Add-ons ----
-let _selectedDependentAddons = []; // current selection
+// ---- Dependent Apps ----
+let _selectedDependentApps = []; // current selection
 
-async function restartAddon(slug, name) {
+async function restartApp(slug, name) {
     toast(`Restarting ${name}...`);
-    const data = await api('/api/addon-restart', { method: 'POST', body: JSON.stringify({ slug }) });
+    const data = await api('/api/app-restart', { method: 'POST', body: JSON.stringify({ slug }) });
     toast(data.ok ? `${name} restarted` : `Restart failed`, data.ok ? '' : 'error');
     refreshDashboard();
 }
 
-function loadDependentAddonsConfig(addons) {
-    _selectedDependentAddons = addons || [];
-    renderDependentAddonsList();
+function loadDependentAppsConfig(apps) {
+    _selectedDependentApps = apps || [];
+    renderDependentAppsList();
 }
 
-function renderDependentAddonsList() {
-    const el = document.getElementById('cfg-dependent-addons-list');
+function renderDependentAppsList() {
+    const el = document.getElementById('cfg-dependent-apps-list');
     if (!el) return;
-    if (_selectedDependentAddons.length === 0) {
-        el.innerHTML = '<span class="dim">No add-ons selected. Click DISCOVER to find installed add-ons.</span>';
+    if (_selectedDependentApps.length === 0) {
+        el.innerHTML = '<span class="dim">No apps selected. Click DISCOVER to find installed apps.</span>';
         return;
     }
-    el.innerHTML = _selectedDependentAddons.map((a, i) => `
+    el.innerHTML = _selectedDependentApps.map((a, i) => `
         <div class="device-row">
-            <input type="text" value="${esc(a.name)}" class="dep-addon-name" readonly>
-            <input type="text" value="${esc(a.slug)}" class="dep-addon-slug" readonly>
-            <button class="btn btn-xs btn-error" onclick="removeDependentAddon(${i})">\u2715</button>
+            <input type="text" value="${esc(a.name)}" class="dep-app-name" readonly>
+            <input type="text" value="${esc(a.slug)}" class="dep-app-slug" readonly>
+            <button class="btn btn-xs btn-error" onclick="removeDependentApp(${i})">\u2715</button>
         </div>
     `).join('');
 }
 
-function removeDependentAddon(index) {
-    _selectedDependentAddons.splice(index, 1);
-    renderDependentAddonsList();
+function removeDependentApp(index) {
+    _selectedDependentApps.splice(index, 1);
+    renderDependentAppsList();
 }
 
-async function loadAvailableAddons() {
-    toast('Discovering installed add-ons...');
-    const data = await api('/api/addons');
-    if (!data.ok || !data.addons) {
-        toast('Could not fetch add-ons', 'error');
+async function loadAvailableApps() {
+    toast('Discovering installed apps...');
+    const data = await api('/api/apps');
+    const installedApps = data.apps || data.addons || [];
+    if (!data.ok || !installedApps) {
+        toast('Could not fetch apps', 'error');
         return;
     }
     // Filter out self and show selection dialog
-    const available = data.addons.filter(a => a.slug !== 'local_ha_usbip_client' && a.slug !== 'ha_usbip_client');
+    const available = installedApps.filter(a => a.slug !== 'local_ha_usbip_client' && a.slug !== 'ha_usbip_client');
     if (available.length === 0) {
-        toast('No other add-ons found');
+        toast('No other apps found');
         return;
     }
     // Build a selection overlay
-    const selectedSlugs = new Set(_selectedDependentAddons.map(a => a.slug));
-    const el = document.getElementById('cfg-dependent-addons-list');
+    const selectedSlugs = new Set(_selectedDependentApps.map(a => a.slug));
+    const el = document.getElementById('cfg-dependent-apps-list');
     el.innerHTML = `
         <div style="max-height:300px;overflow-y:auto;border:1px solid var(--dim);padding:.5rem;margin-bottom:.5rem">
         ${available.map(a => {
         const checked = selectedSlugs.has(a.slug) ? 'checked' : '';
         const stateClass = a.state === 'started' ? 'badge-ok' : 'badge-error';
         return `<label style="display:flex;align-items:center;gap:.5rem;padding:.2rem 0;cursor:pointer">
-                <input type="checkbox" class="dep-addon-check" data-slug="${esc(a.slug)}" data-name="${esc(a.name)}" ${checked}>
+                <input type="checkbox" class="dep-app-check" data-slug="${esc(a.slug)}" data-name="${esc(a.name)}" ${checked}>
                 <span>${esc(a.name)}</span>
                 <span class="badge ${stateClass}" style="font-size:.7rem">${esc(a.state)}</span>
                 <span class="dim" style="font-size:.7rem">${esc(a.slug)}</span>
             </label>`;
     }).join('')}
         </div>
-        <button class="btn btn-sm" onclick="applyAddonSelection()">\u2713 APPLY SELECTION</button>
+        <button class="btn btn-sm" onclick="applyAppSelection()">\u2713 APPLY SELECTION</button>
     `;
-    toast(`Found ${available.length} add-on(s)`);
+    toast(`Found ${available.length} app(s)`);
 }
 
-function applyAddonSelection() {
-    const checks = document.querySelectorAll('.dep-addon-check:checked');
-    _selectedDependentAddons = Array.from(checks).map(c => ({
+function applyAppSelection() {
+    const checks = document.querySelectorAll('.dep-app-check:checked');
+    _selectedDependentApps = Array.from(checks).map(c => ({
         name: c.dataset.name,
         slug: c.dataset.slug,
     }));
-    renderDependentAddonsList();
-    toast(`${_selectedDependentAddons.length} add-on(s) selected`);
+    renderDependentAppsList();
+    toast(`${_selectedDependentApps.length} app(s) selected`);
 }
 
-async function saveDependentAddons() {
-    toast('Saving dependent add-ons...');
-    const data = await api('/api/dependent-addons', {
+async function saveDependentApps() {
+    toast('Saving dependent apps...');
+    const data = await api('/api/dependent-apps', {
         method: 'POST',
-        body: JSON.stringify({ dependent_addons: _selectedDependentAddons }),
+        body: JSON.stringify({ dependent_apps: _selectedDependentApps }),
     });
-    toast(data.ok ? 'Dependent add-ons saved!' : 'Save failed', data.ok ? '' : 'error');
+    toast(data.ok ? 'Dependent apps saved!' : 'Save failed', data.ok ? '' : 'error');
 }

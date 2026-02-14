@@ -1,12 +1,12 @@
-"""usbip_lib — Shared library for HA USB/IP Client add-on."""
+"""usbip_lib — Shared library for HA USB/IP Client app."""
 
 from .config import (
-    get_addon_config,
-    get_addon_state,
-    list_installed_addons,
-    restart_addon,
+    get_app_config,
+    get_app_state,
+    list_installed_apps,
+    restart_app,
     send_ha_notification,
-    set_addon_config,
+    set_app_config,
     supervisor_request,
 )
 from .constants import (
@@ -22,11 +22,11 @@ from .events import now_iso, read_events, write_event
 from .logging_setup import setup_logging
 from .monitor import (
     attempt_reattach,
-    check_dependent_addon_health,
+    check_dependent_app_health,
     clear_cooldowns,
     find_missing_devices,
     is_on_cooldown,
-    restart_dependent_addons,
+    restart_dependent_apps,
     set_cooldown,
 )
 from .usbip import (
@@ -54,11 +54,11 @@ from .usbip import (
 
 __all__ = [
     # config
-    "get_addon_config",
-    "get_addon_state",
-    "list_installed_addons",
-    "restart_addon",
-    "set_addon_config",
+    "get_app_config",
+    "get_app_state",
+    "list_installed_apps",
+    "restart_app",
+    "set_app_config",
     "supervisor_request",
     "send_ha_notification",
     # constants
@@ -78,8 +78,8 @@ __all__ = [
     # monitor
     "find_missing_devices",
     "attempt_reattach",
-    "restart_dependent_addons",
-    "check_dependent_addon_health",
+    "restart_dependent_apps",
+    "check_dependent_app_health",
     "is_on_cooldown",
     "set_cooldown",
     "clear_cooldowns",

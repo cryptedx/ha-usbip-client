@@ -13,9 +13,16 @@ ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = ROOT / "config.yaml"
 REPOSITORY_PATH = ROOT / "repository.yaml"
 WEBUI_PATH = ROOT / "rootfs/usr/local/bin/webui/app.py"
+TEMPLATE_PATH = ROOT / "rootfs/usr/local/bin/webui/templates/index.html"
 CHANGELOG_PATH = ROOT / "CHANGELOG.md"
 
 VERSION_RE = re.compile(r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z][0-9A-Za-z.-]*)?$")
+
+
+def to_ascii_version(version: str) -> str:
+    if "-" in version:
+        return version.split("-", 1)[0] + "β"
+    return version
 
 
 def run_git(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -83,6 +90,7 @@ def stage_release_files() -> None:
         str(CONFIG_PATH.relative_to(ROOT)),
         str(REPOSITORY_PATH.relative_to(ROOT)),
         str(WEBUI_PATH.relative_to(ROOT)),
+        str(TEMPLATE_PATH.relative_to(ROOT)),
         str(CHANGELOG_PATH.relative_to(ROOT)),
     )
 
@@ -165,6 +173,13 @@ def main() -> int:
             f'"version": "{version}",',
             apply_changes=not args.dry_run,
         )
+        ascii_version = to_ascii_version(version)
+        template_changed = replace_once(
+            TEMPLATE_PATH,
+            r"v\d+\.\d+\.\d+(?:β)?(\s+│)",
+            fr"v{ascii_version}\1",
+            apply_changes=not args.dry_run,
+        )
 
         if args.dry_run:
             print(f"Dry-run successful for version: {version}")
@@ -181,11 +196,12 @@ def main() -> int:
                                 repository_changed,
                             ),
                             (str(WEBUI_PATH.relative_to(ROOT)), webui_changed),
+                            (str(TEMPLATE_PATH.relative_to(ROOT)), template_changed),
                         ]
                         if changed
                     ]
                 )
-                if any([config_changed, repository_changed, webui_changed])
+                if any([config_changed, repository_changed, webui_changed, template_changed])
                 else "No version file updates required (already at requested version)."
             )
             print("Would create commit: chore(release): " + version)

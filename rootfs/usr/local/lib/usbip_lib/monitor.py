@@ -1,4 +1,4 @@
-"""Monitor helper functions for USB/IP device and add-on health monitoring.
+"""Monitor helper functions for USB/IP device and app health monitoring.
 
 These are extracted from the monitor service so they can be properly
 unit-tested via normal imports.
@@ -7,7 +7,7 @@ unit-tested via normal imports.
 import logging
 import time
 
-from .config import get_addon_state, restart_addon, send_ha_notification
+from .config import get_app_state, restart_app, send_ha_notification
 from .events import write_event
 from .usbip import attach_device
 
@@ -16,8 +16,8 @@ from .usbip import attach_device
 _notification_cooldowns: dict[str, float] = {}
 COOLDOWN_SECONDS = 300  # 5 minutes
 
-# Track previous addon health to avoid repeated alerts
-_addon_health_prev: dict[str, str] = {}
+# Track previous app health to avoid repeated alerts
+_app_health_prev: dict[str, str] = {}
 
 
 def is_on_cooldown(device_key: str) -> bool:
@@ -105,19 +105,19 @@ def attempt_reattach(device: dict, retries: int, logger: logging.Logger) -> bool
     return ok
 
 
-def restart_dependent_addons(
-    dependent_addons: list[dict], restart_retries: int, logger: logging.Logger
+def restart_dependent_apps(
+    dependent_apps: list[dict], restart_retries: int, logger: logging.Logger
 ) -> None:
-    """Restart all configured dependent add-ons.
+    """Restart all configured dependent apps.
 
     Args:
-        dependent_addons: List of dicts with 'name' and 'slug' keys.
-        restart_retries: Max restart attempts per add-on.
+        dependent_apps: List of dicts with 'name' and 'slug' keys.
+        restart_retries: Max restart attempts per app.
         logger: Logger instance.
     """
-    for addon in dependent_addons:
-        slug = addon.get("slug", "")
-        name = addon.get("name", slug)
+    for app in dependent_apps:
+        slug = app.get("slug", "")
+        name = app.get("name", slug)
         if not slug:
             continue
 
@@ -129,12 +129,12 @@ def restart_dependent_addons(
                 attempt,
                 restart_retries,
             )
-            ok = restart_addon(slug)
+            ok = restart_app(slug)
             if ok:
                 logger.info("Successfully restarted %s", name)
-                write_event("addon_restart_ok", f"Restarted {name}", device=name)
+                write_event("app_restart_ok", f"Restarted {name}", device=name)
                 send_ha_notification(
-                    "USB/IP: Add-on Restarted",
+                    "USB/IP: App Restarted",
                     f"{name} was restarted after USB device recovery.",
                 )
                 break
@@ -147,42 +147,42 @@ def restart_dependent_addons(
             logger.error(
                 "Failed to restart %s after %d attempts", name, restart_retries
             )
-            write_event("addon_restart_fail", f"Failed to restart {name}", device=name)
+            write_event("app_restart_fail", f"Failed to restart {name}", device=name)
             send_ha_notification(
-                "USB/IP: Add-on Restart Failed",
+                "USB/IP: App Restart Failed",
                 f"Could not restart {name} ({slug}) after {restart_retries} attempts.",
             )
 
 
-def check_dependent_addon_health(
-    dependent_addons: list[dict], restart_retries: int, logger: logging.Logger
+def check_dependent_app_health(
+    dependent_apps: list[dict], restart_retries: int, logger: logging.Logger
 ) -> None:
-    """Check health of dependent add-ons and notify on state changes.
+    """Check health of dependent apps and notify on state changes.
 
     Args:
-        dependent_addons: List of dicts with 'name' and 'slug' keys.
-        restart_retries: Max restart attempts per add-on.
+        dependent_apps: List of dicts with 'name' and 'slug' keys.
+        restart_retries: Max restart attempts per app.
         logger: Logger instance.
     """
-    for addon in dependent_addons:
-        slug = addon.get("slug", "")
-        name = addon.get("name", slug)
+    for app in dependent_apps:
+        slug = app.get("slug", "")
+        name = app.get("name", slug)
         if not slug:
             continue
 
-        state = get_addon_state(slug)
-        prev = _addon_health_prev.get(slug, "started")
+        state = get_app_state(slug)
+        prev = _app_health_prev.get(slug, "started")
 
         if state != "started" and prev == "started":
-            logger.warning("Dependent add-on %s (%s) is %s", name, slug, state)
-            write_event("addon_health_fail", f"{name} is {state}", device=name)
+            logger.warning("Dependent app %s (%s) is %s", name, slug, state)
+            write_event("app_health_fail", f"{name} is {state}", device=name)
             send_ha_notification(
-                "USB/IP: Dependent Add-on Down",
+                "USB/IP: Dependent App Down",
                 f"{name} ({slug}) state: {state}. USB device may have failed.",
             )
-            # Restart add-on if it's in error state
+            # Restart app if it's in error state
             if state == "error":
-                logger.info("Attempting to restart failed add-on %s (%s)", name, slug)
+                logger.info("Attempting to restart failed app %s (%s)", name, slug)
                 for attempt in range(1, restart_retries + 1):
                     logger.info(
                         "Restarting %s (%s) — attempt %d/%d",
@@ -191,14 +191,14 @@ def check_dependent_addon_health(
                         attempt,
                         restart_retries,
                     )
-                    ok = restart_addon(slug)
+                    ok = restart_app(slug)
                     if ok:
                         logger.info("Successfully restarted %s", name)
                         write_event(
-                            "addon_restart_ok", f"Restarted {name}", device=name
+                            "app_restart_ok", f"Restarted {name}", device=name
                         )
                         send_ha_notification(
-                            "USB/IP: Add-on Restarted",
+                            "USB/IP: App Restarted",
                             f"{name} was restarted due to error state.",
                         )
                         break
@@ -215,16 +215,16 @@ def check_dependent_addon_health(
                         "Failed to restart %s after %d attempts", name, restart_retries
                     )
                     write_event(
-                        "addon_restart_fail", f"Failed to restart {name}", device=name
+                        "app_restart_fail", f"Failed to restart {name}", device=name
                     )
                     send_ha_notification(
-                        "USB/IP: Add-on Restart Failed",
+                        "USB/IP: App Restart Failed",
                         f"Could not restart {name} ({slug}) after {restart_retries} attempts.",
                     )
         elif state == "started" and prev != "started":
             logger.info(
-                "Dependent add-on %s (%s) recovered — now %s", name, slug, state
+                "Dependent app %s (%s) recovered — now %s", name, slug, state
             )
-            write_event("addon_health_ok", f"{name} recovered", device=name)
+            write_event("app_health_ok", f"{name} recovered", device=name)
 
-        _addon_health_prev[slug] = state
+        _app_health_prev[slug] = state

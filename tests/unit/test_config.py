@@ -5,21 +5,21 @@ import json
 import pytest
 
 from usbip_lib.config import (
-    get_addon_config,
-    get_addon_state,
-    list_installed_addons,
-    restart_addon,
+    get_app_config,
+    get_app_state,
+    list_installed_apps,
+    restart_app,
     send_ha_notification,
-    set_addon_config,
+    set_app_config,
     supervisor_request,
 )
 
 from testdata import (
-    SAMPLE_ADDON_CONFIG,
-    SAMPLE_ADDON_INFO_RESPONSE_STARTED,
-    SAMPLE_ADDON_INFO_RESPONSE_STOPPED,
-    SAMPLE_ADDON_RESTART_RESPONSE,
-    SAMPLE_ADDONS_LIST_RESPONSE,
+    SAMPLE_APP_CONFIG,
+    SAMPLE_APP_INFO_RESPONSE_STARTED,
+    SAMPLE_APP_INFO_RESPONSE_STOPPED,
+    SAMPLE_APP_RESTART_RESPONSE,
+    SAMPLE_APPS_LIST_RESPONSE,
     SAMPLE_SUPERVISOR_INFO_RESPONSE,
 )
 
@@ -48,9 +48,9 @@ class TestSupervisorRequest:
         assert "connection refused" in result["message"]
 
 
-class TestGetAddonConfig:
+class TestGetAppConfig:
     def test_success(self, mock_supervisor_api):
-        config = get_addon_config(token="test-token")
+        config = get_app_config(token="test-token")
         assert config["log_level"] == "info"
         assert config["usbipd_server_address"] == "192.168.1.44"
         assert len(config["devices"]) == 2
@@ -61,13 +61,13 @@ class TestGetAddonConfig:
         resp.__enter__ = mocker.Mock(return_value=resp)
         resp.__exit__ = mocker.Mock(return_value=False)
         mocker.patch("usbip_lib.config.urllib.request.urlopen", return_value=resp)
-        config = get_addon_config(token="test")
+        config = get_app_config(token="test")
         assert config == {}
 
 
-class TestSetAddonConfig:
+class TestSetAppConfig:
     def test_success(self, mock_supervisor_api):
-        result = set_addon_config({"log_level": "debug"}, token="test-token")
+        result = set_app_config({"log_level": "debug"}, token="test-token")
         assert result["result"] == "ok"
 
 
@@ -79,7 +79,7 @@ class TestSendHaNotification:
 
 
 # ---------------------------------------------------------------------------
-# Add-on management tests
+# App management tests
 # ---------------------------------------------------------------------------
 
 
@@ -92,59 +92,59 @@ def _make_mock_response(mocker, data):
     return resp
 
 
-class TestListInstalledAddons:
+class TestListInstalledApps:
     def test_success(self, mocker):
         mock_urlopen = mocker.patch("usbip_lib.config.urllib.request.urlopen")
         mock_urlopen.return_value = _make_mock_response(
-            mocker, SAMPLE_ADDONS_LIST_RESPONSE
+            mocker, SAMPLE_APPS_LIST_RESPONSE
         )
 
-        addons = list_installed_addons(token="test-token")
-        assert len(addons) == 4
-        slugs = [a["slug"] for a in addons]
+        apps = list_installed_apps(token="test-token")
+        assert len(apps) == 4
+        slugs = [a["slug"] for a in apps]
         assert "45df7312_zigbee2mqtt" in slugs
         assert "core_zwave_js" in slugs
         # Check structure
-        z2m = next(a for a in addons if a["slug"] == "45df7312_zigbee2mqtt")
+        z2m = next(a for a in apps if a["slug"] == "45df7312_zigbee2mqtt")
         assert z2m["name"] == "Zigbee2MQTT"
         assert z2m["state"] == "started"
 
     def test_api_error(self, mocker):
         mock_urlopen = mocker.patch("usbip_lib.config.urllib.request.urlopen")
         mock_urlopen.return_value = _make_mock_response(mocker, {"result": "error"})
-        addons = list_installed_addons(token="test")
-        assert addons == []
+        apps = list_installed_apps(token="test")
+        assert apps == []
 
     def test_connection_error(self, mocker):
         mocker.patch(
             "usbip_lib.config.urllib.request.urlopen",
             side_effect=Exception("connection refused"),
         )
-        addons = list_installed_addons(token="test")
-        assert addons == []
+        apps = list_installed_apps(token="test")
+        assert apps == []
 
 
-class TestGetAddonState:
+class TestGetAppState:
     def test_started(self, mocker):
         mock_urlopen = mocker.patch("usbip_lib.config.urllib.request.urlopen")
         mock_urlopen.return_value = _make_mock_response(
-            mocker, SAMPLE_ADDON_INFO_RESPONSE_STARTED
+            mocker, SAMPLE_APP_INFO_RESPONSE_STARTED
         )
-        state = get_addon_state("45df7312_zigbee2mqtt", token="test")
+        state = get_app_state("45df7312_zigbee2mqtt", token="test")
         assert state == "started"
 
     def test_stopped(self, mocker):
         mock_urlopen = mocker.patch("usbip_lib.config.urllib.request.urlopen")
         mock_urlopen.return_value = _make_mock_response(
-            mocker, SAMPLE_ADDON_INFO_RESPONSE_STOPPED
+            mocker, SAMPLE_APP_INFO_RESPONSE_STOPPED
         )
-        state = get_addon_state("core_zwave_js", token="test")
+        state = get_app_state("core_zwave_js", token="test")
         assert state == "stopped"
 
     def test_api_error_returns_unknown(self, mocker):
         mock_urlopen = mocker.patch("usbip_lib.config.urllib.request.urlopen")
         mock_urlopen.return_value = _make_mock_response(mocker, {"result": "error"})
-        state = get_addon_state("nonexistent", token="test")
+        state = get_app_state("nonexistent", token="test")
         assert state == "unknown"
 
     def test_connection_error_returns_unknown(self, mocker):
@@ -152,17 +152,17 @@ class TestGetAddonState:
             "usbip_lib.config.urllib.request.urlopen",
             side_effect=Exception("timeout"),
         )
-        state = get_addon_state("something", token="test")
+        state = get_app_state("something", token="test")
         assert state == "unknown"
 
 
-class TestRestartAddon:
+class TestRestartApp:
     def test_success(self, mocker):
         mock_urlopen = mocker.patch("usbip_lib.config.urllib.request.urlopen")
         mock_urlopen.return_value = _make_mock_response(
-            mocker, SAMPLE_ADDON_RESTART_RESPONSE
+            mocker, SAMPLE_APP_RESTART_RESPONSE
         )
-        result = restart_addon("45df7312_zigbee2mqtt", token="test")
+        result = restart_app("45df7312_zigbee2mqtt", token="test")
         assert result is True
 
         # Verify correct endpoint was called
@@ -174,9 +174,9 @@ class TestRestartAddon:
     def test_failure(self, mocker):
         mock_urlopen = mocker.patch("usbip_lib.config.urllib.request.urlopen")
         mock_urlopen.return_value = _make_mock_response(
-            mocker, {"result": "error", "message": "addon not found"}
+            mocker, {"result": "error", "message": "app not found"}
         )
-        result = restart_addon("nonexistent", token="test")
+        result = restart_app("nonexistent", token="test")
         assert result is False
 
     def test_connection_error(self, mocker):
@@ -184,5 +184,5 @@ class TestRestartAddon:
             "usbip_lib.config.urllib.request.urlopen",
             side_effect=Exception("connection refused"),
         )
-        result = restart_addon("something", token="test")
+        result = restart_app("something", token="test")
         assert result is False

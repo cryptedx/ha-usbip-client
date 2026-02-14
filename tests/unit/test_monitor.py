@@ -7,11 +7,11 @@ import pytest
 
 from usbip_lib.monitor import (
     attempt_reattach,
-    check_dependent_addon_health,
+    check_dependent_app_health,
     clear_cooldowns,
     find_missing_devices,
     is_on_cooldown,
-    restart_dependent_addons,
+    restart_dependent_apps,
     set_cooldown,
 )
 
@@ -161,25 +161,25 @@ class TestReattachLogic:
         assert ok is False
 
 
-class TestDependentAddonRestart:
-    """Test dependent add-on restart logic with mocked Supervisor API."""
+class TestDependentAppRestart:
+    """Test dependent app restart logic with mocked Supervisor API."""
 
     def test_restart_success(self, mocker):
-        mocker.patch("usbip_lib.config.restart_addon", return_value=True)
-        from usbip_lib.config import restart_addon
+        mocker.patch("usbip_lib.config.restart_app", return_value=True)
+        from usbip_lib.config import restart_app
 
-        result = restart_addon("45df7312_zigbee2mqtt")
+        result = restart_app("45df7312_zigbee2mqtt")
         assert result is True
 
     def test_restart_failure(self, mocker):
-        mocker.patch("usbip_lib.config.restart_addon", return_value=False)
-        from usbip_lib.config import restart_addon
+        mocker.patch("usbip_lib.config.restart_app", return_value=False)
+        from usbip_lib.config import restart_app
 
-        result = restart_addon("nonexistent_addon")
+        result = restart_app("nonexistent_app")
         assert result is False
 
-    def test_get_addon_state_started(self, mocker):
-        from testdata import SAMPLE_ADDON_INFO_RESPONSE_STARTED
+    def test_get_app_state_started(self, mocker):
+        from testdata import SAMPLE_APP_INFO_RESPONSE_STARTED
 
         def _make_response(data):
             resp = mocker.Mock()
@@ -190,15 +190,15 @@ class TestDependentAddonRestart:
 
         mocker.patch(
             "usbip_lib.config.urllib.request.urlopen",
-            return_value=_make_response(SAMPLE_ADDON_INFO_RESPONSE_STARTED),
+            return_value=_make_response(SAMPLE_APP_INFO_RESPONSE_STARTED),
         )
-        from usbip_lib.config import get_addon_state
+        from usbip_lib.config import get_app_state
 
-        state = get_addon_state("45df7312_zigbee2mqtt", token="test")
+        state = get_app_state("45df7312_zigbee2mqtt", token="test")
         assert state == "started"
 
-    def test_get_addon_state_stopped(self, mocker):
-        from testdata import SAMPLE_ADDON_INFO_RESPONSE_STOPPED
+    def test_get_app_state_stopped(self, mocker):
+        from testdata import SAMPLE_APP_INFO_RESPONSE_STOPPED
 
         def _make_response(data):
             resp = mocker.Mock()
@@ -209,9 +209,9 @@ class TestDependentAddonRestart:
 
         mocker.patch(
             "usbip_lib.config.urllib.request.urlopen",
-            return_value=_make_response(SAMPLE_ADDON_INFO_RESPONSE_STOPPED),
+            return_value=_make_response(SAMPLE_APP_INFO_RESPONSE_STOPPED),
         )
-        from usbip_lib.config import get_addon_state
+        from usbip_lib.config import get_app_state
 
-        state = get_addon_state("core_zwave_js", token="test")
+        state = get_app_state("core_zwave_js", token="test")
         assert state == "stopped"

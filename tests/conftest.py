@@ -51,7 +51,7 @@ def mock_subprocess_success(mocker):
 
 @pytest.fixture
 def mock_supervisor_api(mocker):
-    """Mock urllib.request.urlopen to return sample addon config."""
+    """Mock urllib.request.urlopen to return sample app config."""
 
     def _make_response(data):
         resp = mocker.Mock()

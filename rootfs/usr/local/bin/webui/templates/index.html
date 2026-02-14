@@ -17,7 +17,7 @@
 │  ██╗   ██╗███████╗██████╗ /IP       │
 │  ██║   ██║██╔════╝██╔══██╗  CLIENT  │
 │  ██║   ██║███████╗██████╔╝ ───────  │
-│  ██║   ██║╚════██║██╔══██╗ v0.5.0β  │
+│  ██║   ██║╚════██║██╔══██╗ v0.5.2β  │
 │  ╚██████╔╝███████║██████╔╝          │
 │   ╚═════╝ ╚══════╝╚═════╝           │
 ╰──────────────────────────────────────╯</pre>
@@ -66,8 +66,8 @@
       </div>
       <div class="panel-row">
         <div class="panel full">
-          <h3>» Dependent Add-ons</h3>
-          <div id="dash-addons" class="mono-list"><span class="dim">No dependent add-ons configured</span></div>
+          <h3>» Dependent Apps</h3>
+          <div id="dash-apps" class="mono-list"><span class="dim">No dependent apps configured</span></div>
         </div>
       </div>
     </section>
@@ -246,12 +246,12 @@
       </div>
 
       <div class="panel">
-        <h3>» Dependent Add-ons</h3>
-        <p class="dim" style="margin-bottom:.5rem">Select add-ons that depend on USB devices from this add-on. They will be monitored and restarted after device recovery.</p>
-        <div id="cfg-dependent-addons-list"></div>
+        <h3>» Dependent Apps</h3>
+        <p class="dim" style="margin-bottom:.5rem">Select apps that depend on USB devices from this app. They will be monitored and restarted after device recovery.</p>
+        <div id="cfg-dependent-apps-list"></div>
         <div class="btn-row" style="margin-top:.5rem">
-          <button class="btn btn-sm" onclick="loadAvailableAddons()">↻ DISCOVER ADD-ONS</button>
-          <button class="btn btn-sm" onclick="saveDependentAddons()">💾 SAVE SELECTION</button>
+          <button class="btn btn-sm" onclick="loadAvailableApps()">↻ DISCOVER APPS</button>
+          <button class="btn btn-sm" onclick="saveDependentApps()">💾 SAVE SELECTION</button>
         </div>
       </div>
     </section>

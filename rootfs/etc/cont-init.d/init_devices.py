@@ -1,14 +1,14 @@
 #!/command/with-contenv python3
 """s6 cont-init script: Discover devices and build the device manifest.
 
-Replaces create_devices.sh — reads add-on config, discovers available devices
+Replaces create_devices.sh — reads app config, discovers available devices
 from all configured servers, resolves device IDs to bus IDs, and writes a
 JSON manifest for the usbip service to consume.
 """
 
 import sys
 
-from usbip_lib.config import get_addon_config
+from usbip_lib.config import get_app_config
 from usbip_lib.events import write_event
 from usbip_lib.logging_setup import setup_logging
 from usbip_lib.usbip import (
@@ -20,7 +20,7 @@ from usbip_lib.usbip import (
 
 
 def main() -> int:
-    config = get_addon_config()
+    config = get_app_config()
     log_level = config.get("log_level", "info")
     logger = setup_logging(log_level, name="init_devices")
 

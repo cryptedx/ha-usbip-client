@@ -3,11 +3,11 @@
 
 import sys
 
-from usbip_lib.config import get_addon_config
+from usbip_lib.config import get_app_config
 from usbip_lib.logging_setup import setup_logging
 from usbip_lib.usbip import load_kernel_module
 
-config = get_addon_config()
+config = get_app_config()
 log_level = config.get("log_level", "info")
 logger = setup_logging(log_level, name="load_modules")
 

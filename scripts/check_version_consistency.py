@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+TEMPLATE_PATH = ROOT / "rootfs/usr/local/bin/webui/templates/index.html"
 
 FILES_AND_PATTERNS = {
     ROOT / "config.yaml": r'^version:\s*"([^"]+)"\s*$',
@@ -16,6 +17,7 @@ FILES_AND_PATTERNS = {
 }
 
 VERSION_RE = re.compile(r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z][0-9A-Za-z.-]*)?$")
+ASCII_VERSION_RE = re.compile(r"v(\d+\.\d+\.\d+(?:β)?)\s+│")
 
 
 def extract_version(path: Path, pattern: str) -> str:
@@ -24,6 +26,21 @@ def extract_version(path: Path, pattern: str) -> str:
     if len(matches) != 1:
         rel = path.relative_to(ROOT)
         raise ValueError(f"Expected exactly one version match in {rel}")
+    return matches[0]
+
+
+def to_ascii_version(version: str) -> str:
+    if "-" in version:
+        return version.split("-", 1)[0] + "β"
+    return version
+
+
+def extract_ascii_version(path: Path) -> str:
+    text = path.read_text(encoding="utf-8")
+    matches = ASCII_VERSION_RE.findall(text)
+    if len(matches) != 1:
+        rel = path.relative_to(ROOT)
+        raise ValueError(f"Expected exactly one ASCII version token in {rel}")
     return matches[0]
 
 
@@ -45,6 +62,16 @@ def main() -> int:
             return 1
 
         version = next(iter(unique_versions))
+        expected_ascii = to_ascii_version(version)
+        found_ascii = extract_ascii_version(TEMPLATE_PATH)
+        if found_ascii != expected_ascii:
+            rel = TEMPLATE_PATH.relative_to(ROOT)
+            print(
+                f"ASCII version mismatch in {rel}: expected v{expected_ascii}, found v{found_ascii}",
+                file=sys.stderr,
+            )
+            return 1
+
         print(f"Version consistency check passed: {version}")
         return 0
     except ValueError as exc:

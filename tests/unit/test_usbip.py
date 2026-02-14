@@ -25,7 +25,7 @@ from usbip_lib.usbip import (
 )
 
 from testdata import (
-    SAMPLE_ADDON_CONFIG,
+    SAMPLE_APP_CONFIG,
     SAMPLE_DEVICE_MANIFEST,
     SAMPLE_DISCOVERY_DATA,
     SAMPLE_USBIP_LIST_EMPTY,
@@ -331,7 +331,7 @@ class TestDetachAll:
 # ---------------------------------------------------------------------------
 class TestBuildDeviceManifest:
     def test_with_device_ids(self):
-        manifest = build_device_manifest(SAMPLE_ADDON_CONFIG, SAMPLE_DISCOVERY_DATA)
+        manifest = build_device_manifest(SAMPLE_APP_CONFIG, SAMPLE_DISCOVERY_DATA)
         assert len(manifest) == 2
         # First device uses device_id, should resolve to bus_id
         assert manifest[0]["bus_id"] == "1-1.4"

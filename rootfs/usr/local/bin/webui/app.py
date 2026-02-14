@@ -469,17 +469,19 @@ def api_notify():
 
 
 @app.route("/api/apps")
+@app.route("/api/addons")
 def api_apps():
     """List all installed Home Assistant apps."""
     apps = list_installed_apps()
-    return jsonify({"ok": True, "apps": apps})
+    return jsonify({"ok": True, "apps": apps, "addons": apps})
 
 
 @app.route("/api/app-health")
+@app.route("/api/addon-health")
 def api_app_health():
     """Check health of configured dependent apps."""
     config = get_app_config()
-    dependent = config.get("dependent_apps", [])
+    dependent = config.get("dependent_apps") or config.get("dependent_addons", [])
     results = []
     for app_item in dependent:
         slug = app_item.get("slug", "")
@@ -488,10 +490,11 @@ def api_app_health():
             continue
         state = get_app_state(slug)
         results.append({"slug": slug, "name": name, "state": state})
-    return jsonify({"ok": True, "apps": results})
+    return jsonify({"ok": True, "apps": results, "addons": results})
 
 
 @app.route("/api/app-restart", methods=["POST"])
+@app.route("/api/addon-restart", methods=["POST"])
 def api_app_restart():
     """Restart a specific app by slug."""
     data = request.get_json(force=True)
@@ -503,10 +506,16 @@ def api_app_restart():
 
 
 @app.route("/api/dependent-apps", methods=["POST"])
+@app.route("/api/dependent-addons", methods=["POST"])
 def api_dependent_apps_save():
     """Save dependent apps selection to app config."""
     data = request.get_json(force=True)
-    apps_list = data.get("dependent_apps", [])
+    if "dependent_apps" in data:
+        apps_list = data.get("dependent_apps", [])
+    else:
+        apps_list = data.get("dependent_addons", [])
+    if not isinstance(apps_list, list):
+        apps_list = []
     config = get_app_config()
     config["dependent_apps"] = apps_list
     resp = set_app_config(config)

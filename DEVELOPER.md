@@ -108,6 +108,6 @@ Use dry-run to validate everything without changing files, creating commits, or 
 
 When validating inside Home Assistant:
 
-- Rebuild add-on after code changes.
-- If `config.yaml` schema changes, uninstall/reinstall add-on for clean config migration.
+- Rebuild app after code changes.
+- If `config.yaml` schema changes, uninstall/reinstall app for clean config migration.
 - Verify logs and service status after restart.
