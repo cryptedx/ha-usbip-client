@@ -37,7 +37,7 @@ For development, contribution, architecture details, and release automation see 
 
 1. Add it to your Home Assistant app store as a custom repository.
 
-    [![Open your Home Assistant instance and show the add app repository dialog with a specific repository URL pre-filled.](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https://github.com/cryptedx/ha-usbip-client)
+    [![Open your Home Assistant instance and show the app repository dialog with a specific repository URL pre-filled.](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https://github.com/cryptedx/ha-usbip-client)
 
 2. Install the **USB/IP Client** app.
 3. Configure the app options to specify the USB/IP server IP address, USB device bus IDs, and desired log level.

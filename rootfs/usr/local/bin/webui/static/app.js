@@ -144,6 +144,9 @@ async function refreshDashboard() {
 
     // Servers
     const serversEl = document.getElementById('dash-servers');
+    if (!serversEl) {
+        return;
+    }
     if (health.ok && health.servers) {
         const entries = Object.entries(health.servers);
         if (entries.length === 0) {
@@ -163,7 +166,7 @@ async function refreshDashboard() {
     // Devices
     const countEl = document.getElementById('dash-device-count');
     const summaryEl = document.getElementById('dash-device-summary');
-    if (status.ok) {
+    if (countEl && summaryEl && status.ok) {
         const devs = status.devices || [];
         countEl.textContent = devs.length;
         if (devs.length === 0) {
@@ -175,25 +178,30 @@ async function refreshDashboard() {
                 return `<div class="item"><span>Port ${d.port}: ${esc(name)}</span><span class="dim">${esc(srv)}</span></div>`;
             }).join('');
         }
-    } else {
+    } else if (countEl && summaryEl) {
         countEl.textContent = '?';
         summaryEl.innerHTML = '<span class="dim">Could not fetch status</span>';
     }
 
     // Badge
     const badge = document.getElementById('status-badge');
-    if (status.ok && (status.devices || []).length > 0) {
-        badge.className = 'badge badge-ok';
-        badge.textContent = '● ONLINE';
-    } else {
-        badge.className = 'badge badge-warn';
-        badge.textContent = '○ NO DEVICES';
+    if (badge) {
+        if (status.ok && (status.devices || []).length > 0) {
+            badge.className = 'badge badge-ok';
+            badge.textContent = '● ONLINE';
+        } else {
+            badge.className = 'badge badge-warn';
+            badge.textContent = '○ NO DEVICES';
+        }
     }
 
     // Dependent apps health
     const appsEl = document.getElementById('dash-apps');
+    if (!appsEl) {
+        return;
+    }
     const appHealth = await api('/api/app-health');
-    const dependentApps = appHealth.apps || appHealth.addons || [];
+    const dependentApps = appHealth.apps || [];
     if (appHealth.ok && dependentApps.length > 0) {
         appsEl.innerHTML = dependentApps.map(a => {
             const isUp = a.state === 'started';
@@ -215,7 +223,8 @@ async function refreshDashboard() {
 
 // Auto-refresh dashboard every 15s when visible
 setInterval(() => {
-    if (document.getElementById('tab-dashboard').classList.contains('active')) {
+    const dashboardTab = document.getElementById('tab-dashboard');
+    if (dashboardTab && dashboardTab.classList.contains('active')) {
         refreshDashboard();
     }
 }, 15000);
@@ -558,7 +567,7 @@ async function loadConfig() {
     if (autoScrollEl) autoScrollEl.value = autoScrollVal;
 
     // Load dependent apps selection
-    loadDependentAppsConfig(cfg.dependent_apps || cfg.dependent_addons || []);
+    loadDependentAppsConfig(cfg.dependent_apps || []);
 }
 
 function addDeviceRow(name = '', devId = '', server = '') {
@@ -608,7 +617,7 @@ async function saveConfig() {
     // Preserve dependent_apps from current config (saved separately)
     const curCfg = await api('/api/config');
     if (curCfg.ok && curCfg.config) {
-        config.dependent_apps = curCfg.config.dependent_apps || curCfg.config.dependent_addons || [];
+        config.dependent_apps = curCfg.config.dependent_apps || [];
     }
 
     toast('Saving configuration...');
@@ -747,7 +756,7 @@ function removeDependentApp(index) {
 async function loadAvailableApps() {
     toast('Discovering installed apps...');
     const data = await api('/api/apps');
-    const installedApps = data.apps || data.addons || [];
+    const installedApps = data.apps || [];
     if (!data.ok || !installedApps) {
         toast('Could not fetch apps', 'error');
         return;
@@ -761,6 +770,10 @@ async function loadAvailableApps() {
     // Build a selection overlay
     const selectedSlugs = new Set(_selectedDependentApps.map(a => a.slug));
     const el = document.getElementById('cfg-dependent-apps-list');
+    if (!el) {
+        toast('Dependent apps UI not found', 'error');
+        return;
+    }
     el.innerHTML = `
         <div style="max-height:300px;overflow-y:auto;border:1px solid var(--dim);padding:.5rem;margin-bottom:.5rem">
         ${available.map(a => {
@@ -797,3 +810,31 @@ async function saveDependentApps() {
     });
     toast(data.ok ? 'Dependent apps saved!' : 'Save failed', data.ok ? '' : 'error');
 }
+
+// ---- Expose functions globally for inline onclick handlers ----
+// Explicit assignments (no eval) for CSP/Ingress compatibility.
+window.cycleTheme = cycleTheme;
+window.refreshDashboard = refreshDashboard;
+window.loadConfig = loadConfig;
+window.saveConfig = saveConfig;
+window.backupConfig = backupConfig;
+window.restoreConfig = restoreConfig;
+window.toast = toast;
+window.attachAll = attachAll;
+window.detachAll = detachAll;
+window.refreshDevices = refreshDevices;
+window.detachSelected = detachSelected;
+window.attachSingle = attachSingle;
+window.discoverDevices = discoverDevices;
+window.scanNetwork = scanNetwork;
+window.toggleLogPause = toggleLogPause;
+window.copyLogs = copyLogs;
+window.clearLogView = clearLogView;
+window.setLogFilter = setLogFilter;
+window.refreshEvents = refreshEvents;
+window.clearEvents = clearEvents;
+window.addDeviceRow = addDeviceRow;
+window.restartApp = restartApp;
+window.applyAppSelection = applyAppSelection;
+window.loadAvailableApps = loadAvailableApps;
+window.saveDependentApps = saveDependentApps;

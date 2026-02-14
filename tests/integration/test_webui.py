@@ -81,6 +81,34 @@ class TestIndexPage:
         resp = client.get("/")
         assert resp.status_code == 200
 
+    def test_dependent_apps_handlers_present(self, client):
+        """Rendered HTML uses apps-only dependent app handlers and IDs."""
+        resp = client.get("/")
+        html = resp.get_data(as_text=True)
+
+        assert "id=\"dash-apps\"" in html
+        assert "id=\"cfg-dependent-apps-list\"" in html
+        assert "loadAvailableApps()" in html
+        assert "saveDependentApps()" in html
+        assert "loadAvailableAddons" not in html
+        assert "saveDependentAddons" not in html
+
+
+class TestStaticAppJsCompatibility:
+    def test_exposes_app_handlers_on_window_only(self, client):
+        """Served app.js exposes current dependent-app functions without legacy aliases."""
+        resp = client.get("/static/app.js")
+        assert resp.status_code == 200
+        js = resp.get_data(as_text=True)
+
+        assert "function loadAvailableApps()" in js
+        assert "function saveDependentApps()" in js
+        assert "window.loadAvailableApps = loadAvailableApps;" in js
+        assert "window.saveDependentApps = saveDependentApps;" in js
+        assert "loadAvailableAddons" not in js
+        assert "saveDependentAddons" not in js
+        assert "restartAddon" not in js
+
 
 class TestApiStatus:
     def test_returns_json(self, client, mock_usbip_env):
@@ -178,6 +206,46 @@ class TestApiConfig:
         data = resp.get_json()
         assert data["ok"] is True
 
+    def test_get_migrates_legacy_dependent_key(self, client, mocker):
+        expected_apps = [
+            {"name": "Zigbee2MQTT", "slug": "45df7312_zigbee2mqtt"}
+        ]
+        legacy_config = {
+            "log_level": "info",
+            "dependent_addons": expected_apps,
+        }
+        set_mock = mocker.patch("app.set_app_config", return_value={"result": "ok"})
+        mocker.patch("app.get_app_config", return_value=legacy_config)
+
+        resp = client.get("/api/config")
+        data = resp.get_json()
+
+        assert data["ok"] is True
+        assert data["config"]["dependent_apps"] == expected_apps
+        assert "dependent_addons" not in data["config"]
+        set_mock.assert_called_once()
+
+    def test_set_accepts_legacy_dependent_key_payload(self, client, mocker):
+        set_mock = mocker.patch("app.set_app_config", return_value={"result": "ok"})
+
+        resp = client.post(
+            "/api/config",
+            json={
+                "log_level": "debug",
+                "dependent_addons": [
+                    {"name": "Z-Wave JS", "slug": "core_zwave_js"}
+                ],
+            },
+        )
+        data = resp.get_json()
+
+        assert data["ok"] is True
+        payload = set_mock.call_args.args[0]
+        assert payload["dependent_apps"] == [
+            {"name": "Z-Wave JS", "slug": "core_zwave_js"}
+        ]
+        assert "dependent_addons" not in payload
+
 
 class TestApiEvents:
     def test_empty(self, client):
@@ -264,9 +332,14 @@ class TestApiApps:
         data = resp.get_json()
         assert data["ok"] is True
         assert "apps" in data
+        assert "addons" not in data
         assert len(data["apps"]) == 4
         slugs = [a["slug"] for a in data["apps"]]
         assert "45df7312_zigbee2mqtt" in slugs
+
+    def test_legacy_apps_route_removed(self, client):
+        resp = client.get("/api/addons")
+        assert resp.status_code == 404
 
     def test_apps_api_error(self, client, mock_usbip_env):
         """GET /api/apps should return empty list on API error."""
@@ -291,6 +364,7 @@ class TestApiAppHealth:
         data = resp.get_json()
         assert data["ok"] is True
         assert data["apps"] == []
+        assert "addons" not in data
 
     def test_with_dependent_apps(self, client, mock_usbip_env):
         """GET /api/app-health with dependents configured."""
@@ -323,6 +397,10 @@ class TestApiAppHealth:
         assert data["apps"][0]["state"] == "started"
         assert data["apps"][0]["slug"] == "45df7312_zigbee2mqtt"
 
+    def test_legacy_app_health_route_removed(self, client):
+        resp = client.get("/api/addon-health")
+        assert resp.status_code == 404
+
 
 class TestApiAppRestart:
     def test_requires_slug(self, client):
@@ -343,6 +421,10 @@ class TestApiAppRestart:
         resp = client.post("/api/app-restart", json={"slug": "45df7312_zigbee2mqtt"})
         data = resp.get_json()
         assert data["ok"] is True
+
+    def test_legacy_app_restart_route_removed(self, client):
+        resp = client.post("/api/addon-restart", json={"slug": "45df7312_zigbee2mqtt"})
+        assert resp.status_code == 404
 
 
 class TestApiDependentAppsSave:
@@ -367,3 +449,10 @@ class TestApiDependentAppsSave:
         )
         data = resp.get_json()
         assert data["ok"] is True
+
+    def test_legacy_dependent_route_removed(self, client):
+        resp = client.post(
+            "/api/dependent-addons",
+            json={"dependent_apps": []},
+        )
+        assert resp.status_code == 404

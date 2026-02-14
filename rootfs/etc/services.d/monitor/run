@@ -53,9 +53,7 @@ def main() -> int:
         try:
             # Re-read config each cycle to pick up changes from WebUI
             config = get_app_config()
-            dependent_apps = config.get("dependent_apps") or config.get(
-                "dependent_addons", []
-            )
+            dependent_apps = config.get("dependent_apps", [])
 
             # Read manifest to know expected devices
             manifest = read_device_manifest()

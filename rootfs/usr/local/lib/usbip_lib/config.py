@@ -6,6 +6,31 @@ import urllib.request
 from .constants import SUPERVISOR_TOKEN, SUPERVISOR_URL
 
 
+def normalize_dependent_apps_config(config: dict) -> tuple[dict, bool]:
+    """Normalize legacy dependent config key to dependent_apps."""
+    if not isinstance(config, dict):
+        return {}, False
+
+    changed = False
+    apps = config.get("dependent_apps")
+    legacy_apps = config.get("dependent_addons")
+
+    if not isinstance(apps, list):
+        apps = []
+        config["dependent_apps"] = apps
+        changed = True
+
+    if not apps and isinstance(legacy_apps, list) and legacy_apps:
+        config["dependent_apps"] = legacy_apps
+        changed = True
+
+    if "dependent_addons" in config:
+        del config["dependent_addons"]
+        changed = True
+
+    return config, changed
+
+
 def supervisor_request(
     method: str,
     path: str,
@@ -51,7 +76,9 @@ def get_app_config(
         "GET", "/addons/self/info", token=token, base_url=base_url
     )
     if resp.get("result") == "ok":
-        return resp.get("data", {}).get("options", {})
+        options = resp.get("data", {}).get("options", {})
+        normalized, _ = normalize_dependent_apps_config(options)
+        return normalized
     return {}
 
 
@@ -68,10 +95,11 @@ def set_app_config(
     Returns:
         Supervisor response dict.
     """
+    normalized, _ = normalize_dependent_apps_config(options)
     return supervisor_request(
         "POST",
         "/addons/self/options",
-        {"options": options},
+        {"options": normalized},
         token=token,
         base_url=base_url,
     )

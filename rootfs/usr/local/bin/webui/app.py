@@ -15,6 +15,7 @@ from usbip_lib.config import (
     get_app_config,
     get_app_state,
     list_installed_apps,
+    normalize_dependent_apps_config,
     restart_app,
     send_ha_notification,
     set_app_config,
@@ -40,9 +41,6 @@ from usbip_lib.usbip import (
 LOG_BUFFER_MAX = 2000
 HEALTH_INTERVAL = 30  # seconds
 
-# ---------------------------------------------------------------------------
-# App setup
-# ---------------------------------------------------------------------------
 app = Flask(
     __name__,
     template_folder="/usr/local/bin/webui/templates",
@@ -210,7 +208,7 @@ def _inject_ingress():
 def _template_globals():
     return {
         "ingress_path": g.get("ingress_path", ""),
-        "version": "0.5.2-beta.1",
+        "version": "0.5.2-beta.2",
     }
 
 
@@ -353,12 +351,16 @@ def api_attach_all():
 @app.route("/api/config")
 def api_config_get():
     config = get_app_config()
+    config, changed = normalize_dependent_apps_config(config)
+    if changed:
+        set_app_config(config)
     return jsonify({"ok": True, "config": config})
 
 
 @app.route("/api/config", methods=["POST"])
 def api_config_set():
     data = request.get_json(force=True)
+    data, _ = normalize_dependent_apps_config(data)
     resp = set_app_config(data)
     ok = resp.get("result") == "ok"
     write_event("config_change", json.dumps(data)[:200])
@@ -374,6 +376,7 @@ def api_config_backup():
 @app.route("/api/config/restore", methods=["POST"])
 def api_config_restore():
     data = request.get_json(force=True)
+    data, _ = normalize_dependent_apps_config(data)
     resp = set_app_config(data)
     ok = resp.get("result") == "ok"
     write_event("config_restore", "Configuration restored from backup")
@@ -469,19 +472,19 @@ def api_notify():
 
 
 @app.route("/api/apps")
-@app.route("/api/addons")
 def api_apps():
     """List all installed Home Assistant apps."""
     apps = list_installed_apps()
-    return jsonify({"ok": True, "apps": apps, "addons": apps})
+    return jsonify({"ok": True, "apps": apps})
 
 
 @app.route("/api/app-health")
-@app.route("/api/addon-health")
 def api_app_health():
     """Check health of configured dependent apps."""
-    config = get_app_config()
-    dependent = config.get("dependent_apps") or config.get("dependent_addons", [])
+    config, changed = normalize_dependent_apps_config(get_app_config())
+    if changed:
+        set_app_config(config)
+    dependent = config.get("dependent_apps", [])
     results = []
     for app_item in dependent:
         slug = app_item.get("slug", "")
@@ -490,11 +493,10 @@ def api_app_health():
             continue
         state = get_app_state(slug)
         results.append({"slug": slug, "name": name, "state": state})
-    return jsonify({"ok": True, "apps": results, "addons": results})
+    return jsonify({"ok": True, "apps": results})
 
 
 @app.route("/api/app-restart", methods=["POST"])
-@app.route("/api/addon-restart", methods=["POST"])
 def api_app_restart():
     """Restart a specific app by slug."""
     data = request.get_json(force=True)
@@ -506,17 +508,16 @@ def api_app_restart():
 
 
 @app.route("/api/dependent-apps", methods=["POST"])
-@app.route("/api/dependent-addons", methods=["POST"])
 def api_dependent_apps_save():
     """Save dependent apps selection to app config."""
     data = request.get_json(force=True)
-    if "dependent_apps" in data:
-        apps_list = data.get("dependent_apps", [])
-    else:
-        apps_list = data.get("dependent_addons", [])
+    data, _ = normalize_dependent_apps_config(data)
+    apps_list = data.get("dependent_apps", [])
     if not isinstance(apps_list, list):
         apps_list = []
-    config = get_app_config()
+    config, changed = normalize_dependent_apps_config(get_app_config())
+    if changed:
+        set_app_config(config)
     config["dependent_apps"] = apps_list
     resp = set_app_config(config)
     ok = resp.get("result") == "ok"

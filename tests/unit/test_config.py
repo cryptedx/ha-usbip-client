@@ -8,6 +8,7 @@ from usbip_lib.config import (
     get_app_config,
     get_app_state,
     list_installed_apps,
+    normalize_dependent_apps_config,
     restart_app,
     send_ha_notification,
     set_app_config,
@@ -64,11 +65,59 @@ class TestGetAppConfig:
         config = get_app_config(token="test")
         assert config == {}
 
+    def test_migrates_legacy_dependent_key(self, mocker):
+        legacy_options = {
+            "log_level": "info",
+            "dependent_addons": [{"name": "Z2M", "slug": "z2m"}],
+        }
+        response = {"result": "ok", "data": {"options": legacy_options}}
+        resp = mocker.Mock()
+        resp.read.return_value = json.dumps(response).encode()
+        resp.__enter__ = mocker.Mock(return_value=resp)
+        resp.__exit__ = mocker.Mock(return_value=False)
+        mocker.patch("usbip_lib.config.urllib.request.urlopen", return_value=resp)
+
+        config = get_app_config(token="test")
+        assert config["dependent_apps"] == [{"name": "Z2M", "slug": "z2m"}]
+        assert "dependent_addons" not in config
+
 
 class TestSetAppConfig:
     def test_success(self, mock_supervisor_api):
         result = set_app_config({"log_level": "debug"}, token="test-token")
         assert result["result"] == "ok"
+
+    def test_normalizes_legacy_dependent_key_before_post(self, mocker):
+        mock_urlopen = mocker.patch("usbip_lib.config.urllib.request.urlopen")
+        resp = mocker.Mock()
+        resp.read.return_value = json.dumps({"result": "ok"}).encode()
+        resp.__enter__ = mocker.Mock(return_value=resp)
+        resp.__exit__ = mocker.Mock(return_value=False)
+        mock_urlopen.return_value = resp
+
+        result = set_app_config(
+            {"dependent_addons": [{"name": "Z2M", "slug": "z2m"}]},
+            token="test-token",
+        )
+        assert result["result"] == "ok"
+
+        req = mock_urlopen.call_args[0][0]
+        payload = json.loads(req.data.decode("utf-8"))
+        options = payload["options"]
+        assert options["dependent_apps"] == [{"name": "Z2M", "slug": "z2m"}]
+        assert "dependent_addons" not in options
+
+
+class TestNormalizeDependentAppsConfig:
+    def test_returns_empty_for_non_dict(self):
+        config, changed = normalize_dependent_apps_config([])
+        assert config == {}
+        assert changed is False
+
+    def test_adds_missing_dependent_apps_key(self):
+        config, changed = normalize_dependent_apps_config({"log_level": "info"})
+        assert changed is True
+        assert config["dependent_apps"] == []
 
 
 class TestSendHaNotification:

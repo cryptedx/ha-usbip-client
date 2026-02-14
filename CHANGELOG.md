@@ -1,12 +1,13 @@
 # Changelog
 
-## [0.5.2-beta.1] - 2026-02-14
+## [0.5.2-beta.2] - 2026-02-14
 
 ### Changed
 
-- **Terminology Migration**: Renamed remaining internal and user-facing "add-on/addons" wording to "app/apps" across WebUI, docs, and service logs.
-- **Config Key Rename**: Updated dependent service configuration key from `dependent_addons` to `dependent_apps` in schema, backend, frontend, and monitor service.
+- **Terminology Migration**: Renamed remaining internal and user-facing legacy naming to "app/apps" across WebUI, docs, and service logs.
+- **Config Key Rename**: Updated the legacy dependent service key to `dependent_apps` in schema, backend, frontend, and monitor service.
 - **WebUI API Rename**: Renamed dependent app management endpoints to `/api/apps`, `/api/app-health`, `/api/app-restart`, and `/api/dependent-apps`.
+- **Compatibility Note**: Kept required Home Assistant Supervisor API paths (`/addons/...`) and temporary legacy-key migration handling for existing configurations.
 
 ### Fixed
 
