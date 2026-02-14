@@ -18,10 +18,32 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Extract release notes from changelog
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+
+          awk -v version="$version" '
+            $0 ~ "^## \\[" version "\\]" { in_section=1 }
+            in_section {
+              if ($0 ~ "^## \\[" && $0 !~ "^## \\[" version "\\]") {
+                exit
+              }
+              print
+            }
+          ' CHANGELOG.md > release_notes.md
+
+          if [ ! -s release_notes.md ]; then
+            echo "No changelog section found for version $version" >&2
+            exit 1
+          fi
+
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
-          generate_release_notes: true
+          body_path: release_notes.md
+          generate_release_notes: false
           prerelease: ${{ contains(github.ref_name, '-') }}

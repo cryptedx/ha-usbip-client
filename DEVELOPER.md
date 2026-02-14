@@ -78,7 +78,7 @@ Release flow is tag-driven:
 ./scripts/release.py 0.5.1-beta.1 --push
 ```
 
-1. GitHub Actions workflow `.github/workflows/release.yml` creates the GitHub release from the pushed tag.
+1. GitHub Actions workflow `.github/workflows/release.yml` creates the GitHub release from the pushed tag and publishes the matching section from `CHANGELOG.md` as the release notes.
 
 ### Branch and tag policy
 
