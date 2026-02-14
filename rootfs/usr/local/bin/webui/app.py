@@ -12,12 +12,12 @@ from flask import Flask, g, jsonify, render_template, request
 from flask_socketio import SocketIO
 
 from usbip_lib.config import (
-    get_addon_config,
-    get_addon_state,
-    list_installed_addons,
-    restart_addon,
+    get_app_config,
+    get_app_state,
+    list_installed_apps,
+    restart_app,
     send_ha_notification,
-    set_addon_config,
+    set_app_config,
 )
 from usbip_lib.constants import (
     EVENTS_FILE,
@@ -108,7 +108,7 @@ def _health_checker():
     """Periodically check server health and device attachment."""
     while True:
         try:
-            config = get_addon_config()
+            config = get_app_config()
             servers = set()
             default_srv = config.get("usbipd_server_address", "")
             if default_srv:
@@ -210,7 +210,7 @@ def _inject_ingress():
 def _template_globals():
     return {
         "ingress_path": g.get("ingress_path", ""),
-        "version": "0.5.1-beta.1",
+        "version": "0.5.2-beta.1",
     }
 
 
@@ -300,7 +300,7 @@ def api_detach_all():
 
 @app.route("/api/attach-all", methods=["POST"])
 def api_attach_all():
-    config = get_addon_config()
+    config = get_app_config()
     default_server = config.get("usbipd_server_address", "")
     devices = config.get("devices", [])
     results = []
@@ -352,14 +352,14 @@ def api_attach_all():
 
 @app.route("/api/config")
 def api_config_get():
-    config = get_addon_config()
+    config = get_app_config()
     return jsonify({"ok": True, "config": config})
 
 
 @app.route("/api/config", methods=["POST"])
 def api_config_set():
     data = request.get_json(force=True)
-    resp = set_addon_config(data)
+    resp = set_app_config(data)
     ok = resp.get("result") == "ok"
     write_event("config_change", json.dumps(data)[:200])
     return jsonify({"ok": ok, "response": resp})
@@ -367,14 +367,14 @@ def api_config_set():
 
 @app.route("/api/config/backup")
 def api_config_backup():
-    config = get_addon_config()
+    config = get_app_config()
     return jsonify(config)
 
 
 @app.route("/api/config/restore", methods=["POST"])
 def api_config_restore():
     data = request.get_json(force=True)
-    resp = set_addon_config(data)
+    resp = set_app_config(data)
     ok = resp.get("result") == "ok"
     write_event("config_restore", "Configuration restored from backup")
     return jsonify({"ok": ok, "response": resp})
@@ -468,51 +468,51 @@ def api_notify():
     return jsonify({"ok": True})
 
 
-@app.route("/api/addons")
-def api_addons():
-    """List all installed Home Assistant add-ons."""
-    addons = list_installed_addons()
-    return jsonify({"ok": True, "addons": addons})
+@app.route("/api/apps")
+def api_apps():
+    """List all installed Home Assistant apps."""
+    apps = list_installed_apps()
+    return jsonify({"ok": True, "apps": apps})
 
 
-@app.route("/api/addon-health")
-def api_addon_health():
-    """Check health of configured dependent add-ons."""
-    config = get_addon_config()
-    dependent = config.get("dependent_addons", [])
+@app.route("/api/app-health")
+def api_app_health():
+    """Check health of configured dependent apps."""
+    config = get_app_config()
+    dependent = config.get("dependent_apps", [])
     results = []
-    for addon in dependent:
-        slug = addon.get("slug", "")
-        name = addon.get("name", slug)
+    for app_item in dependent:
+        slug = app_item.get("slug", "")
+        name = app_item.get("name", slug)
         if not slug:
             continue
-        state = get_addon_state(slug)
+        state = get_app_state(slug)
         results.append({"slug": slug, "name": name, "state": state})
-    return jsonify({"ok": True, "addons": results})
+    return jsonify({"ok": True, "apps": results})
 
 
-@app.route("/api/addon-restart", methods=["POST"])
-def api_addon_restart():
-    """Restart a specific add-on by slug."""
+@app.route("/api/app-restart", methods=["POST"])
+def api_app_restart():
+    """Restart a specific app by slug."""
     data = request.get_json(force=True)
     slug = data.get("slug", "").strip()
     if not slug:
         return jsonify({"ok": False, "error": "slug required"}), 400
-    ok = restart_addon(slug)
+    ok = restart_app(slug)
     return jsonify({"ok": ok})
 
 
-@app.route("/api/dependent-addons", methods=["POST"])
-def api_dependent_addons_save():
-    """Save dependent add-ons selection to add-on config."""
+@app.route("/api/dependent-apps", methods=["POST"])
+def api_dependent_apps_save():
+    """Save dependent apps selection to app config."""
     data = request.get_json(force=True)
-    addons_list = data.get("dependent_addons", [])
-    config = get_addon_config()
-    config["dependent_addons"] = addons_list
-    resp = set_addon_config(config)
+    apps_list = data.get("dependent_apps", [])
+    config = get_app_config()
+    config["dependent_apps"] = apps_list
+    resp = set_app_config(config)
     ok = resp.get("result") == "ok"
     write_event(
-        "config_change", f"Updated dependent add-ons: {len(addons_list)} selected"
+        "config_change", f"Updated dependent apps: {len(apps_list)} selected"
     )
     return jsonify({"ok": ok})
 

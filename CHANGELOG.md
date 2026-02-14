@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.2-beta.1] - 2026-02-14
+
+### Changed
+
+- **Terminology Migration**: Renamed remaining internal and user-facing "add-on/addons" wording to "app/apps" across WebUI, docs, and service logs.
+- **Config Key Rename**: Updated dependent service configuration key from `dependent_addons` to `dependent_apps` in schema, backend, frontend, and monitor service.
+- **WebUI API Rename**: Renamed dependent app management endpoints to `/api/apps`, `/api/app-health`, `/api/app-restart`, and `/api/dependent-apps`.
+
+### Fixed
+
+- **Consistency Alignment**: Updated tests and fixtures to match renamed app terminology and new API/config names.
+
 ## [0.5.1-beta.1] - 2026-02-14
 
 ### Added
@@ -27,13 +39,13 @@
   - Configurable `reattach_retries` (0-10, default 3) for device reattachment attempts.
   - Cooldown period (5 minutes) between failure notifications to prevent spam.
   - Home Assistant notifications on device loss and recovery.
-- **Dependent Add-on Health Monitoring**: Monitors health of dependent add-ons and restarts them if they enter error state.
-  - Configurable `dependent_addons` list with `name` and `slug` for each add-on.
-  - Configurable `restart_retries` (0-10, default 3) for add-on restart attempts.
-  - Automatic restart of failed add-ons (e.g., Zigbee2MQTT, Z-Wave JS) with notifications.
+- **Dependent App Health Monitoring**: Monitors health of dependent apps and restarts them if they enter error state.
+  - Configurable `dependent_apps` list with `name` and `slug` for each app.
+  - Configurable `restart_retries` (0-10, default 3) for app restart attempts.
+  - Automatic restart of failed apps (e.g., Zigbee2MQTT, Z-Wave JS) with notifications.
   - State change tracking to avoid repeated alerts for ongoing issues.
-- **Enhanced Monitor Service**: New s6 service (`monitor/run`) for background device and add-on health monitoring.
-  - Runs every `monitor_interval` seconds, checking device attachment and add-on states.
+- **Enhanced Monitor Service**: New s6 service (`monitor/run`) for background device and app health monitoring.
+  - Runs every `monitor_interval` seconds, checking device attachment and app states.
   - Integrates with existing event logging and notification systems.
 - **Improved Error Handling**: Better handling of Supervisor API errors and device attachment failures.
 - **Test Coverage**: Increased test coverage to 93% (from 88%) with additional unit tests for error paths.
@@ -42,11 +54,11 @@
 
 - **Version Bump**: Updated to 0.5.0-beta to reflect new monitoring capabilities.
 - **README Updates**: Added documentation for new configuration options and features.
-- **Monitor Integration**: WebUI now displays dependent add-on health status and allows selection from discovered add-ons.
+- **Monitor Integration**: WebUI now displays dependent app health status and allows selection from discovered apps.
 
 ### Fixed
 
-- **Dependent Add-on Restart**: Fixed issue where add-ons in error state were not automatically restarted. Now properly detects error states and attempts restart with retry logic.
+- **Dependent App Restart**: Fixed issue where apps in error state were not automatically restarted. Now properly detects error states and attempts restart with retry logic.
 
 **Summary of fixes**
 
