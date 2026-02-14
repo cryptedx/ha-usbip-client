@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.5.1-beta.1] - 2026-02-14
+
+### Added
+
+- **Pre-commit Quality Gates**: Added repository-wide pre-commit hooks for linting, formatting, secret scanning, markdown checks, and full test execution.
+- **Version Consistency Check**: Added `scripts/check_version_consistency.py` to ensure release version alignment across `config.yaml`, `repository.yaml`, and WebUI version metadata.
+- **Developer Workflow Documentation**: Added explicit pre-commit setup and usage guidance in `DEVELOPER.md`.
+
+### Changed
+
+- **GitHub Release Notes Workflow**: Release notes are now extracted from the matching section in `CHANGELOG.md` and published directly in GitHub Releases.
+- **Dev Tooling**: Updated `requirements-dev.txt` with current versions of `pytest`, `pytest-mock`, `pytest-cov`, `pre-commit`, `ruff`, and `yamllint`.
+- **Lint/Format Baseline**: Applied Ruff-driven formatting and minor lint fixes in tests and Python modules to make full-repository checks pass.
+
+### Fixed
+
+- **Release Notes Quality**: Prevented empty auto-generated release descriptions by enforcing changelog-backed release bodies.
+
 ## [0.5.0-beta] - 2026-02-11
 
 ### Added

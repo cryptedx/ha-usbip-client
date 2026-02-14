@@ -210,7 +210,7 @@ def _inject_ingress():
 def _template_globals():
     return {
         "ingress_path": g.get("ingress_path", ""),
-        "version": "0.5.0-beta",
+        "version": "0.5.1-beta.1",
     }
 
 
