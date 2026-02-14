@@ -95,7 +95,9 @@ def _make_mock_response(mocker, data):
 class TestListInstalledAddons:
     def test_success(self, mocker):
         mock_urlopen = mocker.patch("usbip_lib.config.urllib.request.urlopen")
-        mock_urlopen.return_value = _make_mock_response(mocker, SAMPLE_ADDONS_LIST_RESPONSE)
+        mock_urlopen.return_value = _make_mock_response(
+            mocker, SAMPLE_ADDONS_LIST_RESPONSE
+        )
 
         addons = list_installed_addons(token="test-token")
         assert len(addons) == 4

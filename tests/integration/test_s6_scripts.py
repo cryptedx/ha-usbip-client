@@ -68,7 +68,9 @@ class TestLoadModulesLogic:
 
         mock_full_env["subprocess"].side_effect = [
             # modprobe
-            pytest.importorskip("unittest.mock").Mock(returncode=0, stdout="", stderr=""),
+            pytest.importorskip("unittest.mock").Mock(
+                returncode=0, stdout="", stderr=""
+            ),
             # lsmod
             pytest.importorskip("unittest.mock").Mock(
                 returncode=0, stdout="vhci_hcd  12345  0\n", stderr=""

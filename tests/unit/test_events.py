@@ -51,8 +51,7 @@ class TestWriteEvent:
 
 class TestReadEvents:
     def test_empty_file(self, tmp_events_file):
-        with open(tmp_events_file, "w") as f:
-            pass
+        open(tmp_events_file, "w").close()
         result = read_events(events_file=tmp_events_file)
         assert result == []
 
@@ -79,9 +78,13 @@ class TestReadEvents:
 
     def test_skips_malformed_lines(self, tmp_events_file):
         with open(tmp_events_file, "w") as f:
-            f.write('{"type": "good", "ts": "t", "detail": "", "device": "", "server": ""}\n')
+            f.write(
+                '{"type": "good", "ts": "t", "detail": "", "device": "", "server": ""}\n'
+            )
             f.write("not json\n")
-            f.write('{"type": "also_good", "ts": "t", "detail": "", "device": "", "server": ""}\n')
+            f.write(
+                '{"type": "also_good", "ts": "t", "detail": "", "device": "", "server": ""}\n'
+            )
         result = read_events(events_file=tmp_events_file)
         assert len(result) == 2
         assert result[0]["type"] == "good"

@@ -25,9 +25,13 @@ def main() -> int:
     logger = setup_logging(log_level, name="init_devices")
 
     logger.info("")
-    logger.info("-----------------------------------------------------------------------")
+    logger.info(
+        "-----------------------------------------------------------------------"
+    )
     logger.info("-------------------- Starting USB/IP Client App --------------------")
-    logger.info("-----------------------------------------------------------------------")
+    logger.info(
+        "-----------------------------------------------------------------------"
+    )
     logger.info("")
 
     default_server = config.get("usbipd_server_address", "")
@@ -60,7 +64,9 @@ def main() -> int:
     manifest = build_device_manifest(config, discovery_data)
     write_device_manifest(manifest)
 
-    logger.info("Device configuration complete. Ready to attach %d device(s).", len(manifest))
+    logger.info(
+        "Device configuration complete. Ready to attach %d device(s).", len(manifest)
+    )
 
     # Write discovery event for WebUI
     write_event(

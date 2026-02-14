@@ -1,0 +1,44 @@
+default_stages: [pre-commit]
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.1
+    hooks:
+      - id: ruff
+      - id: ruff-format
+        args: [--check]
+
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.38.0
+    hooks:
+      - id: yamllint
+        args: [--strict, -c, .yamllint.yaml]
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.0
+    hooks:
+      - id: gitleaks
+        args: [--config=.gitleaks.toml]
+
+  - repo: local
+    hooks:
+      - id: check-version-consistency
+        name: Check version consistency
+        entry: python3 scripts/check_version_consistency.py
+        language: system
+        pass_filenames: false
+        files: ^(config\.yaml|repository\.yaml|rootfs/usr/local/bin/webui/app\.py)$
+
+      - id: markdown-lint
+        name: Markdown lint (pymarkdown)
+        entry: pymarkdown --config .pymarkdown.json scan
+        language: python
+        additional_dependencies: [pymarkdownlnt==0.9.35]
+        types: [markdown]
+
+      - id: pytest-all
+        name: Pytest (all tests)
+        entry: bash -c 'PYTHONPATH=./rootfs/usr/local/lib pytest -q'
+        language: system
+        pass_filenames: false
+        always_run: true

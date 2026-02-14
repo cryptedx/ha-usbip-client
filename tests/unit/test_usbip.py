@@ -126,6 +126,7 @@ class TestParseUsbipListCmd:
             return_value=(0, SAMPLE_USBIP_LIST_OUTPUT, ""),
         )
         from usbip_lib.usbip import parse_usbip_list
+
         result = parse_usbip_list("192.168.1.44")
         assert len(result) == 2
 
@@ -135,6 +136,7 @@ class TestParseUsbipListCmd:
             return_value=(1, "", "error"),
         )
         from usbip_lib.usbip import parse_usbip_list
+
         result = parse_usbip_list("192.168.1.44")
         assert result == []
 
@@ -436,7 +438,11 @@ class TestWriteAttachedDevicesFile:
 class TestCleanupTempFiles:
     def test_removes_files(self, tmp_path, mocker):
         # Create temp files
-        for name in ["attached_devices.txt", "device_details.txt", "device_manifest.json"]:
+        for name in [
+            "attached_devices.txt",
+            "device_details.txt",
+            "device_manifest.json",
+        ]:
             (tmp_path / name).write_text("data")
 
         mocker.patch(

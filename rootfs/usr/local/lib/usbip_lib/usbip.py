@@ -158,8 +158,8 @@ def lookup_usb_name(vendor_product: str, usb_ids_file: str = USB_IDS_FILE) -> st
                         continue
                     elif in_vendor:
                         break
-                elif in_vendor and line.startswith("\t") and not line.startswith(
-                    "\t\t"
+                elif (
+                    in_vendor and line.startswith("\t") and not line.startswith("\t\t")
                 ):
                     if line.strip()[:4].lower() == pid:
                         product_name = line.strip()[4:].strip()
@@ -290,16 +290,12 @@ def discover_devices(servers: list[str]) -> list[dict]:
         else:
             logger.info("Found %d device(s) on %s.", len(devices), server_ip)
             for d in devices:
-                logger.info(
-                    "  %s: %s (%s)", d["busid"], d["name"], d["device_id"]
-                )
+                logger.info("  %s: %s (%s)", d["busid"], d["name"], d["device_id"])
         all_devices.extend(devices)
     return all_devices
 
 
-def write_device_details_file(
-    devices: list[dict], filepath: str | None = None
-) -> None:
+def write_device_details_file(devices: list[dict], filepath: str | None = None) -> None:
     """Write discovered devices to the pipe-delimited details file.
 
     This maintains backward compatibility with the legacy shell format.
@@ -309,9 +305,7 @@ def write_device_details_file(
     try:
         with open(filepath, "w") as f:
             for d in devices:
-                f.write(
-                    f"{d['server']}|{d['busid']}|{d['name']}|{d['device_id']}\n"
-                )
+                f.write(f"{d['server']}|{d['busid']}|{d['name']}|{d['device_id']}\n")
     except OSError as e:
         logger.warning("Failed to write device details file: %s", e)
 
@@ -350,9 +344,7 @@ def attach_device(
         logger.debug(
             "Attaching %s from %s — attempt %d/%d", label, server, attempt, retries
         )
-        rc, _, err = run_cmd(
-            ["usbip", "attach", "--remote", server, "--busid", bus_id]
-        )
+        rc, _, err = run_cmd(["usbip", "attach", "--remote", server, "--busid", bus_id])
         if rc == 0:
             logger.info("Successfully attached: %s from %s", label, server)
             return True
@@ -423,7 +415,9 @@ def detach_all() -> tuple[int, int]:
         return 0, 0
 
     port_numbers = [d["port"] for d in ports_info]
-    logger.info("Found attached USB/IP ports: %s", " ".join(str(p) for p in port_numbers))
+    logger.info(
+        "Found attached USB/IP ports: %s", " ".join(str(p) for p in port_numbers)
+    )
 
     for d in ports_info:
         port = d["port"]
@@ -442,9 +436,7 @@ def detach_all() -> tuple[int, int]:
 # ---------------------------------------------------------------------------
 # Manifest (replaces generated mount_devices script)
 # ---------------------------------------------------------------------------
-def build_device_manifest(
-    config: dict, discovery_data: list[dict]
-) -> list[dict]:
+def build_device_manifest(config: dict, discovery_data: list[dict]) -> list[dict]:
     """Build a device manifest from add-on config and discovery data.
 
     Resolves device IDs to bus IDs and returns a list of devices ready
@@ -468,7 +460,9 @@ def build_device_manifest(
         server = dev.get("server") or default_server
 
         if not dev_or_bus:
-            logger.warning("Device %d (%s): device_or_bus_id is empty, skipping", i, name)
+            logger.warning(
+                "Device %d (%s): device_or_bus_id is empty, skipping", i, name
+            )
             continue
 
         if not server:
@@ -477,36 +471,44 @@ def build_device_manifest(
 
         # Resolve device_id → bus_id
         if is_device_id(dev_or_bus):
-            logger.info("Device %d (%s): Detected device_id format (%s)", i, name, dev_or_bus)
+            logger.info(
+                "Device %d (%s): Detected device_id format (%s)", i, name, dev_or_bus
+            )
             bus_id = resolve_device_id_to_bus_id(server, dev_or_bus, discovery_data)
             if not bus_id:
                 logger.warning(
                     "Device %d (%s): device_id %s not found on server %s",
-                    i, name, dev_or_bus, server,
+                    i,
+                    name,
+                    dev_or_bus,
+                    server,
                 )
                 continue
             logger.info(
                 "Device %d (%s): Found bus_id %s for device_id %s",
-                i, name, bus_id, dev_or_bus,
+                i,
+                name,
+                bus_id,
+                dev_or_bus,
             )
         else:
             logger.info("Device %d (%s): Using bus_id format (%s)", i, name, dev_or_bus)
             bus_id = dev_or_bus
 
-        manifest.append({
-            "server": server,
-            "bus_id": bus_id,
-            "name": name,
-            "delay": attach_delay,
-            "retries": DEFAULT_ATTACH_RETRIES,
-        })
+        manifest.append(
+            {
+                "server": server,
+                "bus_id": bus_id,
+                "name": name,
+                "delay": attach_delay,
+                "retries": DEFAULT_ATTACH_RETRIES,
+            }
+        )
 
     return manifest
 
 
-def write_device_manifest(
-    manifest: list[dict], filepath: str | None = None
-) -> None:
+def write_device_manifest(manifest: list[dict], filepath: str | None = None) -> None:
     """Write device manifest to JSON file.
 
     Args:
@@ -589,9 +591,7 @@ def cleanup_temp_files() -> None:
             pass
 
 
-def write_attached_devices_file(
-    ports: list[int], filepath: str | None = None
-) -> None:
+def write_attached_devices_file(ports: list[int], filepath: str | None = None) -> None:
     """Write attached port numbers to file.
 
     Args:

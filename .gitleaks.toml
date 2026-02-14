@@ -1,0 +1,8 @@
+title = "HA USB/IP Client gitleaks config"
+
+[allowlist]
+description = "Allow test fixtures and static docs assets"
+paths = [
+  '''tests/testdata.py''',
+  '''docs/images/.*''',
+]

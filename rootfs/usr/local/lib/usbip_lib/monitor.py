@@ -36,9 +36,7 @@ def clear_cooldowns() -> None:
     _notification_cooldowns.clear()
 
 
-def find_missing_devices(
-    manifest: list[dict], attached: list[dict]
-) -> list[dict]:
+def find_missing_devices(manifest: list[dict], attached: list[dict]) -> list[dict]:
     """Compare manifest against currently attached devices.
 
     Returns list of manifest entries that are NOT found in attached devices.
@@ -66,9 +64,7 @@ def find_missing_devices(
     return missing
 
 
-def attempt_reattach(
-    device: dict, retries: int, logger: logging.Logger
-) -> bool:
+def attempt_reattach(device: dict, retries: int, logger: logging.Logger) -> bool:
     """Try to reattach a lost device.
 
     Args:
@@ -99,8 +95,12 @@ def attempt_reattach(
         logger.info("Successfully reattached %s (%s)", name, bus_id)
         write_event("reattach_ok", f"Reattached {name}", device=name, server=server)
     else:
-        logger.error("Failed to reattach %s (%s) after %d retries", name, bus_id, retries)
-        write_event("reattach_fail", f"Reattach failed for {name}", device=name, server=server)
+        logger.error(
+            "Failed to reattach %s (%s) after %d retries", name, bus_id, retries
+        )
+        write_event(
+            "reattach_fail", f"Reattach failed for {name}", device=name, server=server
+        )
 
     return ok
 
@@ -124,7 +124,10 @@ def restart_dependent_addons(
         for attempt in range(1, restart_retries + 1):
             logger.info(
                 "Restarting %s (%s) — attempt %d/%d",
-                name, slug, attempt, restart_retries,
+                name,
+                slug,
+                attempt,
+                restart_retries,
             )
             ok = restart_addon(slug)
             if ok:
@@ -135,11 +138,15 @@ def restart_dependent_addons(
                     f"{name} was restarted after USB device recovery.",
                 )
                 break
-            logger.warning("Restart attempt %d/%d failed for %s", attempt, restart_retries, name)
+            logger.warning(
+                "Restart attempt %d/%d failed for %s", attempt, restart_retries, name
+            )
             if attempt < restart_retries:
                 time.sleep(5)
         else:
-            logger.error("Failed to restart %s after %d attempts", name, restart_retries)
+            logger.error(
+                "Failed to restart %s after %d attempts", name, restart_retries
+            )
             write_event("addon_restart_fail", f"Failed to restart {name}", device=name)
             send_ha_notification(
                 "USB/IP: Add-on Restart Failed",
@@ -177,28 +184,47 @@ def check_dependent_addon_health(
             if state == "error":
                 logger.info("Attempting to restart failed add-on %s (%s)", name, slug)
                 for attempt in range(1, restart_retries + 1):
-                    logger.info("Restarting %s (%s) — attempt %d/%d", name, slug, attempt, restart_retries)
+                    logger.info(
+                        "Restarting %s (%s) — attempt %d/%d",
+                        name,
+                        slug,
+                        attempt,
+                        restart_retries,
+                    )
                     ok = restart_addon(slug)
                     if ok:
                         logger.info("Successfully restarted %s", name)
-                        write_event("addon_restart_ok", f"Restarted {name}", device=name)
+                        write_event(
+                            "addon_restart_ok", f"Restarted {name}", device=name
+                        )
                         send_ha_notification(
                             "USB/IP: Add-on Restarted",
                             f"{name} was restarted due to error state.",
                         )
                         break
-                    logger.warning("Restart attempt %d/%d failed for %s", attempt, restart_retries, name)
+                    logger.warning(
+                        "Restart attempt %d/%d failed for %s",
+                        attempt,
+                        restart_retries,
+                        name,
+                    )
                     if attempt < restart_retries:
                         time.sleep(5)
                 else:
-                    logger.error("Failed to restart %s after %d attempts", name, restart_retries)
-                    write_event("addon_restart_fail", f"Failed to restart {name}", device=name)
+                    logger.error(
+                        "Failed to restart %s after %d attempts", name, restart_retries
+                    )
+                    write_event(
+                        "addon_restart_fail", f"Failed to restart {name}", device=name
+                    )
                     send_ha_notification(
                         "USB/IP: Add-on Restart Failed",
                         f"Could not restart {name} ({slug}) after {restart_retries} attempts.",
                     )
         elif state == "started" and prev != "started":
-            logger.info("Dependent add-on %s (%s) recovered — now %s", name, slug, state)
+            logger.info(
+                "Dependent add-on %s (%s) recovered — now %s", name, slug, state
+            )
             write_event("addon_health_ok", f"{name} recovered", device=name)
 
         _addon_health_prev[slug] = state

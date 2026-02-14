@@ -49,7 +49,11 @@ app = Flask(
     static_folder="/usr/local/bin/webui/static",
 )
 app.config["SECRET_KEY"] = os.urandom(24).hex()
-socketio = SocketIO(app, async_mode="gevent", cors_allowed_origins=["http://localhost", "http://127.0.0.1"])
+socketio = SocketIO(
+    app,
+    async_mode="gevent",
+    cors_allowed_origins=["http://localhost", "http://127.0.0.1"],
+)
 
 # ---------------------------------------------------------------------------
 # In-memory state
@@ -158,7 +162,9 @@ def _log_tailer():
                     # to find genuinely new lines
                     buf_tail = log_buffer[-500:] if log_buffer else []
                     start_idx = max(0, len(lines) - 500)
-                    candidate_lines = [ln.strip() for ln in lines[start_idx:] if ln.strip()]
+                    candidate_lines = [
+                        ln.strip() for ln in lines[start_idx:] if ln.strip()
+                    ]
 
                     # Find where new content starts by matching
                     # the last known buffer lines against the fetched tail
@@ -261,7 +267,9 @@ def api_attach():
         "attach_ok" if success else "attach_fail", detail, device=name, server=server
     )
     if success:
-        send_ha_notification("USB/IP Device Attached", f"{name} ({busid}) from {server}")
+        send_ha_notification(
+            "USB/IP Device Attached", f"{name} ({busid}) from {server}"
+        )
     return jsonify({"ok": success, "detail": detail})
 
 
@@ -275,7 +283,9 @@ def api_detach():
     rc, out, err = run_cmd(["usbip", "detach", "-p", port])
     success = rc == 0
     detail = "detached" if success else (err or "unknown error")
-    write_event("detach_ok" if success else "detach_fail", detail, device=f"port {port}")
+    write_event(
+        "detach_ok" if success else "detach_fail", detail, device=f"port {port}"
+    )
     if success:
         send_ha_notification("USB/IP Device Detached", f"Port {port}")
     return jsonify({"ok": success, "detail": detail})
@@ -315,7 +325,13 @@ def api_attach_all():
             if found:
                 busid = found[0]["busid"]
             else:
-                results.append({"name": name, "ok": False, "detail": f"device {dev_or_bus} not found on {server}"})
+                results.append(
+                    {
+                        "name": name,
+                        "ok": False,
+                        "detail": f"device {dev_or_bus} not found on {server}",
+                    }
+                )
                 continue
 
         run_cmd(["usbip", "detach", "-r", server, "-b", busid])
@@ -323,7 +339,12 @@ def api_attach_all():
         rc, _, err = run_cmd(["usbip", "attach", "--remote", server, "--busid", busid])
         ok = rc == 0
         results.append({"name": name, "ok": ok, "detail": "attached" if ok else err})
-        write_event("attach_ok" if ok else "attach_fail", "attach-all", device=name, server=server)
+        write_event(
+            "attach_ok" if ok else "attach_fail",
+            "attach-all",
+            device=name,
+            server=server,
+        )
         time.sleep(1)
 
     return jsonify({"ok": True, "results": results})
@@ -396,7 +417,12 @@ def api_scan():
         if re.match(r"^\d+\.\d+\.\d+\.\d+$", subnet):
             hosts = [subnet]
         else:
-            return jsonify({"ok": False, "error": "Invalid subnet format. Use x.x.x.x/24 or single IP"}), 400
+            return jsonify(
+                {
+                    "ok": False,
+                    "error": "Invalid subnet format. Use x.x.x.x/24 or single IP",
+                }
+            ), 400
     else:
         base = m.group(1)
         prefix = int(m.group(3))
@@ -485,7 +511,9 @@ def api_dependent_addons_save():
     config["dependent_addons"] = addons_list
     resp = set_addon_config(config)
     ok = resp.get("result") == "ok"
-    write_event("config_change", f"Updated dependent add-ons: {len(addons_list)} selected")
+    write_event(
+        "config_change", f"Updated dependent add-ons: {len(addons_list)} selected"
+    )
     return jsonify({"ok": ok})
 
 

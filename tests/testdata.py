@@ -63,7 +63,7 @@ SAMPLE_ADDON_CONFIG = {
     ],
     # Default logging behavior for UI auto-scroll
     "log_auto_scroll": "when_not_paused",
-} 
+}
 
 SAMPLE_SUPERVISOR_INFO_RESPONSE = {
     "result": "ok",
@@ -109,7 +109,11 @@ SAMPLE_ADDONS_LIST_RESPONSE = {
             {"slug": "45df7312_zigbee2mqtt", "name": "Zigbee2MQTT", "state": "started"},
             {"slug": "core_zwave_js", "name": "Z-Wave JS", "state": "started"},
             {"slug": "core_mosquitto", "name": "Mosquitto", "state": "stopped"},
-            {"slug": "local_ha_usbip_client", "name": "HA USB/IP Client", "state": "started"},
+            {
+                "slug": "local_ha_usbip_client",
+                "name": "HA USB/IP Client",
+                "state": "started",
+            },
         ]
     },
 }

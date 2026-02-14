@@ -16,6 +16,10 @@ Huge thanks to [irakhlin's hassio-usbip-mounter](https://github.com/irakhlin/has
 
 Special thanks to [rogerfar](https://github.com/rogerfar) and [Rene-Sackers](https://github.com/Rene-Sackers) for [their great ideas and discussions](https://github.com/cryptedx/ha-usbip-client/pull/8), which made it possible to mount devices via device ID in addition to bus ID.
 
+## Contributing
+
+For development, contribution, architecture details, and release automation see [DEVELOPER.md](DEVELOPER.md).
+
 ## Features
 
 - Connects to a remote USB/IP server.
@@ -29,48 +33,6 @@ Special thanks to [rogerfar](https://github.com/rogerfar) and [Rene-Sackers](htt
 - **Bulk Operations**: Attach/detach all devices at once.
 - **Real-time Notifications**: Push notifications to Home Assistant on device events.
 
-## Screenshots
-
-Here are some screenshots of the WebUI and key features:
-
-- **Dashboard**  
-  ![Dashboard][screenshot-dashboard]
-
-- **Devices list**  
-  ![Devices][screenshot-devices]
-
-- **Server discovery**  
-  ![Discovery][screenshot-discovery]
-
-- **Live logs**  
-  ![Logs][screenshot-logs]
-
-- **Event timeline**  
-  ![Events][screenshot-events]
-
-- **Configuration editor**  
-  ![Config][screenshot-config]
-
-## Fixes
-
-**Summary**
-
-| Severity | Count | Key points |
-|---|---:|---|
-| **Critical** | 2 | Removed duplicate test class; SIGTERM was not handled (services now correctly respond to SIGTERM) |
-| **High** | 4 | Fixed missing API authentication; resolved version inconsistencies between components; made the monitor module unit-testable; corrected CORS configuration* |
-| **Medium** | 10 | Fixed log de-duplication bug; resolved multiple race conditions; added missing tests; removed unnecessary capabilities |
-| **Low** | 8+ | Style fixes, updated outdated documentation, cleaned import patterns, removed unnecessary emojis |
-
-*Note: The CORS fix restricts allowed origins (e.g., local/ingress) and prevents insecure cross-origin requests.
-
-## Todo
-
-- [X] create webui where logs can be inspected live and devices, discovered/polled, attached, detached via a dropdown
-- [X] How to check if other containers which rely on this are still healthy? 45df7312-zigbee2mqtt and core-zwave-js
-- [X] Notify user if usb device has failed, etc.
-- [X] Change all shell scripts to Python for better error handling and maintainability
-
 ## Installation
 
 1. Add it to your Home Assistant app store as a custom repository.
@@ -81,30 +43,29 @@ Here are some screenshots of the WebUI and key features:
 3. Configure the app options to specify the USB/IP server IP address, USB device bus IDs, and desired log level.
 4. Start the app.
 
-## Development Branch
+### Development branch install
 
-⚠️ **Warning**: The development branch contains the latest features and bug fixes but may be unstable. Use at your own risk.
+⚠️ The development branch contains latest features and fixes, but may be unstable.
 
-To install the development version of the **USB/IP Client** app:
+1. Add repository URL with dev branch: `https://github.com/cryptedx/ha-usbip-client.git#dev`
+2. Follow the same installation steps.
+3. Reinstall the app when switching between stable and development versions if needed.
 
-1. Add the repository URL with the dev branch: `https://github.com/cryptedx/ha-usbip-client.git#dev`
-2. Follow the same installation steps as above.
-3. Note that you may need to reinstall the app when switching between stable and development versions.
+## Configuration
 
-The app requires the following configuration options:
+- **log_level**: Optional log verbosity. Default `info`. Allowed: `trace`, `debug`, `info`, `notice`, `warning`, `error`, `fatal`.
+- **usbipd_server_address**: IP address of the USB/IP server.
+- **attach_delay**: Optional delay between attachment attempts. Default `2`, range `0-30`.
+- **monitor_interval**: Optional health check interval. Default `30`, range `10-300`.
+- **reattach_retries**: Optional reattach retries. Default `3`, range `0-10`.
+- **restart_retries**: Optional dependent add-on restart retries. Default `3`, range `0-10`.
+- **dependent_addons**: Optional list with `name` and `slug`.
+- **Recommended for dependent add-ons**: Let USB/IP Client manage dependent add-ons and disable **Start on boot** and **Watchdog** for each of them in Home Assistant.
+- **devices**: Device list containing:
+  - **name**: Display name.
+  - **device_or_bus_id**: Bus ID (`1-1.1.3`) or USB device ID (`0658:0200`).
 
-- **log_level**: (Optional) Sets the verbosity of the app logs. Default is `info`. Available options are `trace`, `debug`, `info`, `notice`, `warning`, `error`, `fatal`.
-- **usbipd_server_address**: The IP address of the USB/IP server.
-- **attach_delay**: (Optional) Delay in seconds between device attachment attempts. Default is `2`. Range: 0-30.
-- **monitor_interval**: (Optional) Interval in seconds for device health monitoring. Default is `30`. Range: 10-300.
-- **reattach_retries**: (Optional) Number of retries for device reattachment. Default is `3`. Range: 0-10.
-- **restart_retries**: (Optional) Number of retries for add-on restart. Default is `3`. Range: 0-10.
-- **dependent_addons**: (Optional) List of dependent add-ons to monitor and restart if they fail. Each entry has `name` and `slug`.
-- **devices**: A list of devices with the following options:
-  - **name**: The name of the USB device.
-  - **device_or_bus_id**: The bus ID or device ID of the USB device on the USB/IP server. Example: `1-1.1.3` or `0658:0200`.
-
-Example configuration:
+Example:
 
 ```yaml
 log_level: info
@@ -125,129 +86,42 @@ devices:
     device_or_bus_id: "1-1.2"
 ```
 
-Replace `192.168.1.44` with your USB/IP server IP address and provide the correct bus IDs or device IDs of the USB devices.
-
 ## Usage
 
-- Once the app is configured and started, it will connect to the specified USB/IP server and attach to the USB devices.
-- The devices will then be available for use in Home Assistant integrations.
-- Adjust the `log_level` in the configuration to control the verbosity of the logs for troubleshooting.
+- After startup, the app connects to the configured USB/IP server and attaches configured devices.
+- Attached devices become available in Home Assistant integrations.
+- Use the WebUI panel for discovery, attach/detach actions, logs, and event tracking.
+
+## Screenshots
+
+- **Dashboard**
+  ![Dashboard][screenshot-dashboard]
+- **Devices list**
+  ![Devices][screenshot-devices]
+- **Server discovery**
+  ![Discovery][screenshot-discovery]
+- **Live logs**
+  ![Logs][screenshot-logs]
+- **Event timeline**
+  ![Events][screenshot-events]
+- **Configuration editor**
+  ![Config][screenshot-config]
 
 ## Security Considerations
 
-This app requires elevated privileges to access and manage USB devices, which has potential security implications:
+The app performs kernel- and USB-level operations and therefore still requires elevated privileges on the host. Important changes and current facts:
 
-- **Full Access**: The app is granted full access to the host system, which allows it to interact directly with USB devices and kernel modules.
-- **Kernel Modules**: The app loads the vhci-hcd kernel module to enable USB/IP functionality. Loading kernel modules can potentially introduce vulnerabilities if not properly managed.
-- **Host Network**: The app uses the host's network stack (host_network: true). This means that any vulnerabilities in the USB/IP protocol could potentially impact the host system.
-- **Privileged Operations**: The app requires several Linux capabilities (NET_ADMIN, SYS_ADMIN, SYS_RAWIO, etc.) to perform USB management operations. These permissions are powerful and, if exploited, could compromise the host system.
+- Protection Mode: **you do not need to disable Protection Mode** for the add-on to run — the app works with Protection Mode enabled.
+- Required capabilities: the add-on requests specific kernel/network capabilities and `vhci-hcd` kernel module to provide USB/IP functionality; unnecessary Linux capabilities were removed in recent releases.
+- Network & host access: the add-on uses the host network stack for USB/IP communication.
 
-It is recommended to:
+Recommendations
 
-- Only use this app in a trusted network environment.
-- Regularly update the app to incorporate security patches.
-- Limit access to the Home Assistant instance to reduce exposure.
+- Use the add-on in a trusted network environment and keep Home Assistant updated.
+- Review the `privileged` and `host_network` settings in `config.yaml` before deploying to sensitive hosts.
+- For development or advanced deployment details see `DEVELOPER.md`.
 
-## Related Automation for App Management
-
-To automate the management of other Home Assistant apps based on the status of this USB/IP Client app, you can use the following automation.
-
-*Note: The feedback of the app status is very sluggish at the time I created this automation. This means that if you stop the USB/IP Client Home Assistant app, for example, it takes 1-5 minutes for the status of the sensor to be updated!*
-
-**Access App Entities:**
-
-1. Navigate to Settings > Devices & Services.
-2. Locate and select Home Assistant Supervisor from the device list.
-3. Click on Entities to view all entities associated with the Supervisor.
-
-**Enable the Running State Sensor:**
-
-1. In the entities list, find the binary sensor corresponding to the app you wish to monitor. These sensors are typically named in the format binary_sensor.[app_name]_running.
-2. Click on the desired sensor to open its details.
-3. Click on the Settings (cog) icon in the top-right corner.
-4. Toggle the Enabled switch to activate the sensor.
-5. Click Update to save your changes.
-
-```yaml
-alias: USB/IP Client Home Assistant App Management
-description: >-
-  Starts or stops apps when the USB/IP client is on/off, with an optional
-  startup delay.
-triggers:
-  - entity_id:
-      - binary_sensor.ha_usbip_client_running
-    to: "on"
-    id: usbip_start
-    trigger: state
-  - entity_id:
-      - binary_sensor.ha_usbip_client_running
-    to: "off"
-    id: usbip_stop
-    trigger: state
-actions:
-  - choose:
-      - conditions:
-          - condition: template
-            value_template: "{{ trigger.id == 'usbip_start' }}"
-        sequence:
-          - delay:
-              seconds: "{{ start_delay }}"
-          - repeat:
-              for_each: "{{ managed_apps }}"
-              sequence:
-                - if:
-                    - condition: template
-                      value_template: "{{ is_state(repeat.item.app_sensor, 'off') }}"
-                  then:
-                    - data:
-                        addon: "{{ repeat.item.app_slug }}"
-                      action: hassio.addon_start
-      - conditions:
-          - condition: template
-            value_template: "{{ trigger.id == 'usbip_stop' }}"
-        sequence:
-          - repeat:
-              for_each: "{{ managed_apps }}"
-              sequence:
-                - if:
-                    - condition: template
-                      value_template: "{{ is_state(repeat.item.app_sensor, 'on') }}"
-                  then:
-                    - data:
-                        addon: "{{ repeat.item.app_slug }}"
-                      action: hassio.addon_stop
-mode: single
-variables:
-  start_delay: 0
-  managed_apps:
-    - app_name: Zigbee2MQTT
-      app_sensor: binary_sensor.zigbee2mqtt_running
-      app_slug: 45df7312_zigbee2mqtt
-    - app_name: Z-Wave JS
-      app_sensor: binary_sensor.zwave_js_running
-      app_slug: core_zwave_js
-
-```
-
-## Accessing the USB/IP Container in Home Assistant via SSH
-
-1. **SSH into your Home Assistant instance.**
-
-2. **Locate the USB/IP container:**
-
-    Run the following command to find the USB/IP container ID:
-
-    ```bash
-    docker ps | grep usbip
-    ```
-
-3. **Access the container's bash shell**
-
-    Once you have the `<container_id>`, use it in this command to enter the container:
-
-    ```bash
-    docker exec -it <container_id> /bin/bash
-    ```
+## License```
 
 ## License
 

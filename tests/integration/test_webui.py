@@ -7,7 +7,9 @@ import sys
 import pytest
 
 # Add the webui directory to path so we can import app
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../rootfs/usr/local/bin/webui"))
+sys.path.insert(
+    0, os.path.join(os.path.dirname(__file__), "../../rootfs/usr/local/bin/webui")
+)
 
 from testdata import (
     SAMPLE_ADDON_CONFIG,
@@ -32,6 +34,7 @@ def mock_usbip_env(mocker, tmp_path):
 
     # Also patch the EVENTS_FILE binding in app module (from-import creates a copy)
     import app as app_module
+
     mocker.patch.object(app_module, "EVENTS_FILE", events_file)
 
     # Mock supervisor API
@@ -124,9 +127,9 @@ class TestApiAttach:
         assert resp.status_code == 400
 
     def test_failure(self, client, mock_usbip_env):
-        mock_usbip_env["subprocess"].return_value = pytest.importorskip("unittest.mock").Mock(
-            returncode=1, stdout="", stderr="connection refused"
-        )
+        mock_usbip_env["subprocess"].return_value = pytest.importorskip(
+            "unittest.mock"
+        ).Mock(returncode=1, stdout="", stderr="connection refused")
         resp = client.post(
             "/api/attach",
             json={"server": "192.168.1.44", "busid": "1-1.4"},
@@ -186,6 +189,7 @@ class TestApiEvents:
     def test_clear(self, client, mock_usbip_env):
         # Write an event first
         from usbip_lib.events import write_event
+
         write_event("test", "data", events_file=mock_usbip_env["events_file"])
 
         resp = client.post("/api/events/clear")
@@ -241,6 +245,7 @@ class TestApiLogs:
 class TestApiAddons:
     def test_returns_addon_list(self, client, mock_usbip_env):
         """GET /api/addons should return all installed add-ons."""
+
         # Override the urlopen mock to return addons list for the addons endpoint
         def _make_response(data):
             import unittest.mock as um
@@ -251,7 +256,9 @@ class TestApiAddons:
             resp.__exit__ = um.Mock(return_value=False)
             return resp
 
-        mock_usbip_env["urlopen"].return_value = _make_response(SAMPLE_ADDONS_LIST_RESPONSE)
+        mock_usbip_env["urlopen"].return_value = _make_response(
+            SAMPLE_ADDONS_LIST_RESPONSE
+        )
 
         resp = client.get("/api/addons")
         data = resp.get_json()

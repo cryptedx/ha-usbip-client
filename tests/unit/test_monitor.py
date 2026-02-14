@@ -84,7 +84,13 @@ class TestFindMissingDevices:
     def test_different_server(self):
         """Manifest device on server A but attached from server B should be missing."""
         manifest = [
-            {"server": "10.0.0.1", "bus_id": "1-1.4", "name": "Test", "delay": 2, "retries": 3},
+            {
+                "server": "10.0.0.1",
+                "bus_id": "1-1.4",
+                "name": "Test",
+                "delay": 2,
+                "retries": 3,
+            },
         ]
         attached = [
             {"port": 0, "server": "192.168.1.44", "remote_busid": "1-1.4"},
@@ -141,7 +147,7 @@ class TestReattachLogic:
         mock_attach.assert_called_once()
 
     def test_reattach_failure(self, mocker):
-        mock_attach = mocker.patch("usbip_lib.usbip.attach_device", return_value=False)
+        mocker.patch("usbip_lib.usbip.attach_device", return_value=False)
         from usbip_lib.usbip import attach_device
 
         device = SAMPLE_DEVICE_MANIFEST[0]
@@ -159,14 +165,14 @@ class TestDependentAddonRestart:
     """Test dependent add-on restart logic with mocked Supervisor API."""
 
     def test_restart_success(self, mocker):
-        mock_restart = mocker.patch("usbip_lib.config.restart_addon", return_value=True)
+        mocker.patch("usbip_lib.config.restart_addon", return_value=True)
         from usbip_lib.config import restart_addon
 
         result = restart_addon("45df7312_zigbee2mqtt")
         assert result is True
 
     def test_restart_failure(self, mocker):
-        mock_restart = mocker.patch("usbip_lib.config.restart_addon", return_value=False)
+        mocker.patch("usbip_lib.config.restart_addon", return_value=False)
         from usbip_lib.config import restart_addon
 
         result = restart_addon("nonexistent_addon")

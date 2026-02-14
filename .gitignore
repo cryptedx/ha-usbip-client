@@ -16,5 +16,7 @@ __pycache__/
 # Ignore VSCode settings
 .aider*
 .github/*
+!.github/workflows/
+!.github/workflows/*.yml
 
 .venv/

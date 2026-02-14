@@ -1,0 +1,17 @@
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+exclude = [
+  ".venv",
+  "venv",
+  "__pycache__",
+  "build",
+  "dist",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["F401"]

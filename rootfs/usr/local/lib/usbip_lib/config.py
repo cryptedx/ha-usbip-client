@@ -47,7 +47,9 @@ def get_addon_config(
     Returns:
         Dict of add-on configuration options.
     """
-    resp = supervisor_request("GET", "/addons/self/info", token=token, base_url=base_url)
+    resp = supervisor_request(
+        "GET", "/addons/self/info", token=token, base_url=base_url
+    )
     if resp.get("result") == "ok":
         return resp.get("data", {}).get("options", {})
     return {}
@@ -67,8 +69,11 @@ def set_addon_config(
         Supervisor response dict.
     """
     return supervisor_request(
-        "POST", "/addons/self/options", {"options": options},
-        token=token, base_url=base_url,
+        "POST",
+        "/addons/self/options",
+        {"options": options},
+        token=token,
+        base_url=base_url,
     )
 
 
@@ -109,7 +114,11 @@ def list_installed_addons(
         return []
     addons = resp.get("data", {}).get("addons", [])
     return [
-        {"slug": a.get("slug", ""), "name": a.get("name", ""), "state": a.get("state", "unknown")}
+        {
+            "slug": a.get("slug", ""),
+            "name": a.get("name", ""),
+            "state": a.get("state", "unknown"),
+        }
         for a in addons
     ]
 
@@ -127,7 +136,9 @@ def get_addon_state(
     Returns:
         State string (``started``, ``stopped``, ``unknown``).
     """
-    resp = supervisor_request("GET", f"/addons/{slug}/info", token=token, base_url=base_url)
+    resp = supervisor_request(
+        "GET", f"/addons/{slug}/info", token=token, base_url=base_url
+    )
     if resp.get("result") == "ok":
         return resp.get("data", {}).get("state", "unknown")
     return "unknown"
@@ -146,5 +157,7 @@ def restart_addon(
     Returns:
         True if restart was successful.
     """
-    resp = supervisor_request("POST", f"/addons/{slug}/restart", token=token, base_url=base_url)
+    resp = supervisor_request(
+        "POST", f"/addons/{slug}/restart", token=token, base_url=base_url
+    )
     return resp.get("result") == "ok"
