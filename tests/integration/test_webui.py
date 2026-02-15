@@ -100,6 +100,49 @@ class TestIndexPage:
 
         assert 'onclick="loadConfig(true)"' in html
 
+    def test_cookie_active_tab_renders_devices_as_active(self, client):
+        """Initial active tab is rendered from cookie for full ingress reload compatibility."""
+        client.set_cookie("usbip_active_tab", "devices")
+
+        resp = client.get("/")
+        html = resp.get_data(as_text=True)
+
+        assert 'data-tab="devices" href="?tab=devices">Devices</a>' in html
+        assert 'class="tab active" data-tab="devices"' in html
+        assert 'id="tab-devices" class="tab-content active"' in html
+
+    def test_invalid_cookie_active_tab_falls_back_to_dashboard(self, client):
+        """Invalid tab cookies are ignored and dashboard remains default."""
+        client.set_cookie("usbip_active_tab", "invalid-tab")
+
+        resp = client.get("/")
+        html = resp.get_data(as_text=True)
+
+        assert 'class="tab active" data-tab="dashboard"' in html
+        assert 'id="tab-dashboard" class="tab-content active"' in html
+
+    def test_query_active_tab_overrides_cookie(self, client):
+        """Query tab parameter has priority and is rendered server-side."""
+        client.set_cookie("usbip_active_tab", "dashboard")
+
+        resp = client.get("/?tab=devices")
+        html = resp.get_data(as_text=True)
+
+        assert 'class="tab active" data-tab="devices"' in html
+        assert 'id="tab-devices" class="tab-content active"' in html
+
+    def test_tab_navigation_links_exist_for_no_js_fallback(self, client):
+        """Tabs are anchor links with ?tab fallback for ingress/no-JS resilience."""
+        resp = client.get("/")
+        html = resp.get_data(as_text=True)
+
+        assert 'data-tab="dashboard" href="?tab=dashboard"' in html
+        assert 'data-tab="devices" href="?tab=devices"' in html
+        assert 'data-tab="discovery" href="?tab=discovery"' in html
+        assert 'data-tab="logs" href="?tab=logs"' in html
+        assert 'data-tab="events" href="?tab=events"' in html
+        assert 'data-tab="config" href="?tab=config"' in html
+
 
 class TestStaticAppJsCompatibility:
     def test_exposes_app_handlers_on_window_only(self, client):
@@ -115,6 +158,19 @@ class TestStaticAppJsCompatibility:
         assert "loadAvailableAddons" not in js
         assert "saveDependentAddons" not in js
         assert "restartAddon" not in js
+
+    def test_persists_active_tab_via_cookie(self, client):
+        """Tab persistence uses cookie for server-side rendering in Ingress."""
+        resp = client.get("/static/app.js")
+        assert resp.status_code == 200
+        js = resp.get_data(as_text=True)
+
+        assert "const ACTIVE_TAB_COOKIE_KEY = 'usbip_active_tab';" in js
+        assert (
+            "document.cookie = `${ACTIVE_TAB_COOKIE_KEY}=${encodeURIComponent(tab)}; Path=/; SameSite=Lax`;"
+            in js
+        )
+        assert "event.preventDefault()" in js
 
 
 class TestApiStatus:

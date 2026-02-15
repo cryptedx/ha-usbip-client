@@ -30,19 +30,19 @@
 
     <!-- TABS -->
     <nav id="tabs">
-      <button class="tab active" data-tab="dashboard">Dashboard</button>
-      <button class="tab" data-tab="devices">Devices</button>
-      <button class="tab" data-tab="discovery">Discovery</button>
-      <button class="tab" data-tab="logs">Logs</button>
-      <button class="tab" data-tab="events">Events</button>
-      <button class="tab" data-tab="config">Config</button>
+      <a class="tab{% if active_tab == 'dashboard' %} active{% endif %}" data-tab="dashboard" href="?tab=dashboard">Dashboard</a>
+      <a class="tab{% if active_tab == 'devices' %} active{% endif %}" data-tab="devices" href="?tab=devices">Devices</a>
+      <a class="tab{% if active_tab == 'discovery' %} active{% endif %}" data-tab="discovery" href="?tab=discovery">Discovery</a>
+      <a class="tab{% if active_tab == 'logs' %} active{% endif %}" data-tab="logs" href="?tab=logs">Logs</a>
+      <a class="tab{% if active_tab == 'events' %} active{% endif %}" data-tab="events" href="?tab=events">Events</a>
+      <a class="tab{% if active_tab == 'config' %} active{% endif %}" data-tab="config" href="?tab=config">Config</a>
     </nav>
 
     <!-- TOAST container -->
     <div id="toast-container"></div>
 
     <!-- ============ DASHBOARD TAB ============ -->
-    <section id="tab-dashboard" class="tab-content active">
+    <section id="tab-dashboard" class="tab-content{% if active_tab == 'dashboard' %} active{% endif %}">
       <div class="panel-row">
         <div class="panel">
           <h3>» Server Status</h3>
@@ -73,7 +73,7 @@
     </section>
 
     <!-- ============ DEVICES TAB ============ -->
-    <section id="tab-devices" class="tab-content">
+    <section id="tab-devices" class="tab-content{% if active_tab == 'devices' %} active{% endif %}">
       <div class="panel">
         <h3>» Attached Devices <button class="btn btn-sm btn-dim" onclick="refreshDevices()">↻</button></h3>
         <div class="table-wrap">
@@ -114,7 +114,7 @@
     </section>
 
     <!-- ============ DISCOVERY TAB ============ -->
-    <section id="tab-discovery" class="tab-content">
+    <section id="tab-discovery" class="tab-content{% if active_tab == 'discovery' %} active{% endif %}">
       <div class="panel">
         <h3>» Discover Remote Devices</h3>
         <div class="form-row">
@@ -146,7 +146,7 @@
     </section>
 
     <!-- ============ LOGS TAB ============ -->
-    <section id="tab-logs" class="tab-content">
+    <section id="tab-logs" class="tab-content{% if active_tab == 'logs' %} active{% endif %}">
       <div class="panel full">
         <h3>» Live Logs
           <span class="log-controls">
@@ -168,7 +168,7 @@
     </section>
 
     <!-- ============ EVENTS TAB ============ -->
-    <section id="tab-events" class="tab-content">
+    <section id="tab-events" class="tab-content{% if active_tab == 'events' %} active{% endif %}">
       <div class="panel full">
         <h3>» Device Event Timeline
           <button class="btn btn-xs btn-dim" onclick="refreshEvents()">↻</button>
@@ -179,7 +179,7 @@
     </section>
 
     <!-- ============ CONFIG TAB ============ -->
-    <section id="tab-config" class="tab-content">
+    <section id="tab-config" class="tab-content{% if active_tab == 'config' %} active{% endif %}">
       <div class="panel">
         <h3>» Configuration</h3>
         <div class="config-form" id="config-form">

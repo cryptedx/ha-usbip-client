@@ -8,7 +8,7 @@ import threading
 import time
 import urllib.request
 
-from flask import Flask, g, jsonify, render_template, request
+from flask import Flask, g, jsonify, make_response, render_template, request
 from flask_socketio import SocketIO
 
 from usbip_lib.config import (
@@ -40,6 +40,14 @@ from usbip_lib.usbip import (
 # ---------------------------------------------------------------------------
 LOG_BUFFER_MAX = 2000
 HEALTH_INTERVAL = 30  # seconds
+VALID_WEBUI_TABS = {
+    "dashboard",
+    "devices",
+    "discovery",
+    "logs",
+    "events",
+    "config",
+}
 
 app = Flask(
     __name__,
@@ -274,7 +282,14 @@ def _template_globals():
 # ---------------------------------------------------------------------------
 @app.route("/")
 def index():
-    return render_template("index.html")
+    requested_tab = request.args.get("tab", "").strip().lower()
+    cookie_tab = request.cookies.get("usbip_active_tab", "dashboard")
+    active_tab = requested_tab or cookie_tab
+    if active_tab not in VALID_WEBUI_TABS:
+        active_tab = "dashboard"
+    response = make_response(render_template("index.html", active_tab=active_tab))
+    response.set_cookie("usbip_active_tab", active_tab, path="/", samesite="Lax")
+    return response
 
 
 # ---------------------------------------------------------------------------

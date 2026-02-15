@@ -19,13 +19,34 @@ let logAutoScroll = 'when_not_paused';
 
 // ---- Themes ----
 const THEMES = ['green', 'amber', 'blue', 'dracula', 'matrix'];
-let currentTheme = localStorage.getItem('usbip-theme') || 'green';
+const ACTIVE_TAB_COOKIE_KEY = 'usbip_active_tab';
+let currentTheme = 'green';
+try {
+    currentTheme = localStorage.getItem('usbip-theme') || 'green';
+} catch (e) {
+    currentTheme = 'green';
+}
+
+function setActiveTabCookie(tab) {
+    if (!tab) return;
+    try {
+        document.cookie = `${ACTIVE_TAB_COOKIE_KEY}=${encodeURIComponent(tab)}; Path=/; SameSite=Lax`;
+    } catch (e) {
+        // Ignore cookie failures and keep UI functional
+    }
+}
+
+
 
 function applyTheme(t) {
     currentTheme = t;
     if (t === 'green') document.documentElement.removeAttribute('data-theme');
     else document.documentElement.setAttribute('data-theme', t);
-    localStorage.setItem('usbip-theme', t);
+    try {
+        localStorage.setItem('usbip-theme', t);
+    } catch (e) {
+        // Ignore storage failures and keep theme in-memory
+    }
 }
 
 function cycleTheme() {
@@ -63,24 +84,37 @@ function startClock() {
 
 // ---- Tabs ----
 function initTabs() {
-    document.querySelectorAll('.tab').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            btn.classList.add('active');
-            document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    const tabs = Array.from(document.querySelectorAll('.tab'));
 
-            // Auto-refresh on tab switch
-            const tab = btn.dataset.tab;
-            if (tab === 'dashboard') refreshDashboard();
-            else if (tab === 'devices') refreshDevices();
-            else if (tab === 'events') refreshEvents();
-            else if (tab === 'logs') {
-                fetchInitialLogs().then(() => {
-                    // Ensure we scroll to the latest logs when switching to Logs tab
-                    scrollLogToBottom('log-terminal');
-                });
-            }
+    const activateTab = (tab) => {
+        if (!tab) return;
+        const targetButton = tabs.find(btn => btn.dataset.tab === tab);
+        const targetContent = document.getElementById('tab-' + tab);
+        if (!targetButton || !targetContent) return;
+
+        tabs.forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+        targetButton.classList.add('active');
+        targetContent.classList.add('active');
+
+        setActiveTabCookie(tab);
+
+        // Auto-refresh on tab switch
+        if (tab === 'dashboard') refreshDashboard();
+        else if (tab === 'devices') refreshDevices();
+        else if (tab === 'events') refreshEvents();
+        else if (tab === 'logs') {
+            fetchInitialLogs().then(() => {
+                // Ensure we scroll to the latest logs when switching to Logs tab
+                scrollLogToBottom('log-terminal');
+            });
+        }
+    };
+
+    tabs.forEach(btn => {
+        btn.addEventListener('click', (event) => {
+            if (event) event.preventDefault();
+            activateTab(btn.dataset.tab);
         });
     });
 }
