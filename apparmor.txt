@@ -2,15 +2,25 @@
 
 profile ha_usbip_client flags=(attach_disconnected,mediate_deleted) {
   #include <abstractions/base>
+  #include <abstractions/python>
 
-  # Allow basic file operations
+  # Core process and signal handling
   file,
   signal (send) set=(kill,term,int,hup,cont),
 
-  # S6-Overlay file access for initialization and runtime services
+  # Required capabilities for USB/IP and sysfs operations
+  capability net_admin,
+  capability sys_admin,
+  capability sys_rawio,
+
+  # Required for remounting sysfs in container context
+  mount,
+
+  # s6-overlay runtime
   /init ix,
   /bin/** ix,
   /usr/bin/** ix,
+  /sbin/** ix,
   /run/{s6,s6-rc*,service}/** ix,
   /package/** ix,
   /command/** ix,
@@ -18,49 +28,41 @@ profile ha_usbip_client flags=(attach_disconnected,mediate_deleted) {
   /etc/cont-init.d/** rwix,
   /etc/cont-finish.d/** rwix,
   /run/{,**} rwk,
-  /dev/tty rw,
+  /dev/{null,tty} rw,
 
-  # Bashio library access for script management
+  # Bashio and addon scripts
   /usr/lib/bashio/** ix,
-  /tmp/** rwk,
-
-  # Python / WebUI access
-  /usr/bin/python3* ix,
-  /usr/lib/python3*/** mr,
+  /usr/local/lib/usbip_lib/** r,
+  /usr/local/bin/** ix,
   /usr/local/bin/webui/** r,
   /usr/local/bin/webui/app.py ix,
-  /usr/share/hwdata/usb.ids r,
+  /usr/local/bin/webui/static/** r,
+  /usr/local/bin/webui/templates/** r,
 
-  # App files and configuration
+  # Python runtime
+  /usr/bin/python3* ix,
+  /usr/lib/python3*/** mr,
+
+  # Runtime data and config
+  /tmp/** rwk,
   /data/** rw,
   /config/** rw,
+  /usr/share/hwdata/usb.ids r,
 
-  # USB/IP and vhci-hcd module file access
+  # USB/IP and kernel interfaces
+  /sys/** r,
   /sys/bus/usb/devices/** r,
   /sys/class/usb_device/** rwk,
-  /sys/module/vhci_hcd/** r,
+  /sys/module/vhci_hcd/** rw,
   /dev/vhci rw,
   /dev/bus/usb/** rw,
+  /proc/** r,
 
-  # Networking capabilities needed for USB/IP communication
+  # Networking for USB/IP operations
   network inet,
   network inet6,
-  
-  # Access required for logging and debugging
+
+  # Logging
   /dev/kmsg rw,
   /var/log/** rw,
-
-  # Start a new restricted profile for specific services as needed
-  /usr/bin/my_usbip_service cx -> usbip-service,
-
-  profile usbip-service flags=(attach_disconnected,mediate_deleted) {
-    # Basic service capabilities
-    network,
-    signal (receive) peer=*_usbip-app,
-
-    # File and device access for USB/IP operations
-    /dev/bus/usb/** rw,
-    /data/** rw,
-    /usr/bin/my_usbip_service r,
-  }
 }

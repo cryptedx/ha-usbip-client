@@ -1,5 +1,19 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **Security Defaults**: Enabled AppArmor by default and aligned the profile with actual addon runtime paths and Python services.
+- **Privilege Hardening**: Removed `full_access` and switched to explicit USB/device mappings (`usb` plus `/dev/vhci`) with required capabilities only.
+- **API Permissions**: Enabled `homeassistant_api` so notification calls to `/core/api` are authorized and Supervisor permission warnings are reduced.
+- **Service Resilience**: Updated usbip finish handling to prefer automatic s6 restart behavior instead of halting the full container on transient usbip failures.
+
+### Added
+
+- **Dashboard Diagnostics**: Added a compact first-run diagnostics panel in the WebUI Dashboard (module loaded, usbip availability, server reachability, discoverable devices).
+- **Actionable API Errors**: Improved USB/IP attach/detach error messages with user-facing guidance for common causes (network, timeout, missing device, permissions).
+
 ## [0.5.2-beta.2] - 2026-02-14
 
 ### Changed

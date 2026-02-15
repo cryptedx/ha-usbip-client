@@ -181,9 +181,10 @@ async function api(path, opts = {}) {
 
 // ---- Dashboard ----
 async function refreshDashboard() {
-    const [status, health] = await Promise.all([
+    const [status, health, diagnostics] = await Promise.all([
         api('/api/status'),
         api('/api/health'),
+        api('/api/diagnostics'),
     ]);
 
     // Servers
@@ -263,6 +264,42 @@ async function refreshDashboard() {
     } else {
         appsEl.innerHTML = `<span class="dim">App health unavailable: ${esc(appHealth.error || 'unknown error')}</span>`;
     }
+
+    // First-run diagnostics
+    const diagEl = document.getElementById('dash-diagnostics');
+    if (!diagEl) {
+        return;
+    }
+    if (!diagnostics.ok || !diagnostics.checks) {
+        diagEl.innerHTML = `<span class="dim">Diagnostics unavailable: ${esc(diagnostics.error || 'unknown error')}</span>`;
+        return;
+    }
+
+    const checks = diagnostics.checks;
+    const formatBool = (value, okLabel, failLabel) => {
+        if (value === true) return `<span class="badge badge-ok">${okLabel}</span>`;
+        if (value === false) return `<span class="badge badge-error">${failLabel}</span>`;
+        return '<span class="badge badge-warn">N/A</span>';
+    };
+
+    const reachability = checks.default_server_reachable === null
+        ? '<span class="badge badge-warn">NO SERVER</span>'
+        : formatBool(checks.default_server_reachable, 'ONLINE', 'OFFLINE');
+
+    const latencyText = diagnostics.server_latency_ms != null
+        ? `${diagnostics.server_latency_ms}ms`
+        : '-';
+    const discovered = checks.discoverable_devices == null
+        ? '-'
+        : `${checks.discoverable_devices}`;
+
+    diagEl.innerHTML = [
+        `<div class="item"><span>vhci_hcd module</span><span>${formatBool(checks.vhci_module_loaded, 'LOADED', 'MISSING')}</span></div>`,
+        `<div class="item"><span>usbip command</span><span>${formatBool(checks.usbip_command_available, 'AVAILABLE', 'MISSING')}</span></div>`,
+        `<div class="item"><span>Default server</span><span>${checks.default_server_configured ? esc(diagnostics.default_server) : '<span class="dim">Not configured</span>'}</span></div>`,
+        `<div class="item"><span>Server reachability</span><span>${reachability}</span></div>`,
+        `<div class="item"><span>Latency / discovered devices</span><span>${esc(latencyText)} / ${esc(discovered)}</span></div>`,
+    ].join('');
 }
 
 // Auto-refresh dashboard every 15s when visible

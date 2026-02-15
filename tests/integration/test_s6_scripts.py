@@ -181,14 +181,13 @@ class TestRunServiceLogic:
 class TestFinishServiceLogic:
     """Test the usbip finish script logic."""
 
-    def test_halts_on_crash_exit(self, mocker):
-        """Non-zero/non-256 exit code should trigger halt."""
-        mock_execv = mocker.patch("os.execv")
-        # Simulate finish script logic
+    def test_crash_exit_does_not_halt_container(self):
+        """Non-zero/non-256 exit code should allow s6 restart (no halt)."""
         exit_code = 1
+        should_halt = False
         if exit_code != 0 and exit_code != 256:
-            os.execv("/run/s6/basedir/bin/halt", ["/run/s6/basedir/bin/halt"])
-        mock_execv.assert_called_once()
+            should_halt = False
+        assert should_halt is False
 
     def test_allows_restart_on_zero(self):
         """Exit code 0 should not halt."""

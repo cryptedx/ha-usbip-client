@@ -100,6 +100,13 @@ class TestIndexPage:
 
         assert 'onclick="loadConfig(true)"' in html
 
+    def test_dashboard_includes_system_diagnostics_panel(self, client):
+        """Dashboard renders first-run diagnostics panel server-side."""
+        resp = client.get("/")
+        html = resp.get_data(as_text=True)
+
+        assert 'id="dash-diagnostics"' in html
+
     def test_cookie_active_tab_renders_devices_as_active(self, client):
         """Initial active tab is rendered from cookie for full ingress reload compatibility."""
         client.set_cookie("usbip_active_tab", "devices")
@@ -379,6 +386,7 @@ class TestApiAttach:
         )
         data = resp.get_json()
         assert data["ok"] is False
+        assert "Cannot reach USB/IP server" in data["detail"]
 
 
 class TestApiDetach:
@@ -495,6 +503,37 @@ class TestApiHealth:
         data = resp.get_json()
         assert data["ok"] is True
         assert "servers" in data
+
+
+class TestApiDiagnostics:
+    def test_returns_expected_checks(self, client, mocker):
+        mocker.patch("app.os.path.exists", return_value=True)
+        mocker.patch("app.run_cmd", return_value=(0, "/usr/sbin/usbip", ""))
+        mocker.patch("app.ping_server", return_value=4.2)
+        mocker.patch("app.parse_usbip_list", return_value=[{"busid": "1-1.4"}])
+
+        resp = client.get("/api/diagnostics")
+        data = resp.get_json()
+
+        assert data["ok"] is True
+        assert data["checks"]["vhci_module_loaded"] is True
+        assert data["checks"]["usbip_command_available"] is True
+        assert data["checks"]["default_server_configured"] is True
+        assert data["checks"]["default_server_reachable"] is True
+        assert data["checks"]["discoverable_devices"] == 1
+
+    def test_without_configured_server(self, client, mocker):
+        mocker.patch("app.get_app_config", return_value={"devices": []})
+        mocker.patch("app.os.path.exists", return_value=False)
+        mocker.patch("app.run_cmd", return_value=(1, "", "not found"))
+
+        resp = client.get("/api/diagnostics")
+        data = resp.get_json()
+
+        assert data["ok"] is True
+        assert data["default_server"] == ""
+        assert data["checks"]["default_server_configured"] is False
+        assert data["checks"]["default_server_reachable"] is None
 
 
 class TestApiScan:

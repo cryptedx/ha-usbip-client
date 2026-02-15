@@ -10,18 +10,21 @@ arch:
   - armv7
   - i386
 startup: services
-apparmor: false
+apparmor: true
 init: false
 ingress: true
 ingress_port: 8099
 panel_icon: "mdi:console"
 panel_title: "USB/IP"
-full_access: true
 hassio_api: true
+homeassistant_api: true
 hassio_role: manager
 kernel_modules:
   - vhci-hcd
 host_network: true
+usb: true
+devices:
+  - /dev/vhci
 privileged:
   - NET_ADMIN
   - SYS_ADMIN

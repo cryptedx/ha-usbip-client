@@ -107,6 +107,47 @@ def _fetch_logs_direct() -> list[str]:
         return []
 
 
+def _classify_usbip_error(raw_error: str, server: str = "", target: str = "") -> str:
+    """Convert low-level usbip errors to actionable user-facing messages."""
+    error = (raw_error or "").strip()
+    lowered = error.lower()
+
+    if not lowered:
+        return "Operation failed. Check logs for details."
+
+    if "timeout" in lowered:
+        return (
+            f"Timed out while contacting {server}. "
+            "Check server reachability and port 3240."
+        )
+    if any(
+        token in lowered
+        for token in [
+            "connection refused",
+            "no route",
+            "host unreachable",
+            "name or service not known",
+            "failed to connect",
+        ]
+    ):
+        return f"Cannot reach USB/IP server {server}. Verify address and network."
+    if "not found" in lowered:
+        if target:
+            return (
+                f"Device {target} was not found on {server}. Run Discovery and retry."
+            )
+        return "Requested device was not found on the USB/IP server."
+    if "busy" in lowered:
+        return "Device is busy on the remote host. Detach it there and retry."
+    if "permission denied" in lowered or "operation not permitted" in lowered:
+        return (
+            "Operation blocked by permissions. Verify addon privileges and "
+            "AppArmor policy."
+        )
+
+    return error
+
+
 # ---------------------------------------------------------------------------
 # Background threads
 # ---------------------------------------------------------------------------
@@ -343,7 +384,11 @@ def api_attach():
 
     rc, out, err = run_cmd(["usbip", "attach", "--remote", server, "--busid", busid])
     success = rc == 0
-    detail = "attached" if success else (err or "unknown error")
+    detail = (
+        "attached"
+        if success
+        else _classify_usbip_error(err or out, server=server, target=busid)
+    )
     write_event(
         "attach_ok" if success else "attach_fail", detail, device=name, server=server
     )
@@ -363,7 +408,11 @@ def api_detach():
     port = str(port)
     rc, out, err = run_cmd(["usbip", "detach", "-p", port])
     success = rc == 0
-    detail = "detached" if success else (err or "unknown error")
+    detail = (
+        "detached"
+        if success
+        else _classify_usbip_error(err or out, target=f"port {port}")
+    )
     write_event(
         "detach_ok" if success else "detach_fail", detail, device=f"port {port}"
     )
@@ -394,7 +443,13 @@ def api_attach_all():
         dev_or_bus = dev.get("device_or_bus_id", "")
         server = dev.get("server") or default_server
         if not dev_or_bus or not server:
-            results.append({"name": name, "ok": False, "detail": "missing config"})
+            results.append(
+                {
+                    "name": name,
+                    "ok": False,
+                    "detail": "Missing config: server and device_or_bus_id are required",
+                }
+            )
             continue
 
         # Resolve device_id to bus_id if needed
@@ -417,9 +472,21 @@ def api_attach_all():
 
         run_cmd(["usbip", "detach", "-r", server, "-b", busid])
         time.sleep(0.5)
-        rc, _, err = run_cmd(["usbip", "attach", "--remote", server, "--busid", busid])
+        rc, out, err = run_cmd(
+            ["usbip", "attach", "--remote", server, "--busid", busid]
+        )
         ok = rc == 0
-        results.append({"name": name, "ok": ok, "detail": "attached" if ok else err})
+        results.append(
+            {
+                "name": name,
+                "ok": ok,
+                "detail": (
+                    "attached"
+                    if ok
+                    else _classify_usbip_error(err or out, server=server, target=busid)
+                ),
+            }
+        )
         write_event(
             "attach_ok" if ok else "attach_fail",
             "attach-all",
@@ -429,6 +496,41 @@ def api_attach_all():
         time.sleep(1)
 
     return jsonify({"ok": True, "results": results})
+
+
+@app.route("/api/diagnostics")
+def api_diagnostics():
+    """Return lightweight first-run diagnostics for dashboard visibility."""
+    config = get_app_config()
+    default_server = config.get("usbipd_server_address", "").strip()
+
+    module_loaded = os.path.exists("/sys/module/vhci_hcd")
+    cmd_rc, _, _ = run_cmd(["which", "usbip"], timeout=5)
+    usbip_available = cmd_rc == 0
+
+    server_latency = None
+    discoverable_count = None
+    if default_server:
+        server_latency = ping_server(default_server, timeout=1.5)
+        if server_latency is not None:
+            discoverable_count = len(parse_usbip_list(default_server))
+
+    return jsonify(
+        {
+            "ok": True,
+            "checks": {
+                "vhci_module_loaded": module_loaded,
+                "usbip_command_available": usbip_available,
+                "default_server_configured": bool(default_server),
+                "default_server_reachable": server_latency is not None
+                if default_server
+                else None,
+                "discoverable_devices": discoverable_count,
+            },
+            "default_server": default_server,
+            "server_latency_ms": server_latency,
+        }
+    )
 
 
 @app.route("/api/config")

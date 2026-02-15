@@ -1,12 +1,12 @@
 #!/command/with-contenv python3
 """s6 service finish script: Handle usbip service exit.
 
-If the service crashed (non-zero exit code, excluding 256), halt the
-entire container. Otherwise, s6 will automatically restart the service.
+The usbip service should be restarted by s6 when it exits. We avoid
+halting the full container on transient usbip failures so the addon can
+stay available and recover automatically.
 """
 
 import logging
-import os
 import sys
 
 logger = logging.getLogger("usbip_finish")
@@ -23,7 +23,9 @@ logger.setLevel(logging.INFO)
 exit_code = int(sys.argv[1]) if len(sys.argv) > 1 else 0
 
 if exit_code != 0 and exit_code != 256:
-    logger.warning("usbip crashed (exit code %d), halting app", exit_code)
-    os.execv("/run/s6/basedir/bin/halt", ["/run/s6/basedir/bin/halt"])
+    logger.warning(
+        "usbip exited unexpectedly (exit code %d), allowing s6 restart",
+        exit_code,
+    )
 else:
     logger.info("usbip stopped, restarting...")

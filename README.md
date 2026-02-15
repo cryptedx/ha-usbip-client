@@ -112,8 +112,11 @@ devices:
 The app performs kernel- and USB-level operations and therefore still requires elevated privileges on the host. Important changes and current facts:
 
 - Protection Mode: **you do not need to disable Protection Mode** for the app to run — the app works with Protection Mode enabled.
-- Required capabilities: the app requests specific kernel/network capabilities and `vhci-hcd` kernel module to provide USB/IP functionality; unnecessary Linux capabilities were removed in recent releases.
+- AppArmor: enabled by default with an addon-specific profile aligned to the actual runtime scripts and binaries.
+- Required capabilities: the app requests only the kernel/network capabilities needed for USB/IP (`NET_ADMIN`, `SYS_ADMIN`, `SYS_RAWIO`) and `vhci-hcd` kernel module access.
+- Device access: raw USB and `/dev/vhci` are mapped explicitly instead of using Docker-style full privileged access.
 - Network & host access: the app uses the host network stack for USB/IP communication.
+- Diagnostics: the Dashboard includes first-run checks (module loaded, usbip command available, server reachable) to speed up troubleshooting.
 
 Recommendations
 
