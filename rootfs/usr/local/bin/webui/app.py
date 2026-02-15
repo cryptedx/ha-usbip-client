@@ -287,7 +287,18 @@ def index():
     active_tab = requested_tab or cookie_tab
     if active_tab not in VALID_WEBUI_TABS:
         active_tab = "dashboard"
-    response = make_response(render_template("index.html", active_tab=active_tab))
+
+    initial_events: list[dict] = []
+    if active_tab == "events":
+        initial_events = list(reversed(read_events(200)))
+
+    response = make_response(
+        render_template(
+            "index.html",
+            active_tab=active_tab,
+            initial_events=initial_events,
+        )
+    )
     response.set_cookie("usbip_active_tab", active_tab, path="/", samesite="Lax")
     return response
 

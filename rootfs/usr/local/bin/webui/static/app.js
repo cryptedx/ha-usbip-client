@@ -86,6 +86,18 @@ function startClock() {
 function initTabs() {
     const tabs = Array.from(document.querySelectorAll('.tab'));
 
+    const loadTabData = (tab) => {
+        if (tab === 'dashboard') refreshDashboard();
+        else if (tab === 'devices') refreshDevices();
+        else if (tab === 'events') refreshEvents();
+        else if (tab === 'logs') {
+            fetchInitialLogs().then(() => {
+                // Ensure we scroll to the latest logs when switching to Logs tab
+                scrollLogToBottom('log-terminal');
+            });
+        }
+    };
+
     const activateTab = (tab) => {
         if (!tab) return;
         const targetButton = tabs.find(btn => btn.dataset.tab === tab);
@@ -100,15 +112,7 @@ function initTabs() {
         setActiveTabCookie(tab);
 
         // Auto-refresh on tab switch
-        if (tab === 'dashboard') refreshDashboard();
-        else if (tab === 'devices') refreshDevices();
-        else if (tab === 'events') refreshEvents();
-        else if (tab === 'logs') {
-            fetchInitialLogs().then(() => {
-                // Ensure we scroll to the latest logs when switching to Logs tab
-                scrollLogToBottom('log-terminal');
-            });
-        }
+        loadTabData(tab);
     };
 
     tabs.forEach(btn => {
@@ -117,6 +121,11 @@ function initTabs() {
             activateTab(btn.dataset.tab);
         });
     });
+
+    const activeButton = tabs.find(btn => btn.classList.contains('active'));
+    if (activeButton) {
+        loadTabData(activeButton.dataset.tab);
+    }
 }
 
 // ---- Toast notifications ----

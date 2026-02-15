@@ -174,7 +174,21 @@
           <button class="btn btn-xs btn-dim" onclick="refreshEvents()">↻</button>
           <button class="btn btn-xs btn-warn" onclick="clearEvents()">✕ CLEAR</button>
         </h3>
-        <div id="events-timeline"></div>
+        <div id="events-timeline">
+          {% if active_tab == 'events' %}
+            {% if initial_events %}
+              {% for event in initial_events %}
+                <div class="event-entry">
+                  <span class="event-ts">{{ event.ts }}</span>
+                  <span class="event-type {{ event.type }}">{{ event.type }}</span>
+                  <span class="event-detail">{{ event.device or '' }} {{ event.server or '' }} — {{ event.detail }}</span>
+                </div>
+              {% endfor %}
+            {% else %}
+              <span class="dim">No events recorded</span>
+            {% endif %}
+          {% endif %}
+        </div>
       </div>
     </section>
 

@@ -143,6 +143,143 @@ class TestIndexPage:
         assert 'data-tab="events" href="?tab=events"' in html
         assert 'data-tab="config" href="?tab=config"' in html
 
+    def test_events_tab_renders_empty_state_server_side(self, client):
+        """Events tab renders fallback content server-side on full reload."""
+        resp = client.get("/?tab=events")
+        html = resp.get_data(as_text=True)
+
+        assert resp.status_code == 200
+        assert 'id="tab-events" class="tab-content active"' in html
+        assert '<span class="dim">No events recorded</span>' in html
+
+    def test_events_tab_renders_existing_events_server_side(
+        self, client, mock_usbip_env
+    ):
+        """Events tab includes event entries server-side when events exist."""
+        from usbip_lib.events import write_event
+
+        write_event(
+            "attach_ok",
+            "attached",
+            device="Printer",
+            server="192.168.1.44",
+            events_file=mock_usbip_env["events_file"],
+        )
+
+        resp = client.get("/?tab=events")
+        html = resp.get_data(as_text=True)
+
+        assert resp.status_code == 200
+        assert 'id="tab-events" class="tab-content active"' in html
+        assert 'class="event-type attach_ok">attach_ok</span>' in html
+        assert "Printer" in html
+        assert "192.168.1.44" in html
+        assert "attached" in html
+
+    def test_events_tab_renders_from_cookie(self, client, mock_usbip_env):
+        """Cookie-only active tab should cause server-side events render."""
+        from usbip_lib.events import write_event
+
+        write_event(
+            "attach_ok",
+            "attached",
+            device="Camera",
+            server="10.0.0.2",
+            events_file=mock_usbip_env["events_file"],
+        )
+
+        client.set_cookie("usbip_active_tab", "events")
+        resp = client.get("/")
+        html = resp.get_data(as_text=True)
+
+        assert resp.status_code == 200
+        assert 'id="tab-events" class="tab-content active"' in html
+        assert "Camera" in html
+
+    def test_events_order_newest_first(self, client, mock_usbip_env):
+        """Server-rendered events should appear newest-first in HTML."""
+        import json
+        from datetime import datetime, timezone, timedelta
+
+        # write two events with explicit timestamps (older, then newer)
+        events_file = mock_usbip_env["events_file"]
+        older = {
+            "ts": (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat(),
+            "type": "evt_old",
+            "device": "OldDev",
+            "server": "1.1.1.1",
+            "detail": "first",
+        }
+        newer = {
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "type": "evt_new",
+            "device": "NewDev",
+            "server": "2.2.2.2",
+            "detail": "second",
+        }
+        with open(events_file, "w") as f:
+            f.write(json.dumps(older) + "\n")
+            f.write(json.dumps(newer) + "\n")
+
+        resp = client.get("/?tab=events")
+        html = resp.get_data(as_text=True)
+
+        # newer should appear before older
+        assert html.index("NewDev") < html.index("OldDev")
+
+    def test_events_cleared_reflected_server_side(self, client, mock_usbip_env):
+        """Clearing events via API removes them from subsequent server-rendered pages."""
+        from usbip_lib.events import write_event
+
+        write_event(
+            "x", "y", device="D", server="S", events_file=mock_usbip_env["events_file"]
+        )
+        resp = client.post("/api/events/clear")
+        assert resp.get_json()["ok"] is True
+
+        resp = client.get("/?tab=events")
+        html = resp.get_data(as_text=True)
+        assert '<span class="dim">No events recorded</span>' in html
+
+    def test_api_events_returns_written_events(self, client, mock_usbip_env):
+        """/api/events should return events written by write_event."""
+        from usbip_lib.events import write_event
+
+        write_event(
+            "t1",
+            "d1",
+            device="Dev1",
+            server="S1",
+            events_file=mock_usbip_env["events_file"],
+        )
+        resp = client.get("/api/events")
+        data = resp.get_json()
+        assert data["ok"] is True
+        assert isinstance(data.get("events"), list)
+        assert any(e.get("device") == "Dev1" for e in data["events"])
+
+    def test_server_side_escapes_event_fields(self, client, mock_usbip_env):
+        """Server-rendered event fields must be HTML-escaped to avoid XSS."""
+        import json
+
+        events_file = mock_usbip_env["events_file"]
+        payload = {
+            "ts": "2020-01-01T00:00:00Z",
+            "type": "t",
+            "device": "<b>Bad</b>",
+            "server": "S",
+            "detail": "<script>alert(1)</script>",
+        }
+        with open(events_file, "w") as f:
+            f.write(json.dumps(payload) + "\n")
+
+        resp = client.get("/?tab=events")
+        html = resp.get_data(as_text=True)
+
+        # Raw script tag must not be present; escaped form should appear
+        assert "<script>alert(1)</script>" not in html
+        assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
+
 
 class TestStaticAppJsCompatibility:
     def test_exposes_app_handlers_on_window_only(self, client):
@@ -171,6 +308,21 @@ class TestStaticAppJsCompatibility:
             in js
         )
         assert "event.preventDefault()" in js
+
+    def test_initial_load_hydrates_active_tab_data(self, client):
+        """Initial page load hydrates currently active tab data (ingress/full reload safe)."""
+        resp = client.get("/static/app.js")
+        assert resp.status_code == 200
+        js = resp.get_data(as_text=True)
+
+        assert "const loadTabData = (tab) => {" in js
+        assert (
+            "const activeButton = tabs.find(btn => btn.classList.contains('active'));"
+            in js
+        )
+        assert "if (activeButton) {" in js
+        assert "loadTabData(activeButton.dataset.tab);" in js
+        assert "else if (tab === 'events') refreshEvents();" in js
 
 
 class TestApiStatus:
