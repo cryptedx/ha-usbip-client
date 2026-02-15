@@ -86,12 +86,19 @@ class TestIndexPage:
         resp = client.get("/")
         html = resp.get_data(as_text=True)
 
-        assert "id=\"dash-apps\"" in html
-        assert "id=\"cfg-dependent-apps-list\"" in html
+        assert 'id="dash-apps"' in html
+        assert 'id="cfg-dependent-apps-list"' in html
         assert "loadAvailableApps()" in html
         assert "saveDependentApps()" in html
         assert "loadAvailableAddons" not in html
         assert "saveDependentAddons" not in html
+
+    def test_config_reload_button_uses_forced_reload(self, client):
+        """Config reload button triggers explicit forced reload handler."""
+        resp = client.get("/")
+        html = resp.get_data(as_text=True)
+
+        assert 'onclick="loadConfig(true)"' in html
 
 
 class TestStaticAppJsCompatibility:
@@ -207,9 +214,7 @@ class TestApiConfig:
         assert data["ok"] is True
 
     def test_get_migrates_legacy_dependent_key(self, client, mocker):
-        expected_apps = [
-            {"name": "Zigbee2MQTT", "slug": "45df7312_zigbee2mqtt"}
-        ]
+        expected_apps = [{"name": "Zigbee2MQTT", "slug": "45df7312_zigbee2mqtt"}]
         legacy_config = {
             "log_level": "info",
             "dependent_addons": expected_apps,
@@ -223,7 +228,7 @@ class TestApiConfig:
         assert data["ok"] is True
         assert data["config"]["dependent_apps"] == expected_apps
         assert "dependent_addons" not in data["config"]
-        set_mock.assert_called_once()
+        set_mock.assert_not_called()
 
     def test_set_accepts_legacy_dependent_key_payload(self, client, mocker):
         set_mock = mocker.patch("app.set_app_config", return_value={"result": "ok"})
@@ -232,9 +237,7 @@ class TestApiConfig:
             "/api/config",
             json={
                 "log_level": "debug",
-                "dependent_addons": [
-                    {"name": "Z-Wave JS", "slug": "core_zwave_js"}
-                ],
+                "dependent_addons": [{"name": "Z-Wave JS", "slug": "core_zwave_js"}],
             },
         )
         data = resp.get_json()
@@ -262,6 +265,20 @@ class TestApiEvents:
 
         resp = client.post("/api/events/clear")
         assert resp.get_json()["ok"] is True
+
+
+class TestApiCachingHeaders:
+    def test_api_responses_are_no_store(self, client):
+        resp = client.get("/api/config")
+        assert resp.status_code == 200
+        assert "no-store" in resp.headers.get("Cache-Control", "")
+        assert resp.headers.get("Pragma") == "no-cache"
+        assert resp.headers.get("Expires") == "0"
+
+    def test_non_api_response_keeps_default_cache_headers(self, client):
+        resp = client.get("/")
+        assert resp.status_code == 200
+        assert "no-store" in resp.headers.get("Cache-Control", "")
 
 
 class TestApiHealth:

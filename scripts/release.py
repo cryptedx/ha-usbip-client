@@ -177,7 +177,7 @@ def main() -> int:
         template_changed = replace_once(
             TEMPLATE_PATH,
             r"v\d+\.\d+\.\d+(?:β)?(\s+│)",
-            fr"v{ascii_version}\1",
+            rf"v{ascii_version}\1",
             apply_changes=not args.dry_run,
         )
 
@@ -201,7 +201,14 @@ def main() -> int:
                         if changed
                     ]
                 )
-                if any([config_changed, repository_changed, webui_changed, template_changed])
+                if any(
+                    [
+                        config_changed,
+                        repository_changed,
+                        webui_changed,
+                        template_changed,
+                    ]
+                )
                 else "No version file updates required (already at requested version)."
             )
             print("Would create commit: chore(release): " + version)

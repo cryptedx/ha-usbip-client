@@ -24,7 +24,7 @@ repos:
     hooks:
       - id: check-version-consistency
         name: Check version consistency
-        entry: python3 scripts/check_version_consistency.py
+        entry: .venv/bin/python scripts/check_version_consistency.py
         language: system
         pass_filenames: false
         files: ^(config\.yaml|repository\.yaml|rootfs/usr/local/bin/webui/app\.py)$
@@ -38,7 +38,7 @@ repos:
 
       - id: pytest-all
         name: Pytest (all tests)
-        entry: bash -c 'PYTHONPATH=./rootfs/usr/local/lib pytest -q'
+        entry: bash -c 'PYTHONPATH=./rootfs/usr/local/lib .venv/bin/python -m pytest -q'
         language: system
         pass_filenames: false
         always_run: true

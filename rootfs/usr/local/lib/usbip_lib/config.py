@@ -10,6 +10,8 @@ def normalize_dependent_apps_config(config: dict) -> tuple[dict, bool]:
     """Normalize legacy dependent config key to dependent_apps."""
     if not isinstance(config, dict):
         return {}, False
+    if not config:
+        return {}, False
 
     changed = False
     apps = config.get("dependent_apps")

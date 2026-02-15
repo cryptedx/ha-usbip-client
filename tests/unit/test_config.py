@@ -114,6 +114,11 @@ class TestNormalizeDependentAppsConfig:
         assert config == {}
         assert changed is False
 
+    def test_empty_dict_is_unchanged(self):
+        config, changed = normalize_dependent_apps_config({})
+        assert config == {}
+        assert changed is False
+
     def test_adds_missing_dependent_apps_key(self):
         config, changed = normalize_dependent_apps_config({"log_level": "info"})
         assert changed is True

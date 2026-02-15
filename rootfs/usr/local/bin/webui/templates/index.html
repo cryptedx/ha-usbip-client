@@ -230,7 +230,7 @@
 
           <div class="btn-row" style="margin-top:1rem">
             <button class="btn" onclick="saveConfig()">💾 SAVE CONFIG</button>
-            <button class="btn btn-dim" onclick="loadConfig()">↻ RELOAD</button>
+            <button class="btn btn-dim" onclick="loadConfig(true)">↻ RELOAD</button>
           </div>
           <p class="dim" style="margin-top:.5rem">⚠ Saving config requires an app restart for changes to take full effect.</p>
         </div>
@@ -259,6 +259,49 @@
   </div>
 
   <script>const INGRESS_PATH = "{{ ingress_path }}";</script>
-  <script src="{{ ingress_path }}/static/app.js?v={{ version }}"></script>
+  <script src="{{ ingress_path }}/static/app.js?v={{ version }}&t={{ asset_stamp }}"></script>
+  <script>
+    (function () {
+      const originalSaveConfig = window.saveConfig;
+      if (typeof originalSaveConfig !== 'function') return;
+
+      window.saveConfig = async function () {
+        try {
+          return await originalSaveConfig.apply(this, arguments);
+        } catch (err) {
+          const msg = String((err && err.message) || '');
+          if (!msg.includes("Cannot read properties of null (reading 'value')")) {
+            throw err;
+          }
+
+          document.querySelectorAll('.device-row').forEach((row) => {
+            if (!row.querySelector('.cfg-dev-name')) {
+              const hiddenName = document.createElement('input');
+              hiddenName.type = 'hidden';
+              hiddenName.className = 'cfg-dev-name';
+              hiddenName.value = '';
+              row.insertBefore(hiddenName, row.firstChild);
+            }
+            if (!row.querySelector('.cfg-dev-id')) {
+              const hiddenId = document.createElement('input');
+              hiddenId.type = 'hidden';
+              hiddenId.className = 'cfg-dev-id';
+              hiddenId.value = '';
+              row.insertBefore(hiddenId, row.firstChild);
+            }
+            if (!row.querySelector('.cfg-dev-server')) {
+              const hiddenServer = document.createElement('input');
+              hiddenServer.type = 'hidden';
+              hiddenServer.className = 'cfg-dev-server';
+              hiddenServer.value = '';
+              row.insertBefore(hiddenServer, row.firstChild);
+            }
+          });
+
+          return await originalSaveConfig.apply(this, arguments);
+        }
+      };
+    })();
+  </script>
 </body>
 </html>

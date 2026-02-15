@@ -194,9 +194,7 @@ def check_dependent_app_health(
                     ok = restart_app(slug)
                     if ok:
                         logger.info("Successfully restarted %s", name)
-                        write_event(
-                            "app_restart_ok", f"Restarted {name}", device=name
-                        )
+                        write_event("app_restart_ok", f"Restarted {name}", device=name)
                         send_ha_notification(
                             "USB/IP: App Restarted",
                             f"{name} was restarted due to error state.",
@@ -222,9 +220,7 @@ def check_dependent_app_health(
                         f"Could not restart {name} ({slug}) after {restart_retries} attempts.",
                     )
         elif state == "started" and prev != "started":
-            logger.info(
-                "Dependent app %s (%s) recovered — now %s", name, slug, state
-            )
+            logger.info("Dependent app %s (%s) recovered — now %s", name, slug, state)
             write_event("app_health_ok", f"{name} recovered", device=name)
 
         _app_health_prev[slug] = state

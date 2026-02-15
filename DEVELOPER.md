@@ -111,3 +111,22 @@ When validating inside Home Assistant:
 - Rebuild app after code changes.
 - If `config.yaml` schema changes, uninstall/reinstall app for clean config migration.
 - Verify logs and service status after restart.
+
+### Runtime validation runbook (HA CLI)
+
+Use the current `ha apps` commands (legacy addon command variants are deprecated):
+
+```bash
+ha apps stop local_ha_usbip_client
+ha apps rebuild local_ha_usbip_client
+ha apps start local_ha_usbip_client
+ha apps info local_ha_usbip_client | grep '^state:'
+ha apps logs local_ha_usbip_client --follow
+```
+
+If schema fields in `config.yaml` changed, apply a clean reinstall:
+
+```bash
+ha apps uninstall local_ha_usbip_client
+ha apps install local_ha_usbip_client
+```

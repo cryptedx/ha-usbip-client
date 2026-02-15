@@ -100,6 +100,7 @@ async function api(path, opts = {}) {
     const url = buildApiUrl(path);
     try {
         const resp = await fetch(url, {
+            cache: 'no-store',
             headers: {
                 Accept: 'application/json',
                 'Content-Type': 'application/json',
@@ -523,9 +524,15 @@ async function clearEvents() {
 }
 
 // ---- Config ----
-async function loadConfig() {
-    const data = await api('/api/config');
-    if (!data.ok || !data.config) return;
+async function loadConfig(forceReload = false) {
+    const configPath = forceReload
+        ? `/api/config?ts=${Date.now()}`
+        : '/api/config';
+    const data = await api(configPath);
+    if (!data.ok || !data.config) {
+        toast(`Could not load config: ${data.error || 'unknown error'}`, 'error');
+        return;
+    }
     const cfg = data.config;
 
     document.getElementById('cfg-log-level').value = cfg.log_level || 'info';
@@ -568,6 +575,10 @@ async function loadConfig() {
 
     // Load dependent apps selection
     loadDependentAppsConfig(cfg.dependent_apps || []);
+
+    if (forceReload) {
+        toast('Configuration reloaded');
+    }
 }
 
 function addDeviceRow(name = '', devId = '', server = '') {
@@ -585,10 +596,15 @@ function addDeviceRow(name = '', devId = '', server = '') {
 
 async function saveConfig() {
     const devices = [];
-    document.querySelectorAll('.device-row').forEach(row => {
-        const name = row.querySelector('.cfg-dev-name').value.trim();
-        const id = row.querySelector('.cfg-dev-id').value.trim();
-        const server = row.querySelector('.cfg-dev-server').value.trim();
+    document.querySelectorAll('#cfg-devices-list .device-row').forEach(row => {
+        const nameInput = row.querySelector('.cfg-dev-name');
+        const idInput = row.querySelector('.cfg-dev-id');
+        const serverInput = row.querySelector('.cfg-dev-server');
+        if (!nameInput || !idInput) return;
+
+        const name = nameInput.value.trim();
+        const id = idInput.value.trim();
+        const server = serverInput ? serverInput.value.trim() : '';
         if (name || id) {
             const dev = { name: name || id, device_or_bus_id: id };
             if (server) dev.server = server;
@@ -596,7 +612,15 @@ async function saveConfig() {
         }
     });
 
-    const delayVal = parseInt(document.getElementById('cfg-delay').value);
+    const logLevelEl = document.getElementById('cfg-log-level');
+    const serverEl = document.getElementById('cfg-server');
+    const delayEl = document.getElementById('cfg-delay');
+    if (!logLevelEl || !serverEl || !delayEl) {
+        toast('Config form is not fully loaded. Please reload page.', 'error');
+        return;
+    }
+
+    const delayVal = parseInt(delayEl.value);
 
     // Read auto-scroll preference and apply it immediately
     const autoScrollEl = document.getElementById('cfg-log-auto-scroll');
@@ -604,8 +628,8 @@ async function saveConfig() {
     logAutoScroll = autoScrollVal;
 
     const config = {
-        log_level: document.getElementById('cfg-log-level').value,
-        usbipd_server_address: document.getElementById('cfg-server').value.trim(),
+        log_level: logLevelEl.value,
+        usbipd_server_address: serverEl.value.trim(),
         attach_delay: isNaN(delayVal) ? 2 : delayVal,
         monitor_interval: parseInt(document.getElementById('cfg-monitor-interval')?.value) || 30,
         reattach_retries: parseInt(document.getElementById('cfg-reattach-retries')?.value) || 3,
@@ -741,6 +765,9 @@ function renderDependentAppsList() {
     }
     el.innerHTML = _selectedDependentApps.map((a, i) => `
         <div class="device-row">
+            <input type="hidden" value="" class="cfg-dev-name">
+            <input type="hidden" value="" class="cfg-dev-id">
+            <input type="hidden" value="" class="cfg-dev-server">
             <input type="text" value="${esc(a.name)}" class="dep-app-name" readonly>
             <input type="text" value="${esc(a.slug)}" class="dep-app-slug" readonly>
             <button class="btn btn-xs btn-error" onclick="removeDependentApp(${i})">\u2715</button>
