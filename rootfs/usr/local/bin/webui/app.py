@@ -204,11 +204,68 @@ def _inject_ingress():
     g.ingress_path = request.headers.get("X-Ingress-Path", "")
 
 
+@app.after_request
+def _set_api_no_cache_headers(response):
+    try:
+        path = request.path or ""
+        ingress = ""
+        try:
+            ingress = g.get("ingress_path", "") or ""
+        except Exception:
+            ingress = ""
+
+        # Consider both direct and ingress-prefixed paths. This ensures
+        # responses served through Home Assistant Ingress still receive
+        # no-cache headers for API and static endpoints.
+        should_no_cache = False
+        if path == "/":
+            should_no_cache = True
+        for prefix in ("/api/", "/static/"):
+            if path.startswith(prefix) or (
+                ingress and path.startswith(ingress + prefix)
+            ):
+                should_no_cache = True
+                break
+
+        if should_no_cache:
+            response.headers["Cache-Control"] = (
+                "no-store, no-cache, must-revalidate, max-age=0"
+            )
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+    except Exception:
+        # Be defensive: never raise from after_request middleware
+        pass
+    return response
+
+
 @app.context_processor
 def _template_globals():
+    asset_stamp = "0"
+    try:
+        static_root = app.static_folder or ""
+        static_assets = [
+            os.path.join(static_root, "app.js"),
+            os.path.join(static_root, "style.css"),
+        ]
+        mtimes = [
+            os.path.getmtime(path) for path in static_assets if os.path.exists(path)
+        ]
+        if mtimes:
+            asset_stamp = str(int(max(mtimes)))
+    except OSError:
+        pass
+    # Access `g` defensively — templates may be rendered outside an active
+    # request context in some tests or tooling; fall back to empty ingress.
+    try:
+        ingress_path = g.get("ingress_path", "")
+    except Exception:
+        ingress_path = ""
+
     return {
-        "ingress_path": g.get("ingress_path", ""),
+        "ingress_path": ingress_path,
         "version": "0.5.2-beta.2",
+        "asset_stamp": asset_stamp,
     }
 
 
@@ -351,9 +408,7 @@ def api_attach_all():
 @app.route("/api/config")
 def api_config_get():
     config = get_app_config()
-    config, changed = normalize_dependent_apps_config(config)
-    if changed:
-        set_app_config(config)
+    config, _ = normalize_dependent_apps_config(config)
     return jsonify({"ok": True, "config": config})
 
 
@@ -481,9 +536,7 @@ def api_apps():
 @app.route("/api/app-health")
 def api_app_health():
     """Check health of configured dependent apps."""
-    config, changed = normalize_dependent_apps_config(get_app_config())
-    if changed:
-        set_app_config(config)
+    config, _ = normalize_dependent_apps_config(get_app_config())
     dependent = config.get("dependent_apps", [])
     results = []
     for app_item in dependent:
@@ -521,9 +574,7 @@ def api_dependent_apps_save():
     config["dependent_apps"] = apps_list
     resp = set_app_config(config)
     ok = resp.get("result") == "ok"
-    write_event(
-        "config_change", f"Updated dependent apps: {len(apps_list)} selected"
-    )
+    write_event("config_change", f"Updated dependent apps: {len(apps_list)} selected")
     return jsonify({"ok": ok})
 
 
