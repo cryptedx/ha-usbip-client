@@ -8,6 +8,7 @@
 - **Privilege Hardening**: Removed `full_access` and switched to explicit USB/device mappings (`usb` plus `/dev/vhci`) with required capabilities only.
 - **API Permissions**: Enabled `homeassistant_api` so notification calls to `/core/api` are authorized and Supervisor permission warnings are reduced.
 - **Service Resilience**: Updated usbip finish handling to prefer automatic s6 restart behavior instead of halting the full container on transient usbip failures.
+- **WebUI (Ingress compatibility)**: Themed custom scrollbar; added internal scroll container so Home Assistant Ingress shows the add-on scrollbar; added cache-busting for `style.css`; removed debug marker; updated related tests.
 
 ### Added
 

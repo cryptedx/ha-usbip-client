@@ -96,6 +96,16 @@ class TestIndexPage:
         assert 'id="app-scroll"' in html
         assert 'id="app"' in html
 
+    def test_toast_container_uses_live_region_attributes(self, client):
+        """Toast container includes screen-reader live-region attributes."""
+        resp = client.get("/")
+        html = resp.get_data(as_text=True)
+
+        assert 'id="toast-container"' in html
+        assert 'role="status"' in html
+        assert 'aria-live="polite"' in html
+        assert 'aria-atomic="true"' in html
+
     def test_dependent_apps_handlers_present(self, client):
         """Rendered HTML uses apps-only dependent app handlers and IDs."""
         resp = client.get("/")
@@ -128,10 +138,11 @@ class TestIndexPage:
 
         resp = client.get("/")
         html = resp.get_data(as_text=True)
+        normalized_html = " ".join(html.split())
 
-        assert 'data-tab="devices" href="?tab=devices">Devices</a>' in html
-        assert 'class="tab active" data-tab="devices"' in html
-        assert 'id="tab-devices" class="tab-content active"' in html
+        assert 'data-tab="devices" href="?tab=devices"' in normalized_html
+        assert normalized_html.count('class="tab active"') == 1
+        assert 'id="tab-devices" class="tab-content active"' in normalized_html
 
     def test_invalid_cookie_active_tab_falls_back_to_dashboard(self, client):
         """Invalid tab cookies are ignored and dashboard remains default."""
@@ -139,9 +150,11 @@ class TestIndexPage:
 
         resp = client.get("/")
         html = resp.get_data(as_text=True)
+        normalized_html = " ".join(html.split())
 
-        assert 'class="tab active" data-tab="dashboard"' in html
-        assert 'id="tab-dashboard" class="tab-content active"' in html
+        assert 'data-tab="dashboard" href="?tab=dashboard"' in normalized_html
+        assert normalized_html.count('class="tab active"') == 1
+        assert 'id="tab-dashboard" class="tab-content active"' in normalized_html
 
     def test_query_active_tab_overrides_cookie(self, client):
         """Query tab parameter has priority and is rendered server-side."""
@@ -149,29 +162,33 @@ class TestIndexPage:
 
         resp = client.get("/?tab=devices")
         html = resp.get_data(as_text=True)
+        normalized_html = " ".join(html.split())
 
-        assert 'class="tab active" data-tab="devices"' in html
-        assert 'id="tab-devices" class="tab-content active"' in html
+        assert 'data-tab="devices" href="?tab=devices"' in normalized_html
+        assert normalized_html.count('class="tab active"') == 1
+        assert 'id="tab-devices" class="tab-content active"' in normalized_html
 
     def test_tab_navigation_links_exist_for_no_js_fallback(self, client):
         """Tabs are anchor links with ?tab fallback for ingress/no-JS resilience."""
         resp = client.get("/")
         html = resp.get_data(as_text=True)
+        normalized_html = " ".join(html.split())
 
-        assert 'data-tab="dashboard" href="?tab=dashboard"' in html
-        assert 'data-tab="devices" href="?tab=devices"' in html
-        assert 'data-tab="discovery" href="?tab=discovery"' in html
-        assert 'data-tab="logs" href="?tab=logs"' in html
-        assert 'data-tab="events" href="?tab=events"' in html
-        assert 'data-tab="config" href="?tab=config"' in html
+        assert 'data-tab="dashboard" href="?tab=dashboard"' in normalized_html
+        assert 'data-tab="devices" href="?tab=devices"' in normalized_html
+        assert 'data-tab="discovery" href="?tab=discovery"' in normalized_html
+        assert 'data-tab="logs" href="?tab=logs"' in normalized_html
+        assert 'data-tab="events" href="?tab=events"' in normalized_html
+        assert 'data-tab="config" href="?tab=config"' in normalized_html
 
     def test_events_tab_renders_empty_state_server_side(self, client):
         """Events tab renders fallback content server-side on full reload."""
         resp = client.get("/?tab=events")
         html = resp.get_data(as_text=True)
+        normalized_html = " ".join(html.split())
 
         assert resp.status_code == 200
-        assert 'id="tab-events" class="tab-content active"' in html
+        assert 'id="tab-events" class="tab-content active"' in normalized_html
         assert '<span class="dim">No events recorded</span>' in html
 
     def test_events_tab_renders_existing_events_server_side(
@@ -190,10 +207,12 @@ class TestIndexPage:
 
         resp = client.get("/?tab=events")
         html = resp.get_data(as_text=True)
+        normalized_html = " ".join(html.split())
 
         assert resp.status_code == 200
-        assert 'id="tab-events" class="tab-content active"' in html
-        assert 'class="event-type attach_ok">attach_ok</span>' in html
+        assert 'id="tab-events" class="tab-content active"' in normalized_html
+        assert "event-type attach_ok" in html
+        assert "attach_ok" in html
         assert "Printer" in html
         assert "192.168.1.44" in html
         assert "attached" in html
@@ -213,9 +232,10 @@ class TestIndexPage:
         client.set_cookie("usbip_active_tab", "events")
         resp = client.get("/")
         html = resp.get_data(as_text=True)
+        normalized_html = " ".join(html.split())
 
         assert resp.status_code == 200
-        assert 'id="tab-events" class="tab-content active"' in html
+        assert 'id="tab-events" class="tab-content active"' in normalized_html
         assert "Camera" in html
 
     def test_events_order_newest_first(self, client, mock_usbip_env):

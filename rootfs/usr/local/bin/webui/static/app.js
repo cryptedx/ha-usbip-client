@@ -339,7 +339,8 @@ function toggleSelectAll(master, tableId) {
 
 async function detachOne(port) {
     const data = await api('/api/detach', { method: 'POST', body: JSON.stringify({ port }) });
-    toast(data.ok ? `Port ${port} detached` : `Detach failed: ${data.detail}`, data.ok ? '' : 'error');
+    const detail = data.error || data.detail || 'unknown error';
+    toast(data.ok ? `Port ${port} detached` : `Detach failed: ${detail}`, data.ok ? '' : 'error');
     refreshDevices();
     refreshDashboard();
 }
@@ -347,10 +348,17 @@ async function detachOne(port) {
 async function detachSelected() {
     const checks = document.querySelectorAll('#attached-table .dev-check:checked');
     if (checks.length === 0) { toast('No devices selected', 'warn'); return; }
+    let failed = 0;
     for (const c of checks) {
-        await api('/api/detach', { method: 'POST', body: JSON.stringify({ port: parseInt(c.dataset.port) }) });
+        const result = await api('/api/detach', { method: 'POST', body: JSON.stringify({ port: parseInt(c.dataset.port) }) });
+        if (!result.ok) failed += 1;
     }
-    toast(`Detached ${checks.length} device(s)`);
+    const detached = checks.length - failed;
+    if (failed > 0) {
+        toast(`Detached ${detached}/${checks.length} device(s)`, 'warn');
+    } else {
+        toast(`Detached ${checks.length} device(s)`);
+    }
     refreshDevices();
     refreshDashboard();
 }
@@ -361,15 +369,14 @@ async function attachSingle() {
     const name = document.getElementById('attach-name').value.trim() || busid;
     if (!server || !busid) { toast('Server and Bus ID required', 'warn'); return; }
 
-    toast('Attaching...', '');
     const data = await api('/api/attach', { method: 'POST', body: JSON.stringify({ server, busid, name }) });
-    toast(data.ok ? `Attached ${name}` : `Failed: ${data.detail}`, data.ok ? '' : 'error');
+    const detail = data.error || data.detail || 'unknown error';
+    toast(data.ok ? `Attached ${name}` : `Failed: ${detail}`, data.ok ? '' : 'error');
     refreshDevices();
     refreshDashboard();
 }
 
 async function attachAll() {
-    toast('Attaching all configured devices...', '');
     const data = await api('/api/attach-all', { method: 'POST' });
     if (data.ok) {
         const ok = data.results.filter(r => r.ok).length;
@@ -383,7 +390,6 @@ async function attachAll() {
 }
 
 async function detachAll() {
-    toast('Detaching all devices...', '');
     const data = await api('/api/detach-all', { method: 'POST' });
     if (data.ok) {
         toast(`Detached ${data.detached} device(s)`);
@@ -598,8 +604,8 @@ async function refreshEvents() {
 }
 
 async function clearEvents() {
-    await api('/api/events/clear', { method: 'POST' });
-    toast('Events cleared');
+    const data = await api('/api/events/clear', { method: 'POST' });
+    toast(data.ok ? 'Events cleared' : `Clear failed: ${data.error || data.detail || 'unknown error'}`, data.ok ? '' : 'error');
     refreshEvents();
 }
 
@@ -724,7 +730,6 @@ async function saveConfig() {
         config.dependent_apps = curCfg.config.dependent_apps || [];
     }
 
-    toast('Saving configuration...');
     const data = await api('/api/config', { method: 'POST', body: JSON.stringify(config) });
     toast(data.ok ? 'Configuration saved! Restart app to apply.' : 'Save failed', data.ok ? '' : 'error');
 }
@@ -825,7 +830,6 @@ function initTooltips() {
 let _selectedDependentApps = []; // current selection
 
 async function restartApp(slug, name) {
-    toast(`Restarting ${name}...`);
     const data = await api('/api/app-restart', { method: 'POST', body: JSON.stringify({ slug }) });
     toast(data.ok ? `${name} restarted` : `Restart failed`, data.ok ? '' : 'error');
     refreshDashboard();
@@ -910,7 +914,6 @@ function applyAppSelection() {
 }
 
 async function saveDependentApps() {
-    toast('Saving dependent apps...');
     const data = await api('/api/dependent-apps', {
         method: 'POST',
         body: JSON.stringify({ dependent_apps: _selectedDependentApps }),
