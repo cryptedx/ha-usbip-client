@@ -1,18 +1,21 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>USB/IP Terminal</title>
-  <link rel="stylesheet" href="{{ ingress_path }}/static/style.css?v={{ version }}">
-</head>
-<body>
-  <div id="scanline-overlay"></div>
-  <div id="app">
-
-    <!-- HEADER -->
-    <header id="header">
-      <pre id="ascii-logo">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>USB/IP Terminal</title>
+    <link
+      rel="stylesheet"
+      href="{{ ingress_path }}/static/style.css?v={{ version }}&t={{ asset_stamp }}"
+    />
+  </head>
+  <body>
+    <div id="scanline-overlay"></div>
+    <div id="app-scroll">
+      <div id="app">
+        <!-- HEADER -->
+        <header id="header">
+          <pre id="ascii-logo">
 ╭──────────────────────────────────────╮
 │  ██╗   ██╗███████╗██████╗ /IP       │
 │  ██║   ██║██╔════╝██╔══██╗  CLIENT  │
@@ -20,308 +23,539 @@
 │  ██║   ██║╚════██║██╔══██╗ v0.5.2β  │
 │  ╚██████╔╝███████║██████╔╝          │
 │   ╚═════╝ ╚══════╝╚═════╝           │
-╰──────────────────────────────────────╯</pre>
-      <div id="header-status">
-        <span id="clock"></span>
-        <span id="status-badge" class="badge badge-ok">● ONLINE</span>
-        <button id="theme-btn" onclick="cycleTheme()" title="Change theme">◐</button>
-      </div>
-    </header>
-
-    <!-- TABS -->
-    <nav id="tabs">
-      <a class="tab{% if active_tab == 'dashboard' %} active{% endif %}" data-tab="dashboard" href="?tab=dashboard">Dashboard</a>
-      <a class="tab{% if active_tab == 'devices' %} active{% endif %}" data-tab="devices" href="?tab=devices">Devices</a>
-      <a class="tab{% if active_tab == 'discovery' %} active{% endif %}" data-tab="discovery" href="?tab=discovery">Discovery</a>
-      <a class="tab{% if active_tab == 'logs' %} active{% endif %}" data-tab="logs" href="?tab=logs">Logs</a>
-      <a class="tab{% if active_tab == 'events' %} active{% endif %}" data-tab="events" href="?tab=events">Events</a>
-      <a class="tab{% if active_tab == 'config' %} active{% endif %}" data-tab="config" href="?tab=config">Config</a>
-    </nav>
-
-    <!-- TOAST container -->
-    <div id="toast-container"></div>
-
-    <!-- ============ DASHBOARD TAB ============ -->
-    <section id="tab-dashboard" class="tab-content{% if active_tab == 'dashboard' %} active{% endif %}">
-      <div class="panel-row">
-        <div class="panel">
-          <h3>» Server Status</h3>
-          <div id="dash-servers" class="mono-list">Loading...</div>
-        </div>
-        <div class="panel">
-          <h3>» Attached Devices</h3>
-          <div id="dash-device-count" class="big-number">-</div>
-          <div id="dash-device-summary" class="mono-list"></div>
-        </div>
-      </div>
-      <div class="panel-row">
-        <div class="panel full">
-          <h3>» Quick Actions</h3>
-          <div class="btn-row">
-            <button class="btn" onclick="attachAll()">▶ ATTACH ALL</button>
-            <button class="btn btn-warn" onclick="detachAll()">■ DETACH ALL</button>
-            <button class="btn btn-dim" onclick="refreshDashboard()">↻ REFRESH</button>
+╰──────────────────────────────────────╯</pre
+          >
+          <div id="header-status">
+            <span id="clock"></span>
+            <span id="status-badge" class="badge badge-ok">● ONLINE</span>
+            <button id="theme-btn" onclick="cycleTheme()" title="Change theme">
+              ◐
+            </button>
           </div>
-        </div>
-      </div>
-      <div class="panel-row">
-        <div class="panel full">
-          <h3>» Dependent Apps</h3>
-          <div id="dash-apps" class="mono-list"><span class="dim">No dependent apps configured</span></div>
-        </div>
-      </div>
-      <div class="panel-row">
-        <div class="panel full">
-          <h3>» System Diagnostics</h3>
-          <div id="dash-diagnostics" class="mono-list"><span class="dim">Loading...</span></div>
-        </div>
-      </div>
-    </section>
+        </header>
 
-    <!-- ============ DEVICES TAB ============ -->
-    <section id="tab-devices" class="tab-content{% if active_tab == 'devices' %} active{% endif %}">
-      <div class="panel">
-        <h3>» Attached Devices <button class="btn btn-sm btn-dim" onclick="refreshDevices()">↻</button></h3>
-        <div class="table-wrap">
-        <table id="attached-table">
-          <thead>
-            <tr>
-              <th><input type="checkbox" id="select-all-attached" onchange="toggleSelectAll(this, 'attached-table')"></th>
-              <th>Port</th>
-              <th>Device</th>
-              <th>ID</th>
-              <th>Server</th>
-              <th>Status</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody id="attached-body">
-            <tr><td colspan="7" class="dim">Loading...</td></tr>
-          </tbody>
-        </table>
-        </div>
-        <div class="btn-row" style="margin-top:.5rem">
-          <button class="btn btn-warn btn-sm" onclick="detachSelected()">■ DETACH SELECTED</button>
-        </div>
-      </div>
+        <!-- TABS -->
+        <nav id="tabs">
+          <a
+            class="tab{% if active_tab == 'dashboard' %} active{% endif %}"
+            data-tab="dashboard"
+            href="?tab=dashboard"
+            >Dashboard</a
+          >
+          <a
+            class="tab{% if active_tab == 'devices' %} active{% endif %}"
+            data-tab="devices"
+            href="?tab=devices"
+            >Devices</a
+          >
+          <a
+            class="tab{% if active_tab == 'discovery' %} active{% endif %}"
+            data-tab="discovery"
+            href="?tab=discovery"
+            >Discovery</a
+          >
+          <a
+            class="tab{% if active_tab == 'logs' %} active{% endif %}"
+            data-tab="logs"
+            href="?tab=logs"
+            >Logs</a
+          >
+          <a
+            class="tab{% if active_tab == 'events' %} active{% endif %}"
+            data-tab="events"
+            href="?tab=events"
+            >Events</a
+          >
+          <a
+            class="tab{% if active_tab == 'config' %} active{% endif %}"
+            data-tab="config"
+            href="?tab=config"
+            >Config</a
+          >
+        </nav>
 
-      <div class="panel">
-        <h3>» Attach Device</h3>
-        <div class="form-row">
-          <label>Server:</label>
-          <input type="text" id="attach-server" placeholder="192.168.1.44">
-          <label>Bus ID:</label>
-          <input type="text" id="attach-busid" placeholder="1-1.2">
-          <label>Name:</label>
-          <input type="text" id="attach-name" placeholder="My Device">
-          <button class="btn btn-sm" onclick="attachSingle()">▶ ATTACH</button>
-        </div>
-      </div>
-    </section>
+        <!-- TOAST container -->
+        <div id="toast-container"></div>
 
-    <!-- ============ DISCOVERY TAB ============ -->
-    <section id="tab-discovery" class="tab-content{% if active_tab == 'discovery' %} active{% endif %}">
-      <div class="panel">
-        <h3>» Discover Remote Devices</h3>
-        <div class="form-row">
-          <label>Server IP:</label>
-          <input type="text" id="discover-server" placeholder="192.168.1.44">
-          <button class="btn btn-sm" onclick="discoverDevices()">⌕ DISCOVER</button>
-        </div>
-        <div class="table-wrap">
-        <table id="discover-table">
-          <thead>
-            <tr><th>Bus ID</th><th>Device</th><th>ID</th><th>USB Name</th><th>Action</th></tr>
-          </thead>
-          <tbody id="discover-body">
-            <tr><td colspan="5" class="dim">Enter a server IP and click Discover</td></tr>
-          </tbody>
-        </table>
-        </div>
-      </div>
-
-      <div class="panel">
-        <h3>» Network Scanner</h3>
-        <div class="form-row">
-          <label>Subnet:</label>
-          <input type="text" id="scan-subnet" placeholder="192.168.1.0/24">
-          <button class="btn btn-sm" onclick="scanNetwork()">⌕ SCAN</button>
-        </div>
-        <div id="scan-results" class="mono-list"></div>
-      </div>
-    </section>
-
-    <!-- ============ LOGS TAB ============ -->
-    <section id="tab-logs" class="tab-content{% if active_tab == 'logs' %} active{% endif %}">
-      <div class="panel full">
-        <h3>» Live Logs
-          <span class="log-controls">
-            <button class="btn btn-xs" onclick="toggleLogPause()" id="log-pause-btn">⏸ PAUSE</button>
-            <button class="btn btn-xs btn-dim" onclick="copyLogs()">⎘ COPY</button>
-            <button class="btn btn-xs btn-dim" onclick="clearLogView()">✕ CLEAR</button>
-          </span>
-        </h3>
-        <div class="log-filters">
-          <button class="log-filter active" data-level="all" onclick="setLogFilter('all', this)">ALL</button>
-          <button class="log-filter" data-level="trace" onclick="setLogFilter('trace', this)">TRACE</button>
-          <button class="log-filter" data-level="debug" onclick="setLogFilter('debug', this)">DEBUG</button>
-          <button class="log-filter" data-level="info" onclick="setLogFilter('info', this)">INFO</button>
-          <button class="log-filter" data-level="warning" onclick="setLogFilter('warning', this)">WARN</button>
-          <button class="log-filter" data-level="error" onclick="setLogFilter('error', this)">ERROR</button>
-        </div>
-        <div id="log-terminal"></div>
-      </div>
-    </section>
-
-    <!-- ============ EVENTS TAB ============ -->
-    <section id="tab-events" class="tab-content{% if active_tab == 'events' %} active{% endif %}">
-      <div class="panel full">
-        <h3>» Device Event Timeline
-          <button class="btn btn-xs btn-dim" onclick="refreshEvents()">↻</button>
-          <button class="btn btn-xs btn-warn" onclick="clearEvents()">✕ CLEAR</button>
-        </h3>
-        <div id="events-timeline">
-          {% if active_tab == 'events' %}
-            {% if initial_events %}
-              {% for event in initial_events %}
-                <div class="event-entry">
-                  <span class="event-ts">{{ event.ts }}</span>
-                  <span class="event-type {{ event.type }}">{{ event.type }}</span>
-                  <span class="event-detail">{{ event.device or '' }} {{ event.server or '' }} — {{ event.detail }}</span>
-                </div>
-              {% endfor %}
-            {% else %}
-              <span class="dim">No events recorded</span>
-            {% endif %}
-          {% endif %}
-        </div>
-      </div>
-    </section>
-
-    <!-- ============ CONFIG TAB ============ -->
-    <section id="tab-config" class="tab-content{% if active_tab == 'config' %} active{% endif %}">
-      <div class="panel">
-        <h3>» Configuration</h3>
-        <div class="config-form" id="config-form">
-          <div class="form-group">
-            <label>Log Level:</label>
-            <select id="cfg-log-level">
-              <option>trace</option><option>debug</option><option selected>info</option>
-              <option>notice</option><option>warning</option><option>error</option><option>fatal</option>
-            </select>
+        <!-- ============ DASHBOARD TAB ============ -->
+        <section
+          id="tab-dashboard"
+          class="tab-content{% if active_tab == 'dashboard' %} active{% endif %}"
+        >
+          <div class="panel-row">
+            <div class="panel">
+              <h3>» Server Status</h3>
+              <div id="dash-servers" class="mono-list">Loading...</div>
+            </div>
+            <div class="panel">
+              <h3>» Attached Devices</h3>
+              <div id="dash-device-count" class="big-number">-</div>
+              <div id="dash-device-summary" class="mono-list"></div>
+            </div>
           </div>
-          <div class="form-group">
-            <label>Log Auto-Scroll:</label>
-            <select id="cfg-log-auto-scroll" aria-describedby="cfg-log-autoscroll-hint">
-              <option value="when_not_paused">When not paused</option>
-              <option value="always">Always</option>
-            </select>
-            <span class="dim hint" tabindex="0" role="button" id="cfg-log-autoscroll-hint" aria-label="Log auto-scroll help">ℹ
-              <span class="tooltip" role="tooltip">
-                <strong>When not paused:</strong> Auto-scrolls only if logs are not paused.<br>
-                <strong>Always:</strong> Always scroll to newest logs when the Logs tab is active.
+          <div class="panel-row">
+            <div class="panel full">
+              <h3>» Quick Actions</h3>
+              <div class="btn-row">
+                <button class="btn" onclick="attachAll()">▶ ATTACH ALL</button>
+                <button class="btn btn-warn" onclick="detachAll()">
+                  ■ DETACH ALL
+                </button>
+                <button class="btn btn-dim" onclick="refreshDashboard()">
+                  ↻ REFRESH
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="panel-row">
+            <div class="panel full">
+              <h3>» Dependent Apps</h3>
+              <div id="dash-apps" class="mono-list">
+                <span class="dim">No dependent apps configured</span>
+              </div>
+            </div>
+          </div>
+          <div class="panel-row">
+            <div class="panel full">
+              <h3>» System Diagnostics</h3>
+              <div id="dash-diagnostics" class="mono-list">
+                <span class="dim">Loading...</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ DEVICES TAB ============ -->
+        <section
+          id="tab-devices"
+          class="tab-content{% if active_tab == 'devices' %} active{% endif %}"
+        >
+          <div class="panel">
+            <h3>
+              » Attached Devices
+              <button class="btn btn-sm btn-dim" onclick="refreshDevices()">
+                ↻
+              </button>
+            </h3>
+            <div class="table-wrap">
+              <table id="attached-table">
+                <thead>
+                  <tr>
+                    <th>
+                      <input
+                        type="checkbox"
+                        id="select-all-attached"
+                        onchange="toggleSelectAll(this, 'attached-table')"
+                      />
+                    </th>
+                    <th>Port</th>
+                    <th>Device</th>
+                    <th>ID</th>
+                    <th>Server</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="attached-body">
+                  <tr>
+                    <td colspan="7" class="dim">Loading...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="btn-row" style="margin-top: 0.5rem">
+              <button class="btn btn-warn btn-sm" onclick="detachSelected()">
+                ■ DETACH SELECTED
+              </button>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>» Attach Device</h3>
+            <div class="form-row">
+              <label>Server:</label>
+              <input
+                type="text"
+                id="attach-server"
+                placeholder="192.168.1.44"
+              />
+              <label>Bus ID:</label>
+              <input type="text" id="attach-busid" placeholder="1-1.2" />
+              <label>Name:</label>
+              <input type="text" id="attach-name" placeholder="My Device" />
+              <button class="btn btn-sm" onclick="attachSingle()">
+                ▶ ATTACH
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ DISCOVERY TAB ============ -->
+        <section
+          id="tab-discovery"
+          class="tab-content{% if active_tab == 'discovery' %} active{% endif %}"
+        >
+          <div class="panel">
+            <h3>» Discover Remote Devices</h3>
+            <div class="form-row">
+              <label>Server IP:</label>
+              <input
+                type="text"
+                id="discover-server"
+                placeholder="192.168.1.44"
+              />
+              <button class="btn btn-sm" onclick="discoverDevices()">
+                ⌕ DISCOVER
+              </button>
+            </div>
+            <div class="table-wrap">
+              <table id="discover-table">
+                <thead>
+                  <tr>
+                    <th>Bus ID</th>
+                    <th>Device</th>
+                    <th>ID</th>
+                    <th>USB Name</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="discover-body">
+                  <tr>
+                    <td colspan="5" class="dim">
+                      Enter a server IP and click Discover
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>» Network Scanner</h3>
+            <div class="form-row">
+              <label>Subnet:</label>
+              <input
+                type="text"
+                id="scan-subnet"
+                placeholder="192.168.1.0/24"
+              />
+              <button class="btn btn-sm" onclick="scanNetwork()">⌕ SCAN</button>
+            </div>
+            <div id="scan-results" class="mono-list"></div>
+          </div>
+        </section>
+
+        <!-- ============ LOGS TAB ============ -->
+        <section
+          id="tab-logs"
+          class="tab-content{% if active_tab == 'logs' %} active{% endif %}"
+        >
+          <div class="panel full">
+            <h3>
+              » Live Logs
+              <span class="log-controls">
+                <button
+                  class="btn btn-xs"
+                  onclick="toggleLogPause()"
+                  id="log-pause-btn"
+                >
+                  ⏸ PAUSE
+                </button>
+                <button class="btn btn-xs btn-dim" onclick="copyLogs()">
+                  ⎘ COPY
+                </button>
+                <button class="btn btn-xs btn-dim" onclick="clearLogView()">
+                  ✕ CLEAR
+                </button>
               </span>
-            </span>
+            </h3>
+            <div class="log-filters">
+              <button
+                class="log-filter active"
+                data-level="all"
+                onclick="setLogFilter('all', this)"
+              >
+                ALL
+              </button>
+              <button
+                class="log-filter"
+                data-level="trace"
+                onclick="setLogFilter('trace', this)"
+              >
+                TRACE
+              </button>
+              <button
+                class="log-filter"
+                data-level="debug"
+                onclick="setLogFilter('debug', this)"
+              >
+                DEBUG
+              </button>
+              <button
+                class="log-filter"
+                data-level="info"
+                onclick="setLogFilter('info', this)"
+              >
+                INFO
+              </button>
+              <button
+                class="log-filter"
+                data-level="warning"
+                onclick="setLogFilter('warning', this)"
+              >
+                WARN
+              </button>
+              <button
+                class="log-filter"
+                data-level="error"
+                onclick="setLogFilter('error', this)"
+              >
+                ERROR
+              </button>
+            </div>
+            <div id="log-terminal"></div>
           </div>
-          <div class="form-group">
-            <label>Server Address:</label>
-            <input type="text" id="cfg-server" placeholder="192.168.1.44">
-          </div>
-          <div class="form-group">
-            <label>Attach Delay (s):</label>
-            <input type="number" id="cfg-delay" min="0" max="30" value="2">
-          </div>
-          <h4>» Monitoring</h4>
-          <div class="form-group">
-            <label>Monitor Interval (s):</label>
-            <input type="number" id="cfg-monitor-interval" min="10" max="300" value="30">
-          </div>
-          <div class="form-group">
-            <label>Reattach Retries:</label>
-            <input type="number" id="cfg-reattach-retries" min="0" max="10" value="3">
-          </div>
-          <div class="form-group">
-            <label>Restart Retries:</label>
-            <input type="number" id="cfg-restart-retries" min="0" max="10" value="3">
-          </div>
-          <h4>» Devices</h4>
-          <div id="cfg-devices-list"></div>
-          <button class="btn btn-sm btn-dim" onclick="addDeviceRow()" style="margin-top:.5rem">+ ADD DEVICE</button>
+        </section>
 
-          <div class="btn-row" style="margin-top:1rem">
-            <button class="btn" onclick="saveConfig()">💾 SAVE CONFIG</button>
-            <button class="btn btn-dim" onclick="loadConfig(true)">↻ RELOAD</button>
+        <!-- ============ EVENTS TAB ============ -->
+        <section
+          id="tab-events"
+          class="tab-content{% if active_tab == 'events' %} active{% endif %}"
+        >
+          <div class="panel full">
+            <h3>
+              » Device Event Timeline
+              <button class="btn btn-xs btn-dim" onclick="refreshEvents()">
+                ↻
+              </button>
+              <button class="btn btn-xs btn-warn" onclick="clearEvents()">
+                ✕ CLEAR
+              </button>
+            </h3>
+            <div id="events-timeline">
+              {% if active_tab == 'events' %} {% if initial_events %} {% for
+              event in initial_events %}
+              <div class="event-entry">
+                <span class="event-ts">{{ event.ts }}</span>
+                <span class="event-type {{ event.type }}"
+                  >{{ event.type }}</span
+                >
+                <span class="event-detail"
+                  >{{ event.device or '' }} {{ event.server or '' }} — {{
+                  event.detail }}</span
+                >
+              </div>
+              {% endfor %} {% else %}
+              <span class="dim">No events recorded</span>
+              {% endif %} {% endif %}
+            </div>
           </div>
-          <p class="dim" style="margin-top:.5rem">⚠ Saving config requires an app restart for changes to take full effect.</p>
-        </div>
+        </section>
+
+        <!-- ============ CONFIG TAB ============ -->
+        <section
+          id="tab-config"
+          class="tab-content{% if active_tab == 'config' %} active{% endif %}"
+        >
+          <div class="panel">
+            <h3>» Configuration</h3>
+            <div class="config-form" id="config-form">
+              <div class="form-group">
+                <label>Log Level:</label>
+                <select id="cfg-log-level">
+                  <option>trace</option>
+                  <option>debug</option>
+                  <option selected>info</option>
+                  <option>notice</option>
+                  <option>warning</option>
+                  <option>error</option>
+                  <option>fatal</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Log Auto-Scroll:</label>
+                <select
+                  id="cfg-log-auto-scroll"
+                  aria-describedby="cfg-log-autoscroll-hint"
+                >
+                  <option value="when_not_paused">When not paused</option>
+                  <option value="always">Always</option>
+                </select>
+                <span
+                  class="dim hint"
+                  tabindex="0"
+                  role="button"
+                  id="cfg-log-autoscroll-hint"
+                  aria-label="Log auto-scroll help"
+                  >ℹ
+                  <span class="tooltip" role="tooltip">
+                    <strong>When not paused:</strong> Auto-scrolls only if logs
+                    are not paused.<br />
+                    <strong>Always:</strong> Always scroll to newest logs when
+                    the Logs tab is active.
+                  </span>
+                </span>
+              </div>
+              <div class="form-group">
+                <label>Server Address:</label>
+                <input type="text" id="cfg-server" placeholder="192.168.1.44" />
+              </div>
+              <div class="form-group">
+                <label>Attach Delay (s):</label>
+                <input
+                  type="number"
+                  id="cfg-delay"
+                  min="0"
+                  max="30"
+                  value="2"
+                />
+              </div>
+              <h4>» Monitoring</h4>
+              <div class="form-group">
+                <label>Monitor Interval (s):</label>
+                <input
+                  type="number"
+                  id="cfg-monitor-interval"
+                  min="10"
+                  max="300"
+                  value="30"
+                />
+              </div>
+              <div class="form-group">
+                <label>Reattach Retries:</label>
+                <input
+                  type="number"
+                  id="cfg-reattach-retries"
+                  min="0"
+                  max="10"
+                  value="3"
+                />
+              </div>
+              <div class="form-group">
+                <label>Restart Retries:</label>
+                <input
+                  type="number"
+                  id="cfg-restart-retries"
+                  min="0"
+                  max="10"
+                  value="3"
+                />
+              </div>
+              <h4>» Devices</h4>
+              <div id="cfg-devices-list"></div>
+              <button
+                class="btn btn-sm btn-dim"
+                onclick="addDeviceRow()"
+                style="margin-top: 0.5rem"
+              >
+                + ADD DEVICE
+              </button>
+
+              <div class="btn-row" style="margin-top: 1rem">
+                <button class="btn" onclick="saveConfig()">
+                  💾 SAVE CONFIG
+                </button>
+                <button class="btn btn-dim" onclick="loadConfig(true)">
+                  ↻ RELOAD
+                </button>
+              </div>
+              <p class="dim" style="margin-top: 0.5rem">
+                ⚠ Saving config requires an app restart for changes to take full
+                effect.
+              </p>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>» Backup &amp; Restore</h3>
+            <div class="btn-row">
+              <button class="btn btn-dim" onclick="backupConfig()">
+                ⬇ EXPORT BACKUP
+              </button>
+              <button
+                class="btn btn-dim"
+                onclick="document.getElementById('restore-file').click()"
+              >
+                ⬆ IMPORT BACKUP
+              </button>
+              <input
+                type="file"
+                id="restore-file"
+                accept=".json"
+                style="display: none"
+                onchange="restoreConfig(this)"
+              />
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>» Dependent Apps</h3>
+            <p class="dim" style="margin-bottom: 0.5rem">
+              Select apps that depend on USB devices from this app. They will be
+              monitored and restarted after device recovery.
+            </p>
+            <div id="cfg-dependent-apps-list"></div>
+            <div class="btn-row" style="margin-top: 0.5rem">
+              <button class="btn btn-sm" onclick="loadAvailableApps()">
+                ↻ DISCOVER APPS
+              </button>
+              <button class="btn btn-sm" onclick="saveDependentApps()">
+                💾 SAVE SELECTION
+              </button>
+            </div>
+          </div>
+        </section>
       </div>
+    </div>
 
-      <div class="panel">
-        <h3>» Backup &amp; Restore</h3>
-        <div class="btn-row">
-          <button class="btn btn-dim" onclick="backupConfig()">⬇ EXPORT BACKUP</button>
-          <button class="btn btn-dim" onclick="document.getElementById('restore-file').click()">⬆ IMPORT BACKUP</button>
-          <input type="file" id="restore-file" accept=".json" style="display:none" onchange="restoreConfig(this)">
-        </div>
-      </div>
+    <script>
+      const INGRESS_PATH = "{{ ingress_path }}";
+    </script>
+    <script src="{{ ingress_path }}/static/app.js?v={{ version }}&t={{ asset_stamp }}"></script>
+    <script>
+      (function () {
+        const originalSaveConfig = window.saveConfig;
+        if (typeof originalSaveConfig !== "function") return;
 
-      <div class="panel">
-        <h3>» Dependent Apps</h3>
-        <p class="dim" style="margin-bottom:.5rem">Select apps that depend on USB devices from this app. They will be monitored and restarted after device recovery.</p>
-        <div id="cfg-dependent-apps-list"></div>
-        <div class="btn-row" style="margin-top:.5rem">
-          <button class="btn btn-sm" onclick="loadAvailableApps()">↻ DISCOVER APPS</button>
-          <button class="btn btn-sm" onclick="saveDependentApps()">💾 SAVE SELECTION</button>
-        </div>
-      </div>
-    </section>
+        window.saveConfig = async function () {
+          try {
+            return await originalSaveConfig.apply(this, arguments);
+          } catch (err) {
+            const msg = String((err && err.message) || "");
+            if (
+              !msg.includes("Cannot read properties of null (reading 'value')")
+            ) {
+              throw err;
+            }
 
-  </div>
+            document.querySelectorAll(".device-row").forEach((row) => {
+              if (!row.querySelector(".cfg-dev-name")) {
+                const hiddenName = document.createElement("input");
+                hiddenName.type = "hidden";
+                hiddenName.className = "cfg-dev-name";
+                hiddenName.value = "";
+                row.insertBefore(hiddenName, row.firstChild);
+              }
+              if (!row.querySelector(".cfg-dev-id")) {
+                const hiddenId = document.createElement("input");
+                hiddenId.type = "hidden";
+                hiddenId.className = "cfg-dev-id";
+                hiddenId.value = "";
+                row.insertBefore(hiddenId, row.firstChild);
+              }
+              if (!row.querySelector(".cfg-dev-server")) {
+                const hiddenServer = document.createElement("input");
+                hiddenServer.type = "hidden";
+                hiddenServer.className = "cfg-dev-server";
+                hiddenServer.value = "";
+                row.insertBefore(hiddenServer, row.firstChild);
+              }
+            });
 
-  <script>const INGRESS_PATH = "{{ ingress_path }}";</script>
-  <script src="{{ ingress_path }}/static/app.js?v={{ version }}&t={{ asset_stamp }}"></script>
-  <script>
-    (function () {
-      const originalSaveConfig = window.saveConfig;
-      if (typeof originalSaveConfig !== 'function') return;
-
-      window.saveConfig = async function () {
-        try {
-          return await originalSaveConfig.apply(this, arguments);
-        } catch (err) {
-          const msg = String((err && err.message) || '');
-          if (!msg.includes("Cannot read properties of null (reading 'value')")) {
-            throw err;
+            return await originalSaveConfig.apply(this, arguments);
           }
-
-          document.querySelectorAll('.device-row').forEach((row) => {
-            if (!row.querySelector('.cfg-dev-name')) {
-              const hiddenName = document.createElement('input');
-              hiddenName.type = 'hidden';
-              hiddenName.className = 'cfg-dev-name';
-              hiddenName.value = '';
-              row.insertBefore(hiddenName, row.firstChild);
-            }
-            if (!row.querySelector('.cfg-dev-id')) {
-              const hiddenId = document.createElement('input');
-              hiddenId.type = 'hidden';
-              hiddenId.className = 'cfg-dev-id';
-              hiddenId.value = '';
-              row.insertBefore(hiddenId, row.firstChild);
-            }
-            if (!row.querySelector('.cfg-dev-server')) {
-              const hiddenServer = document.createElement('input');
-              hiddenServer.type = 'hidden';
-              hiddenServer.className = 'cfg-dev-server';
-              hiddenServer.value = '';
-              row.insertBefore(hiddenServer, row.firstChild);
-            }
-          });
-
-          return await originalSaveConfig.apply(this, arguments);
-        }
-      };
-    })();
-  </script>
-</body>
+        };
+      })();
+    </script>
+  </body>
 </html>

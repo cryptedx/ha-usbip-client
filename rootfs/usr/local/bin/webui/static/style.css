@@ -18,6 +18,11 @@
     --selection: rgba(0, 255, 65, .12);
     --font: 'Courier New', 'Lucida Console', monospace;
     --scanline: rgba(0, 255, 65, .03);
+    --scrollbar-size: 12px;
+    --scrollbar-track: var(--bg-panel);
+    --scrollbar-thumb: var(--fg-dim);
+    --scrollbar-thumb-hover: var(--fg);
+    --scrollbar-thumb-active: var(--accent);
 }
 
 /* Amber theme */
@@ -90,12 +95,49 @@ body {
     font-size: 13px;
     line-height: 1.5;
     min-height: 100vh;
-    overflow-x: hidden;
+    height: 100%;
+    overflow: hidden;
 }
 
 ::selection {
     background: var(--selection);
     color: var(--fg-bright);
+}
+
+/* ---------- Scrollbar ---------- */
+#app-scroll,
+#app-scroll * {
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+    scrollbar-width: thin;
+}
+
+#app-scroll::-webkit-scrollbar,
+#app-scroll *::-webkit-scrollbar {
+    width: var(--scrollbar-size);
+}
+
+#app-scroll::-webkit-scrollbar-track,
+#app-scroll *::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+}
+
+#app-scroll::-webkit-scrollbar-thumb,
+#app-scroll *::-webkit-scrollbar-thumb {
+    background-color: var(--scrollbar-thumb);
+    border: 2px solid var(--scrollbar-track);
+    border-radius: 999px;
+    min-height: 32px;
+    transition: background-color .2s ease;
+}
+
+#app-scroll::-webkit-scrollbar-thumb:hover,
+#app-scroll *::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+}
+
+#app-scroll::-webkit-scrollbar-thumb:active,
+#app-scroll *::-webkit-scrollbar-thumb:active {
+    background: var(--scrollbar-thumb-active);
 }
 
 /* ---------- Scanline overlay ---------- */
@@ -112,6 +154,13 @@ body {
 }
 
 /* ---------- App container ---------- */
+#app-scroll {
+    height: 100vh;
+    height: 100dvh;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
 #app {
     max-width: 1100px;
     margin: 0 auto;

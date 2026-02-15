@@ -81,6 +81,21 @@ class TestIndexPage:
         resp = client.get("/")
         assert resp.status_code == 200
 
+    def test_stylesheet_uses_asset_stamp_cache_buster(self, client):
+        """Rendered HTML includes style.css asset stamp for ingress cache busting."""
+        resp = client.get("/")
+        html = resp.get_data(as_text=True)
+
+        assert 'href="/static/style.css?v=0.5.2-beta.2&t=' in html
+
+    def test_internal_scroll_container_present(self, client):
+        """Page renders internal scroll container for Ingress-consistent scrollbar ownership."""
+        resp = client.get("/")
+        html = resp.get_data(as_text=True)
+
+        assert 'id="app-scroll"' in html
+        assert 'id="app"' in html
+
     def test_dependent_apps_handlers_present(self, client):
         """Rendered HTML uses apps-only dependent app handlers and IDs."""
         resp = client.get("/")
@@ -330,6 +345,20 @@ class TestStaticAppJsCompatibility:
         assert "if (activeButton) {" in js
         assert "loadTabData(activeButton.dataset.tab);" in js
         assert "else if (tab === 'events') refreshEvents();" in js
+
+
+class TestStaticCssCompatibility:
+    def test_served_stylesheet_includes_custom_vertical_scrollbar(self, client):
+        """Served style.css includes themed custom vertical scrollbar rules."""
+        resp = client.get("/static/style.css")
+        assert resp.status_code == 200
+        css = resp.get_data(as_text=True)
+
+        assert "--scrollbar-size: 12px;" in css
+        assert "scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);" in css
+        assert "#app-scroll {" in css
+        assert "#app-scroll::-webkit-scrollbar" in css
+        assert "#app-scroll *::-webkit-scrollbar-thumb:hover" in css
 
 
 class TestApiStatus:
