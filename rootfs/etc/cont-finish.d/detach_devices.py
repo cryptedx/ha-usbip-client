@@ -10,7 +10,12 @@ from usbip_lib.usbip import cleanup_temp_files, detach_all, run_cmd
 # Minimal logging — config may not be available during shutdown
 logger = logging.getLogger("detach_devices")
 handler = logging.StreamHandler(sys.stdout)
-handler.setFormatter(logging.Formatter("[%(name)s] %(levelname)s: %(message)s"))
+handler.setFormatter(
+    logging.Formatter(
+        "%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+        datefmt="%H:%M:%S",
+    )
+)
 logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 

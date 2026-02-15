@@ -38,7 +38,10 @@ def setup_logging(level_name: str = "info", name: str = "usbip") -> logging.Logg
     if not logger.handlers:
         handler = logging.StreamHandler(sys.stdout)
         handler.setLevel(level)
-        formatter = logging.Formatter("[%(name)s] %(levelname)s: %(message)s")
+        formatter = logging.Formatter(
+            "%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+            datefmt="%H:%M:%S",
+        )
         handler.setFormatter(formatter)
         logger.addHandler(handler)
     else:

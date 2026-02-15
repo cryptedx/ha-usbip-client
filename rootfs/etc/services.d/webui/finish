@@ -9,7 +9,12 @@ import sys
 
 logger = logging.getLogger("webui_finish")
 handler = logging.StreamHandler(sys.stdout)
-handler.setFormatter(logging.Formatter("[%(name)s] %(levelname)s: %(message)s"))
+handler.setFormatter(
+	logging.Formatter(
+		"%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+		datefmt="%H:%M:%S",
+	)
+)
 logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 

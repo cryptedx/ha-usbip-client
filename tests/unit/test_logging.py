@@ -1,6 +1,7 @@
 """Unit tests for usbip_lib.logging_setup module."""
 
 import logging
+import re
 
 import pytest
 
@@ -44,9 +45,16 @@ class TestSetupLogging:
         logger = setup_logging("info", name="test_fmt")
         logger.info("Hello world")
         captured = capsys.readouterr()
+        assert re.search(r"^\d{2}:\d{2}:\d{2} ", captured.out)
         assert "[test_fmt]" in captured.out
         assert "INFO" in captured.out
         assert "Hello world" in captured.out
+
+    def test_formatter_uses_hh_mm_ss_datefmt(self):
+        logger = setup_logging("info", name="test_datefmt")
+        formatter = logger.handlers[0].formatter
+        assert formatter is not None
+        assert formatter.datefmt == "%H:%M:%S"
 
     def test_unknown_level_defaults_to_info(self):
         logger = setup_logging("nonexistent_level", name="test_unknown")
