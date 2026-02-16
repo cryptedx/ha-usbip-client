@@ -261,6 +261,23 @@ class TestIndexPage:
         assert 'id="tab-events" class="tab-content active"' in normalized_html
         assert "Camera" in html
 
+    def test_ingress_render_includes_critical_elements_and_prefixed_assets(
+        self, client
+    ):
+        """Ingress render includes critical shell elements and ingress-prefixed assets."""
+        ingress_path = "/api/hassio_ingress/abc123"
+        resp = client.get("/", headers={"X-Ingress-Path": ingress_path})
+        html = resp.get_data(as_text=True)
+
+        assert resp.status_code == 200
+        assert f'href="{ingress_path}/static/style.css?v=' in html
+        assert 'id="app-scroll"' in html
+        assert 'id="header"' in html
+        assert 'id="tabs"' in html
+        assert 'id="tab-dashboard"' in html
+        assert 'id="tab-devices"' in html
+        assert 'id="tab-logs"' in html
+
     def test_events_order_newest_first(self, client, mock_usbip_env):
         """Server-rendered events should appear newest-first in HTML."""
         import json
@@ -513,6 +530,70 @@ class TestApiDetachAll:
         assert "failed" in data
 
 
+class TestApiAttachAll:
+    def test_mixed_outcomes_with_device_id_resolution(self, client, mocker):
+        mocker.patch(
+            "app.get_app_config",
+            return_value={
+                "usbipd_server_address": "192.168.1.44",
+                "devices": [
+                    {"name": "Resolved OK", "device_or_bus_id": "0658:0200"},
+                    {"name": "Missing ID", "device_or_bus_id": "ffff:ffff"},
+                    {"name": "Direct Bus Fails", "device_or_bus_id": "1-1.3"},
+                ],
+            },
+        )
+        parse_mock = mocker.patch(
+            "app.parse_usbip_list", return_value=SAMPLE_DISCOVERY_DATA
+        )
+
+        def _run_cmd_side_effect(cmd, timeout=15):
+            if "attach" in cmd:
+                if "1-1.4" in cmd:
+                    return (0, "attached", "")
+                if "1-1.3" in cmd:
+                    return (1, "", "connection refused")
+            return (0, "", "")
+
+        mocker.patch("app.run_cmd", side_effect=_run_cmd_side_effect)
+
+        resp = client.post("/api/attach-all")
+        data = resp.get_json()
+
+        assert data["ok"] is True
+        assert len(data["results"]) == 3
+        assert data["results"][0] == {
+            "name": "Resolved OK",
+            "ok": True,
+            "detail": "attached",
+        }
+        assert data["results"][1] == {
+            "name": "Missing ID",
+            "ok": False,
+            "detail": "device ffff:ffff not found on 192.168.1.44",
+        }
+        assert data["results"][2]["name"] == "Direct Bus Fails"
+        assert data["results"][2]["ok"] is False
+        assert "Cannot reach USB/IP server 192.168.1.44" in data["results"][2]["detail"]
+
+        parse_mock.assert_called_once_with("192.168.1.44")
+
+        events_resp = client.get("/api/events")
+        events = events_resp.get_json()["events"]
+        attach_events = [
+            e for e in events if e.get("type") in {"attach_ok", "attach_fail"}
+        ]
+        assert len(attach_events) == 2
+        assert any(
+            e.get("type") == "attach_ok" and e.get("device") == "Resolved OK"
+            for e in attach_events
+        )
+        assert any(
+            e.get("type") == "attach_fail" and e.get("device") == "Direct Bus Fails"
+            for e in attach_events
+        )
+
+
 class TestApiConfig:
     def test_get(self, client):
         resp = client.get("/api/config")
@@ -528,6 +609,64 @@ class TestApiConfig:
         resp = client.post("/api/config", json={"log_level": "debug"})
         data = resp.get_json()
         assert data["ok"] is True
+
+    def test_backup_returns_current_config_shape(self, client):
+        resp = client.get("/api/config/backup")
+        data = resp.get_json()
+
+        assert isinstance(data, dict)
+        assert data.get("log_auto_scroll") == "when_not_paused"
+        assert data.get("notifications_enabled") is True
+        assert isinstance(data.get("dependent_apps"), list)
+
+    def test_restore_normalizes_legacy_payload_and_writes_event(self, client, mocker):
+        set_mock = mocker.patch("app.set_app_config", return_value={"result": "ok"})
+
+        resp = client.post(
+            "/api/config/restore",
+            json={
+                "log_level": "debug",
+                "dependent_addons": [{"name": "Z2M", "slug": "z2m"}],
+                "notifications_enabled": "yes",
+                "notification_types": ["device_lost", "invalid", 123, "device_lost"],
+            },
+        )
+        data = resp.get_json()
+
+        assert data["ok"] is True
+        saved = set_mock.call_args.args[0]
+        assert saved["dependent_apps"] == [{"name": "Z2M", "slug": "z2m"}]
+        assert "dependent_addons" not in saved
+        assert saved["notifications_enabled"] is True
+        assert saved["notification_types"] == ["device_lost"]
+
+        events_resp = client.get("/api/events")
+        events = events_resp.get_json()["events"]
+        assert any(e.get("type") == "config_restore" for e in events)
+
+    def test_set_returns_supervisor_error_payload(self, client, mocker):
+        mocker.patch(
+            "app.set_app_config",
+            return_value={"result": "error", "message": "write failed"},
+        )
+
+        resp = client.post("/api/config", json={"log_level": "debug"})
+        data = resp.get_json()
+
+        assert data["ok"] is False
+        assert data["response"]["result"] == "error"
+        assert data["response"]["message"] == "write failed"
+
+    def test_set_writes_config_change_event(self, client):
+        resp = client.post("/api/config", json={"log_level": "debug"})
+        data = resp.get_json()
+        assert data["ok"] is True
+
+        events_resp = client.get("/api/events")
+        events = events_resp.get_json()["events"]
+        config_events = [e for e in events if e.get("type") == "config_change"]
+        assert config_events
+        assert '"log_level": "debug"' in config_events[-1].get("detail", "")
 
     def test_set_auto_scroll(self, client, mock_usbip_env):
         resp = client.post("/api/config", json={"log_auto_scroll": "always"})
@@ -703,16 +842,123 @@ class TestApiScan:
         resp = client.post("/api/scan", json={})
         assert resp.status_code == 400
 
+    def test_rejects_invalid_subnet_format(self, client):
+        resp = client.post("/api/scan", json={"subnet": "192.168.1"})
+        data = resp.get_json()
+
+        assert resp.status_code == 400
+        assert data["ok"] is False
+        assert "Invalid subnet format" in data["error"]
+
     def test_rejects_large_subnet(self, client):
         resp = client.post("/api/scan", json={"subnet": "192.168.0.0/16"})
         data = resp.get_json()
         assert data["ok"] is False
+
+    def test_rejects_23_subnet_for_safety(self, client):
+        resp = client.post("/api/scan", json={"subnet": "192.168.0.0/23"})
+        data = resp.get_json()
+
+        assert resp.status_code == 400
+        assert data["ok"] is False
+        assert "Minimum /24 subnet for safety" in data["error"]
 
     def test_single_ip(self, client, mock_usbip_env):
         mock_usbip_env["subprocess"].return_value.stdout = SAMPLE_USBIP_LIST_OUTPUT
         resp = client.post("/api/scan", json={"subnet": "192.168.1.44"})
         data = resp.get_json()
         assert data["ok"] is True
+
+    def test_subnet_scan_asserts_results_by_count_and_set(self, client, mocker):
+        online_hosts = {"192.168.1.10", "192.168.1.44"}
+
+        def _ping_side_effect(ip, timeout=1.5):
+            return 4.2 if ip in online_hosts else None
+
+        def _discover_side_effect(ip):
+            return [
+                {
+                    "server": ip,
+                    "busid": "1-1.4",
+                    "name": "Sample Device",
+                    "device_id": "0658:0200",
+                }
+            ]
+
+        mocker.patch("app.ping_server", side_effect=_ping_side_effect)
+        mocker.patch("app.parse_usbip_list", side_effect=_discover_side_effect)
+
+        resp = client.post("/api/scan", json={"subnet": "192.168.1.0/24"})
+        data = resp.get_json()
+
+        assert resp.status_code == 200
+        assert data["ok"] is True
+        assert len(data["servers"]) == 2
+        discovered_hosts = {entry["server"] for entry in data["servers"]}
+        assert discovered_hosts == online_hosts
+        assert all(isinstance(entry.get("devices"), list) for entry in data["servers"])
+
+    def test_subnet_scan_limits_probes_to_254_hosts(self, client, mocker):
+        ping_mock = mocker.patch("app.ping_server", return_value=None)
+        discover_mock = mocker.patch("app.parse_usbip_list")
+
+        resp = client.post("/api/scan", json={"subnet": "192.168.1.0/24"})
+        data = resp.get_json()
+
+        assert resp.status_code == 200
+        assert data["ok"] is True
+        assert data["servers"] == []
+        assert ping_mock.call_count == 254
+        discover_mock.assert_not_called()
+
+    def test_scan_writes_event_with_found_server_count(self, client, mocker):
+        mocker.patch("app.ping_server", return_value=3.7)
+        mocker.patch(
+            "app.parse_usbip_list",
+            return_value=[
+                {
+                    "server": "192.168.1.44",
+                    "busid": "1-1.4",
+                    "name": "Sample Device",
+                    "device_id": "0658:0200",
+                }
+            ],
+        )
+
+        resp = client.post("/api/scan", json={"subnet": "192.168.1.44"})
+        data = resp.get_json()
+
+        assert resp.status_code == 200
+        assert data["ok"] is True
+        assert len(data["servers"]) == 1
+
+        events_resp = client.get("/api/events")
+        events = events_resp.get_json()["events"]
+        scan_events = [event for event in events if event.get("type") == "scan"]
+        assert scan_events
+        assert (
+            scan_events[-1].get("detail") == "Scanned 192.168.1.44, found 1 server(s)"
+        )
+
+    def test_scan_writes_event_with_zero_found_servers(self, client, mocker):
+        mocker.patch("app.ping_server", return_value=None)
+        parse_mock = mocker.patch("app.parse_usbip_list")
+
+        resp = client.post("/api/scan", json={"subnet": "192.168.1.44"})
+        data = resp.get_json()
+
+        assert resp.status_code == 200
+        assert data["ok"] is True
+        assert data["servers"] == []
+        parse_mock.assert_not_called()
+
+        events_resp = client.get("/api/events")
+        events = events_resp.get_json()["events"]
+        scan_events = [event for event in events if event.get("type") == "scan"]
+        assert scan_events
+        assert (
+            scan_events[-1].get("detail") == "Scanned 192.168.1.44, found 0 server(s)"
+        )
 
 
 class TestApiUsbDb:
@@ -729,6 +975,25 @@ class TestApiLogs:
         data = resp.get_json()
         assert data["ok"] is True
         assert "lines" in data
+
+    def test_falls_back_to_direct_fetch_and_filters_by_level(self, client, mocker):
+        mocker.patch("app.log_buffer", [])
+        fetch_mock = mocker.patch(
+            "app._fetch_logs_direct",
+            return_value=[
+                "INFO startup complete",
+                "ERROR attach failed",
+                "warning reconnecting",
+                "error retry exceeded",
+            ],
+        )
+
+        resp = client.get("/api/logs?level=error")
+        data = resp.get_json()
+
+        assert data["ok"] is True
+        assert data["lines"] == ["ERROR attach failed", "error retry exceeded"]
+        fetch_mock.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
