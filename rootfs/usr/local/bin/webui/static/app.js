@@ -1003,3 +1003,68 @@ window.restartApp = restartApp;
 window.applyAppSelection = applyAppSelection;
 window.loadAvailableApps = loadAvailableApps;
 window.saveDependentApps = saveDependentApps;
+
+async function restartAddon() {
+    const now = Date.now();
+    const armedUntil = Number(window.__restartConfirmUntil || 0);
+
+    if (now > armedUntil) {
+        window.__restartConfirmUntil = now + 10000;
+        const restartButtons = document.querySelectorAll('button[onclick="restartAddon()"]');
+        restartButtons.forEach((button) => {
+            button.textContent = '⚠ CLICK AGAIN TO RESTART';
+        });
+        if (window.__restartConfirmTimer) {
+            clearTimeout(window.__restartConfirmTimer);
+        }
+        window.__restartConfirmTimer = setTimeout(() => {
+            window.__restartConfirmUntil = 0;
+            const buttons = document.querySelectorAll('button[onclick="restartAddon()"]');
+            buttons.forEach((button) => {
+                button.textContent = '↻ RESTART APP';
+            });
+        }, 10000);
+        toast('Click RESTART APP again within 10 seconds to confirm.', 'accent');
+        return;
+    }
+
+    window.__restartConfirmUntil = 0;
+    if (window.__restartConfirmTimer) {
+        clearTimeout(window.__restartConfirmTimer);
+    }
+    const restartButtons = document.querySelectorAll('button[onclick="restartAddon()"]');
+    restartButtons.forEach((button) => {
+        button.textContent = '↻ RESTART APP';
+    });
+
+    try {
+        toast("Initiating system restart...", "accent");
+        const resp = await fetch(buildApiUrl("api/system/restart"), {
+            method: "POST",
+            cache: "no-store",
+            headers: {
+                "Content-Type": "application/json"
+            }
+        });
+
+        if (resp.ok) {
+            toast("Restarting... Reloading in 10s...", "accent");
+            // Disable UI to prevent further interaction
+            document.body.style.opacity = "0.5";
+            document.body.style.pointerEvents = "none";
+
+            setTimeout(() => {
+                window.location.reload();
+            }, 10000);
+        } else {
+            toast("Failed to restart add-on", "error");
+        }
+    } catch (err) {
+        console.warn("Restart request interrupted (expected during restart):", err);
+        toast("Restart command sent. Waiting for reconnect...", "accent");
+        setTimeout(() => {
+            window.location.reload();
+        }, 12000);
+    }
+}
+window.restartAddon = restartAddon;

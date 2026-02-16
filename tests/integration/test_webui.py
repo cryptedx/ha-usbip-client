@@ -140,6 +140,14 @@ class TestIndexPage:
 
         assert 'onclick="loadConfig(true)"' in html
 
+    def test_config_action_row_includes_restart_button(self, client):
+        """Config action row exposes a visible restart button."""
+        resp = client.get("/")
+        html = resp.get_data(as_text=True)
+
+        assert 'onclick="restartAddon()"' in html
+        assert "↻ RESTART APP" in html
+
     def test_dashboard_includes_system_diagnostics_panel(self, client):
         """Dashboard renders first-run diagnostics panel server-side."""
         resp = client.get("/")
@@ -351,7 +359,7 @@ class TestStaticAppJsCompatibility:
         assert "window.saveDependentApps = saveDependentApps;" in js
         assert "loadAvailableAddons" not in js
         assert "saveDependentAddons" not in js
-        assert "restartAddon" not in js
+        assert "restartAddon" in js
 
     def test_persists_active_tab_via_cookie(self, client):
         """Tab persistence uses cookie for server-side rendering in Ingress."""
@@ -365,6 +373,16 @@ class TestStaticAppJsCompatibility:
             in js
         )
         assert "event.preventDefault()" in js
+
+    def test_restart_uses_ingress_safe_two_step_confirmation(self, client):
+        """Restart flow uses two-step confirmation instead of browser confirm dialog."""
+        resp = client.get("/static/app.js")
+        assert resp.status_code == 200
+        js = resp.get_data(as_text=True)
+
+        assert "Click RESTART APP again within 10 seconds to confirm." in js
+        assert "⚠ CLICK AGAIN TO RESTART" in js
+        assert "confirm(" not in js
 
     def test_initial_load_hydrates_active_tab_data(self, client):
         """Initial page load hydrates currently active tab data (ingress/full reload safe)."""
@@ -843,3 +861,48 @@ class TestApiDependentAppsSave:
             json={"dependent_apps": []},
         )
         assert resp.status_code == 404
+
+
+class TestSystemRestart:
+    def test_restart_success(self, client, mock_usbip_env):
+        """POST /api/system/restart calls supervisor for 'self'."""
+        import json
+        import unittest.mock as um
+
+        # Mock successful supervisor response
+        resp_mock = um.Mock()
+        resp_mock.read.return_value = json.dumps({"result": "ok", "data": {}}).encode()
+        resp_mock.__enter__ = um.Mock(return_value=resp_mock)
+        resp_mock.__exit__ = um.Mock(return_value=False)
+
+        # Apply mock to urlopen
+        mock_usbip_env["urlopen"].return_value = resp_mock
+
+        resp = client.post("/api/system/restart")
+        assert resp.status_code == 200
+        assert resp.get_json()["ok"] is True
+
+        # Verify urlopen call targeting self restart
+        args, _ = mock_usbip_env["urlopen"].call_args
+        req = args[0]
+        assert req.get_method() == "POST"
+        assert req.full_url.endswith("/addons/self/restart")
+
+    def test_restart_failure(self, client, mock_usbip_env):
+        """POST /api/system/restart handles supervisor failure."""
+        import json
+        import unittest.mock as um
+
+        # Mock failed supervisor response
+        resp_mock = um.Mock()
+        resp_mock.read.return_value = json.dumps(
+            {"result": "error", "message": "Failed"}
+        ).encode()
+        resp_mock.__enter__ = um.Mock(return_value=resp_mock)
+        resp_mock.__exit__ = um.Mock(return_value=False)
+
+        mock_usbip_env["urlopen"].return_value = resp_mock
+
+        resp = client.post("/api/system/restart")
+        assert resp.status_code == 500
+        assert resp.get_json()["ok"] is False

@@ -683,6 +683,16 @@ def api_notify():
     return jsonify({"ok": True})
 
 
+@app.route("/api/system/restart", methods=["POST"])
+def api_system_restart():
+    """Restart the add-on via Supervisor."""
+    write_event("app", "User triggered add-on restart from WebUI")
+    success = restart_app("self")
+    if not success:
+        return jsonify({"ok": False, "error": "Supervisor refused restart"}), 500
+    return jsonify({"ok": True})
+
+
 @app.route("/api/apps")
 def api_apps():
     """List all installed Home Assistant apps."""

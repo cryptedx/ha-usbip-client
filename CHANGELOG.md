@@ -9,11 +9,17 @@
 - **API Permissions**: Enabled `homeassistant_api` so notification calls to `/core/api` are authorized and Supervisor permission warnings are reduced.
 - **Service Resilience**: Updated usbip finish handling to prefer automatic s6 restart behavior instead of halting the full container on transient usbip failures.
 - **WebUI (Ingress compatibility)**: Themed custom scrollbar; added internal scroll container so Home Assistant Ingress shows the add-on scrollbar; added cache-busting for `style.css`; removed debug marker; updated related tests.
+- **Config UX**: Added a two-step confirmation restart action in the Config tab (`↻ RESTART APP`) to apply saved settings.
+
+### Fixed
+
+- **Notification Settings Persistence**: Config save now verifies notification preferences (`notifications_enabled`, `notification_types`) were actually persisted and returns a clear API/UI error when Supervisor rejects schema fields.
 
 ### Added
 
 - **Dashboard Diagnostics**: Added a compact first-run diagnostics panel in the WebUI Dashboard (module loaded, usbip availability, server reachability, discoverable devices).
 - **Actionable API Errors**: Improved USB/IP attach/detach error messages with user-facing guidance for common causes (network, timeout, missing device, permissions).
+- **Restart API Endpoint**: Added `POST /api/system/restart` to trigger add-on restart via Supervisor, including integration tests for success and failure paths.
 
 ## [0.5.2-beta.2] - 2026-02-14
 
