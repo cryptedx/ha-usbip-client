@@ -2,6 +2,17 @@
 
 This document contains development-focused information for the HA USB/IP Client project.
 
+## Operator Quick Flow
+
+For any code change, follow this minimal sequence:
+
+1. Classify impact (`config.yaml`, USB/IP core, monitor, s6 lifecycle, WebUI/API).
+2. Implement the smallest correct fix and update tests for touched behavior.
+3. Run targeted checks, then full local gates via `.venv`.
+4. Run HA runtime validation (`stop` → `rebuild` → `start` → `info` → `logs`).
+5. If `config.yaml` schema changed, run uninstall/install before concluding validation.
+6. Hand off with risks, checks run, runtime evidence, and open issues.
+
 ## Project Structure
 
 - `rootfs/etc/cont-init.d/`: s6 init scripts (`load_modules.py`, `init_devices.py`)
@@ -22,22 +33,22 @@ source .venv/bin/activate
 pip install -r requirements-dev.txt
 ```
 
-1. Run tests:
+1. Run targeted tests first, then full tests through `.venv`:
 
 ```bash
-PYTHONPATH=./rootfs/usr/local/lib pytest -q
+PYTHONPATH=./rootfs/usr/local/lib .venv/bin/python -m pytest -q
 ```
 
 1. Install and enable pre-commit hooks:
 
 ```bash
-pre-commit install
+.venv/bin/pre-commit install
 ```
 
 1. Run all hooks manually (recommended before pushing):
 
 ```bash
-pre-commit run --all-files
+.venv/bin/pre-commit run --all-files
 ```
 
 ## Pre-commit Checks
@@ -53,9 +64,9 @@ The repository enforces these checks before each commit:
   - `config.yaml`
   - `repository.yaml`
   - `rootfs/usr/local/bin/webui/app.py`
-- Full test suite: `PYTHONPATH=./rootfs/usr/local/lib pytest -q`
+- Full test suite: `PYTHONPATH=./rootfs/usr/local/lib .venv/bin/python -m pytest -q`
 
-If you must bypass hooks temporarily, use `git commit --no-verify` only for local emergency work and follow up by running `pre-commit run --all-files` before pushing.
+If you must bypass hooks temporarily, use `git commit --no-verify` only for local emergency work and follow up by running `.venv/bin/pre-commit run --all-files` before pushing.
 
 ## Versioning Rules
 
@@ -108,7 +119,8 @@ Use dry-run to validate everything without changing files, creating commits, or 
 
 When validating inside Home Assistant:
 
-- Rebuild app after code changes.
+- Runtime validation is required after every code change.
+- Use targeted checks first, then full local quality gates, then runtime runbook.
 - If `config.yaml` schema changes, uninstall/reinstall app for clean config migration.
 - Verify logs and service status after restart.
 
@@ -122,6 +134,14 @@ ha apps rebuild local_ha_usbip_client
 ha apps start local_ha_usbip_client
 ha apps info local_ha_usbip_client | grep '^state:'
 ha apps logs local_ha_usbip_client --follow
+```
+
+Required local quality gates before runtime validation:
+
+```bash
+.venv/bin/pre-commit run --all-files
+PYTHONPATH=./rootfs/usr/local/lib .venv/bin/python -m pytest -q
+.venv/bin/python scripts/check_version_consistency.py
 ```
 
 If schema fields in `config.yaml` changed, apply a clean reinstall:
