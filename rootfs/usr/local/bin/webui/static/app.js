@@ -288,7 +288,7 @@ async function refreshDashboard() {
             return `<div class="item">
                 <span>${icon} ${esc(a.name)}</span>
                 <span><span class="badge ${cls}">${esc(a.state.toUpperCase())}</span>
-                ${!isUp ? `<button class="btn btn-xs" onclick="restartApp('${esc(a.slug)}','${esc(a.name)}')">RESTART</button>` : ''}
+                ${!isUp ? `<button class="btn btn-xs" onclick="restartApp('${esc(a.slug)}','${esc(a.name)}', this)">RESTART</button>` : ''}
                 </span>
             </div>`;
         }).join('');
@@ -884,10 +884,22 @@ function initTooltips() {
 // ---- Dependent Apps ----
 let _selectedDependentApps = []; // current selection
 
-async function restartApp(slug, name) {
+async function restartApp(slug, name, buttonEl = null) {
+    if (buttonEl) {
+        buttonEl.disabled = true;
+        buttonEl.textContent = 'RESTARTING...';
+    }
+
+    toast(`Restarting ${name}...`, 'accent');
     const data = await api('/api/app-restart', { method: 'POST', body: JSON.stringify({ slug }) });
-    toast(data.ok ? `${name} restarted` : `Restart failed`, data.ok ? '' : 'error');
-    refreshDashboard();
+    const detail = data.error || data.detail || 'unknown error';
+    toast(data.ok ? `${name} restarted` : `Restart failed: ${detail}`, data.ok ? '' : 'error');
+    await refreshDashboard();
+
+    if (buttonEl && document.body.contains(buttonEl)) {
+        buttonEl.disabled = false;
+        buttonEl.textContent = 'RESTART';
+    }
 }
 
 function loadDependentAppsConfig(apps) {

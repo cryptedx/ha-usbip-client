@@ -384,6 +384,27 @@ class TestStaticAppJsCompatibility:
         assert "⚠ CLICK AGAIN TO RESTART" in js
         assert "confirm(" not in js
 
+    def test_dependent_app_restart_shows_toast_feedback(self, client):
+        """Dependent app restart flow shows immediate and result toasts for user feedback."""
+        resp = client.get("/static/app.js")
+        assert resp.status_code == 200
+        js = resp.get_data(as_text=True)
+
+        assert "Restarting ${name}..." in js
+        assert "${name} restarted" in js
+        assert "Restart failed: ${detail}" in js
+
+    def test_dependent_app_restart_disables_button_while_running(self, client):
+        """Dependent app restart button is disabled during in-flight request to prevent double click."""
+        resp = client.get("/static/app.js")
+        assert resp.status_code == 200
+        js = resp.get_data(as_text=True)
+
+        assert "onclick=\"restartApp('${esc(a.slug)}','${esc(a.name)}', this)\"" in js
+        assert "async function restartApp(slug, name, buttonEl = null)" in js
+        assert "buttonEl.disabled = true;" in js
+        assert "buttonEl.textContent = 'RESTARTING...';" in js
+
     def test_initial_load_hydrates_active_tab_data(self, client):
         """Initial page load hydrates currently active tab data (ingress/full reload safe)."""
         resp = client.get("/static/app.js")
