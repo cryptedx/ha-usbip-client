@@ -16,6 +16,7 @@ from usbip_lib.config import (
     get_app_state,
     list_installed_apps,
     normalize_dependent_apps_config,
+    normalize_notification_config,
     restart_app,
     send_ha_notification,
     set_app_config,
@@ -394,7 +395,9 @@ def api_attach():
     )
     if success:
         send_ha_notification(
-            "USB/IP Device Attached", f"{name} ({busid}) from {server}"
+            "USB/IP Device Attached",
+            f"{name} ({busid}) from {server}",
+            notification_type="device_attached",
         )
     return jsonify({"ok": success, "detail": detail})
 
@@ -417,7 +420,11 @@ def api_detach():
         "detach_ok" if success else "detach_fail", detail, device=f"port {port}"
     )
     if success:
-        send_ha_notification("USB/IP Device Detached", f"Port {port}")
+        send_ha_notification(
+            "USB/IP Device Detached",
+            f"Port {port}",
+            notification_type="device_detached",
+        )
     return jsonify({"ok": success, "detail": detail})
 
 
@@ -537,6 +544,7 @@ def api_diagnostics():
 def api_config_get():
     config = get_app_config()
     config, _ = normalize_dependent_apps_config(config)
+    config, _ = normalize_notification_config(config)
     return jsonify({"ok": True, "config": config})
 
 
@@ -544,10 +552,30 @@ def api_config_get():
 def api_config_set():
     data = request.get_json(force=True)
     data, _ = normalize_dependent_apps_config(data)
+    data, _ = normalize_notification_config(data)
     resp = set_app_config(data)
     ok = resp.get("result") == "ok"
+
+    detail = ""
+    if ok:
+        persisted = get_app_config()
+        persisted, _ = normalize_notification_config(persisted)
+
+        expected_enabled = data.get("notifications_enabled", True)
+        expected_types = set(data.get("notification_types", []))
+        persisted_enabled = persisted.get("notifications_enabled", True)
+        persisted_types = set(persisted.get("notification_types", []))
+
+        if persisted_enabled != expected_enabled or persisted_types != expected_types:
+            ok = False
+            detail = (
+                "Notification settings were not persisted by Supervisor. "
+                "If the add-on schema changed, reinstall the add-on to apply "
+                "the new schema."
+            )
+
     write_event("config_change", json.dumps(data)[:200])
-    return jsonify({"ok": ok, "response": resp})
+    return jsonify({"ok": ok, "response": resp, "detail": detail})
 
 
 @app.route("/api/config/backup")
@@ -560,6 +588,7 @@ def api_config_backup():
 def api_config_restore():
     data = request.get_json(force=True)
     data, _ = normalize_dependent_apps_config(data)
+    data, _ = normalize_notification_config(data)
     resp = set_app_config(data)
     ok = resp.get("result") == "ok"
     write_event("config_restore", "Configuration restored from backup")
@@ -693,10 +722,13 @@ def api_dependent_apps_save():
     """Save dependent apps selection to app config."""
     data = request.get_json(force=True)
     data, _ = normalize_dependent_apps_config(data)
+    data, _ = normalize_notification_config(data)
     apps_list = data.get("dependent_apps", [])
     if not isinstance(apps_list, list):
         apps_list = []
     config, changed = normalize_dependent_apps_config(get_app_config())
+    config, notif_changed = normalize_notification_config(config)
+    changed = changed or notif_changed
     if changed:
         set_app_config(config)
     config["dependent_apps"] = apps_list

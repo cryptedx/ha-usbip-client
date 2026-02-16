@@ -514,6 +514,50 @@ input[type="checkbox"] {
     flex-wrap: wrap;
 }
 
+#cfg-notification-types {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .35rem .5rem;
+    margin-bottom: .5rem;
+}
+
+#cfg-notification-types .form-group {
+    margin-bottom: 0;
+    min-width: 0;
+}
+
+#cfg-notification-types label {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+}
+
+#cfg-notification-types label input[type="checkbox"] {
+    flex: 0 0 auto;
+}
+
+#cfg-notification-types .notification-label-text {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+html body #app #tab-config #cfg-notification-types {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: .35rem .5rem !important;
+}
+
+html body #app #tab-config #cfg-notification-types>.form-group {
+    min-width: 0 !important;
+    margin-bottom: 0 !important;
+}
+
 label {
     color: var(--fg-dim);
     font-size: 11px;

@@ -36,6 +36,16 @@ options:
   monitor_interval: 30
   reattach_retries: 3
   restart_retries: 3
+  notifications_enabled: true
+  notification_types:
+    - device_lost
+    - device_recovered
+    - reattach_failed
+    - app_down
+    - app_restarted
+    - app_restart_failed
+    - device_attached
+    - device_detached
   dependent_apps: []
   devices:
     - name: "Aeotec Z-Stick Gen5 (ZW090) - UZB"
@@ -53,6 +63,9 @@ schema:
   monitor_interval: "int(10,300)?"
   reattach_retries: "int(0,10)?"
   restart_retries: "int(0,10)?"
+  notifications_enabled: "bool?"
+  notification_types:
+    - list(device_lost|device_recovered|reattach_failed|app_down|app_restarted|app_restart_failed|device_attached|device_detached)
   dependent_apps:
     - name: str
       slug: str

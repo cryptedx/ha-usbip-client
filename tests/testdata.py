@@ -56,6 +56,17 @@ SAMPLE_APP_CONFIG = {
     "monitor_interval": 30,
     "reattach_retries": 3,
     "restart_retries": 3,
+    "notifications_enabled": True,
+    "notification_types": [
+        "device_lost",
+        "device_recovered",
+        "reattach_failed",
+        "app_down",
+        "app_restarted",
+        "app_restart_failed",
+        "device_attached",
+        "device_detached",
+    ],
     "dependent_apps": [],
     "devices": [
         {"name": "Z-Wave Stick", "device_or_bus_id": "0658:0200"},

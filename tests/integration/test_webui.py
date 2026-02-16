@@ -106,6 +106,21 @@ class TestIndexPage:
         assert 'aria-live="polite"' in html
         assert 'aria-atomic="true"' in html
 
+    def test_notification_config_controls_present(self, client):
+        """Config tab renders notification preference controls."""
+        resp = client.get("/")
+        html = resp.get_data(as_text=True)
+
+        assert 'id="cfg-notifications-enabled"' in html
+        assert 'id="cfg-notif-type-device_lost"' in html
+        assert 'id="cfg-notif-type-device_recovered"' in html
+        assert 'id="cfg-notif-type-reattach_failed"' in html
+        assert 'id="cfg-notif-type-app_down"' in html
+        assert 'id="cfg-notif-type-app_restarted"' in html
+        assert 'id="cfg-notif-type-app_restart_failed"' in html
+        assert 'id="cfg-notif-type-device_attached"' in html
+        assert 'id="cfg-notif-type-device_detached"' in html
+
     def test_dependent_apps_handlers_present(self, client):
         """Rendered HTML uses apps-only dependent app handlers and IDs."""
         resp = client.get("/")
@@ -467,6 +482,8 @@ class TestApiConfig:
         assert "config" in data
         # New default should be present
         assert data["config"].get("log_auto_scroll") == "when_not_paused"
+        assert data["config"].get("notifications_enabled") is True
+        assert "device_lost" in data["config"].get("notification_types", [])
 
     def test_set(self, client, mock_usbip_env):
         resp = client.post("/api/config", json={"log_level": "debug"})
@@ -513,6 +530,63 @@ class TestApiConfig:
             {"name": "Z-Wave JS", "slug": "core_zwave_js"}
         ]
         assert "dependent_addons" not in payload
+
+    def test_set_persists_notification_preferences(self, client, mocker):
+        set_mock = mocker.patch("app.set_app_config", return_value={"result": "ok"})
+        mocker.patch(
+            "app.get_app_config",
+            return_value={
+                "notifications_enabled": True,
+                "notification_types": ["device_lost", "app_down"],
+            },
+        )
+
+        resp = client.post(
+            "/api/config",
+            json={
+                "log_level": "debug",
+                "notifications_enabled": True,
+                "notification_types": ["device_lost", "app_down"],
+            },
+        )
+        data = resp.get_json()
+
+        assert data["ok"] is True
+        payload = set_mock.call_args.args[0]
+        assert payload["notifications_enabled"] is True
+        assert payload["notification_types"] == ["device_lost", "app_down"]
+
+    def test_set_reports_notification_persist_mismatch(self, client, mocker):
+        mocker.patch("app.set_app_config", return_value={"result": "ok"})
+        mocker.patch(
+            "app.get_app_config",
+            return_value={
+                "notifications_enabled": True,
+                "notification_types": [
+                    "device_lost",
+                    "device_recovered",
+                    "reattach_failed",
+                    "app_down",
+                    "app_restarted",
+                    "app_restart_failed",
+                    "device_attached",
+                    "device_detached",
+                ],
+            },
+        )
+
+        resp = client.post(
+            "/api/config",
+            json={
+                "log_level": "debug",
+                "notifications_enabled": True,
+                "notification_types": ["device_lost", "app_down"],
+            },
+        )
+        data = resp.get_json()
+
+        assert data["ok"] is False
+        assert "not persisted" in data["detail"].lower()
 
 
 class TestApiEvents:

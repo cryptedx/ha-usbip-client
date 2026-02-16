@@ -92,6 +92,7 @@ def main() -> int:
                             "USB/IP: Device Lost",
                             f"{name} ({bus_id}) from {dev.get('server', '?')} is no longer attached. "
                             f"Attempting reattach...",
+                            notification_type="device_lost",
                         )
                         write_event(
                             "device_lost",
@@ -108,6 +109,7 @@ def main() -> int:
                         send_ha_notification(
                             "USB/IP: Device Recovered",
                             f"{name} ({bus_id}) was successfully reattached.",
+                            notification_type="device_recovered",
                         )
                         write_event(
                             "device_recovered",
@@ -121,6 +123,7 @@ def main() -> int:
                                 "USB/IP: Reattach Failed",
                                 f"Could not reattach {name} ({bus_id}) after "
                                 f"{reattach_retries} attempts. Manual intervention required.",
+                                notification_type="reattach_failed",
                             )
                             set_cooldown(f"fail:{device_key}")
 

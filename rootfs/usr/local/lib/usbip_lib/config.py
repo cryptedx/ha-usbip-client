@@ -6,6 +6,18 @@ import urllib.request
 from .constants import SUPERVISOR_TOKEN, SUPERVISOR_URL
 
 
+NOTIFICATION_TYPES = [
+    "device_lost",
+    "device_recovered",
+    "reattach_failed",
+    "app_down",
+    "app_restarted",
+    "app_restart_failed",
+    "device_attached",
+    "device_detached",
+]
+
+
 def normalize_dependent_apps_config(config: dict) -> tuple[dict, bool]:
     """Normalize legacy dependent config key to dependent_apps."""
     if not isinstance(config, dict):
@@ -29,6 +41,45 @@ def normalize_dependent_apps_config(config: dict) -> tuple[dict, bool]:
     if "dependent_addons" in config:
         del config["dependent_addons"]
         changed = True
+
+    return config, changed
+
+
+def normalize_notification_config(config: dict) -> tuple[dict, bool]:
+    """Normalize notification-related config keys and values."""
+    if not isinstance(config, dict):
+        return {}, False
+    if not config:
+        return {}, False
+
+    changed = False
+
+    if not isinstance(config.get("notifications_enabled"), bool):
+        config["notifications_enabled"] = True
+        changed = True
+
+    notification_types = config.get("notification_types")
+    if not isinstance(notification_types, list):
+        config["notification_types"] = list(NOTIFICATION_TYPES)
+        changed = True
+    else:
+        normalized_types: list[str] = []
+        seen_types: set[str] = set()
+        for notification_type in notification_types:
+            if not isinstance(notification_type, str):
+                changed = True
+                continue
+            if notification_type not in NOTIFICATION_TYPES:
+                changed = True
+                continue
+            if notification_type in seen_types:
+                changed = True
+                continue
+            seen_types.add(notification_type)
+            normalized_types.append(notification_type)
+        if normalized_types != notification_types:
+            config["notification_types"] = normalized_types
+            changed = True
 
     return config, changed
 
@@ -80,6 +131,7 @@ def get_app_config(
     if resp.get("result") == "ok":
         options = resp.get("data", {}).get("options", {})
         normalized, _ = normalize_dependent_apps_config(options)
+        normalized, _ = normalize_notification_config(normalized)
         return normalized
     return {}
 
@@ -98,6 +150,7 @@ def set_app_config(
         Supervisor response dict.
     """
     normalized, _ = normalize_dependent_apps_config(options)
+    normalized, _ = normalize_notification_config(normalized)
     return supervisor_request(
         "POST",
         "/addons/self/options",
@@ -110,6 +163,7 @@ def set_app_config(
 def send_ha_notification(
     title: str,
     message: str,
+    notification_type: str | None = None,
     token: str = SUPERVISOR_TOKEN,
     base_url: str = SUPERVISOR_URL,
 ) -> None:
@@ -119,6 +173,17 @@ def send_ha_notification(
         title: Notification title.
         message: Notification body text.
     """
+    config = get_app_config(token=token, base_url=base_url)
+    config, _ = normalize_notification_config(config)
+
+    if not config.get("notifications_enabled", True):
+        return
+
+    if notification_type:
+        allowed_types = config.get("notification_types", NOTIFICATION_TYPES)
+        if notification_type not in allowed_types:
+            return
+
     supervisor_request(
         "POST",
         "/core/api/services/persistent_notification/create",

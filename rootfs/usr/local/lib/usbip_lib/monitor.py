@@ -136,6 +136,7 @@ def restart_dependent_apps(
                 send_ha_notification(
                     "USB/IP: App Restarted",
                     f"{name} was restarted after USB device recovery.",
+                    notification_type="app_restarted",
                 )
                 break
             logger.warning(
@@ -151,6 +152,7 @@ def restart_dependent_apps(
             send_ha_notification(
                 "USB/IP: App Restart Failed",
                 f"Could not restart {name} ({slug}) after {restart_retries} attempts.",
+                notification_type="app_restart_failed",
             )
 
 
@@ -179,6 +181,7 @@ def check_dependent_app_health(
             send_ha_notification(
                 "USB/IP: Dependent App Down",
                 f"{name} ({slug}) state: {state}. USB device may have failed.",
+                notification_type="app_down",
             )
             # Restart app if it's in error state
             if state == "error":
@@ -198,6 +201,7 @@ def check_dependent_app_health(
                         send_ha_notification(
                             "USB/IP: App Restarted",
                             f"{name} was restarted due to error state.",
+                            notification_type="app_restarted",
                         )
                         break
                     logger.warning(
@@ -218,6 +222,7 @@ def check_dependent_app_health(
                     send_ha_notification(
                         "USB/IP: App Restart Failed",
                         f"Could not restart {name} ({slug}) after {restart_retries} attempts.",
+                        notification_type="app_restart_failed",
                     )
         elif state == "started" and prev != "started":
             logger.info("Dependent app %s (%s) recovered — now %s", name, slug, state)

@@ -16,6 +16,16 @@ let logFilter = 'all';
 let allLogLines = []; // master unfiltered log buffer
 // Controls whether the logs auto-scroll: 'when_not_paused' or 'always'
 let logAutoScroll = 'when_not_paused';
+const NOTIFICATION_TYPES = [
+    'device_lost',
+    'device_recovered',
+    'reattach_failed',
+    'app_down',
+    'app_restarted',
+    'app_restart_failed',
+    'device_attached',
+    'device_detached',
+];
 
 // ---- Themes ----
 const THEMES = ['green', 'amber', 'blue', 'dracula', 'matrix'];
@@ -69,7 +79,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize tooltip tap/click behavior for touch devices
     initTooltips();
+
+    const notificationsEnabled = document.getElementById('cfg-notifications-enabled');
+    if (notificationsEnabled) {
+        notificationsEnabled.addEventListener('change', setNotificationControlsState);
+    }
 });
+
+function setNotificationControlsState() {
+    const enabledEl = document.getElementById('cfg-notifications-enabled');
+    const enabled = enabledEl ? !!enabledEl.checked : true;
+    NOTIFICATION_TYPES.forEach(type => {
+        const checkbox = document.getElementById(`cfg-notif-type-${type}`);
+        if (checkbox) checkbox.disabled = !enabled;
+    });
+}
+
+function getSelectedNotificationTypes() {
+    const selected = [];
+    NOTIFICATION_TYPES.forEach(type => {
+        const checkbox = document.getElementById(`cfg-notif-type-${type}`);
+        if (checkbox && checkbox.checked) selected.push(type);
+    });
+    return selected;
+}
 
 // ---- Clock ----
 function startClock() {
@@ -653,6 +686,21 @@ async function loadConfig(forceReload = false) {
     const restRetries = document.getElementById('cfg-restart-retries');
     if (restRetries) restRetries.value = cfg.restart_retries ?? 3;
 
+    const notificationsEnabledEl = document.getElementById('cfg-notifications-enabled');
+    if (notificationsEnabledEl) {
+        notificationsEnabledEl.checked = cfg.notifications_enabled ?? true;
+    }
+
+    const selectedTypes = Array.isArray(cfg.notification_types)
+        ? cfg.notification_types
+        : NOTIFICATION_TYPES;
+    const selectedSet = new Set(selectedTypes);
+    NOTIFICATION_TYPES.forEach(type => {
+        const checkbox = document.getElementById(`cfg-notif-type-${type}`);
+        if (checkbox) checkbox.checked = selectedSet.has(type);
+    });
+    setNotificationControlsState();
+
     // Log auto-scroll preference
     const autoScrollVal = cfg.log_auto_scroll || 'when_not_paused';
     logAutoScroll = autoScrollVal;
@@ -720,6 +768,8 @@ async function saveConfig() {
         monitor_interval: parseInt(document.getElementById('cfg-monitor-interval')?.value) || 30,
         reattach_retries: parseInt(document.getElementById('cfg-reattach-retries')?.value) || 3,
         restart_retries: parseInt(document.getElementById('cfg-restart-retries')?.value) || 3,
+        notifications_enabled: !!document.getElementById('cfg-notifications-enabled')?.checked,
+        notification_types: getSelectedNotificationTypes(),
         log_auto_scroll: autoScrollVal,
         devices,
     };
@@ -731,7 +781,12 @@ async function saveConfig() {
     }
 
     const data = await api('/api/config', { method: 'POST', body: JSON.stringify(config) });
-    toast(data.ok ? 'Configuration saved! Restart app to apply.' : 'Save failed', data.ok ? '' : 'error');
+    if (data.ok) {
+        toast('Configuration saved! Restart app to apply.');
+    } else {
+        const detail = data.detail || data.error || data.response?.message || 'unknown error';
+        toast(`Save failed: ${detail}`, 'error');
+    }
 }
 
 async function backupConfig() {

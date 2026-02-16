@@ -8,6 +8,7 @@ from usbip_lib.config import (
     get_app_config,
     get_app_state,
     list_installed_apps,
+    normalize_notification_config,
     normalize_dependent_apps_config,
     restart_app,
     send_ha_notification,
@@ -130,6 +131,97 @@ class TestSendHaNotification:
         # Should not raise
         send_ha_notification("Title", "Message", token="test-token")
         assert mock_supervisor_api.called
+
+    def test_skips_when_notifications_disabled(self, mocker):
+        mocker.patch(
+            "usbip_lib.config.get_app_config",
+            return_value={
+                "notifications_enabled": False,
+                "notification_types": ["device_lost"],
+            },
+        )
+        mock_supervisor_request = mocker.patch("usbip_lib.config.supervisor_request")
+
+        send_ha_notification(
+            "Title",
+            "Message",
+            notification_type="device_lost",
+            token="test-token",
+        )
+
+        mock_supervisor_request.assert_not_called()
+
+    def test_filters_by_notification_type(self, mocker):
+        mocker.patch(
+            "usbip_lib.config.get_app_config",
+            return_value={
+                "notifications_enabled": True,
+                "notification_types": ["app_down"],
+            },
+        )
+        mock_supervisor_request = mocker.patch("usbip_lib.config.supervisor_request")
+
+        send_ha_notification(
+            "Title",
+            "Message",
+            notification_type="device_lost",
+            token="test-token",
+        )
+
+        mock_supervisor_request.assert_not_called()
+
+
+class TestNormalizeNotificationConfig:
+    def test_returns_empty_for_non_dict(self):
+        config, changed = normalize_notification_config([])
+        assert config == {}
+        assert changed is False
+
+    def test_empty_dict_is_unchanged(self):
+        config, changed = normalize_notification_config({})
+        assert config == {}
+        assert changed is False
+
+    def test_adds_missing_notification_defaults(self):
+        config, changed = normalize_notification_config({"log_level": "info"})
+        assert changed is True
+        assert config["notifications_enabled"] is True
+        assert config["notification_types"] == [
+            "device_lost",
+            "device_recovered",
+            "reattach_failed",
+            "app_down",
+            "app_restarted",
+            "app_restart_failed",
+            "device_attached",
+            "device_detached",
+        ]
+
+    def test_deduplicates_and_filters_invalid_types(self):
+        config, changed = normalize_notification_config(
+            {
+                "notifications_enabled": True,
+                "notification_types": [
+                    "device_lost",
+                    "device_lost",
+                    "invalid_type",
+                    "app_down",
+                    123,
+                ],
+            }
+        )
+        assert changed is True
+        assert config["notification_types"] == ["device_lost", "app_down"]
+
+    def test_replaces_invalid_enabled_value(self):
+        config, changed = normalize_notification_config(
+            {
+                "notifications_enabled": "yes",
+                "notification_types": ["device_lost"],
+            }
+        )
+        assert changed is True
+        assert config["notifications_enabled"] is True
 
 
 # ---------------------------------------------------------------------------
