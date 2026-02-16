@@ -685,12 +685,19 @@ def api_notify():
 
 @app.route("/api/system/restart", methods=["POST"])
 def api_system_restart():
-    """Restart the add-on via Supervisor."""
-    write_event("app", "User triggered add-on restart from WebUI")
-    success = restart_app("self")
-    if not success:
-        return jsonify({"ok": False, "error": "Supervisor refused restart"}), 500
-    return jsonify({"ok": True})
+    """Schedule add-on restart via Supervisor and return immediately."""
+    write_event("app", "User requested add-on restart from WebUI")
+
+    def _restart_self_async() -> None:
+        # Small delay allows HTTP response to be sent before container restarts.
+        time.sleep(0.2)
+        if restart_app("self"):
+            write_event("app", "Restart command accepted by Supervisor")
+        else:
+            write_event("error", "Supervisor did not accept restart command")
+
+    threading.Thread(target=_restart_self_async, daemon=True).start()
+    return jsonify({"ok": True, "accepted": True}), 202
 
 
 @app.route("/api/apps")

@@ -864,45 +864,14 @@ class TestApiDependentAppsSave:
 
 
 class TestSystemRestart:
-    def test_restart_success(self, client, mock_usbip_env):
-        """POST /api/system/restart calls supervisor for 'self'."""
-        import json
-        import unittest.mock as um
-
-        # Mock successful supervisor response
-        resp_mock = um.Mock()
-        resp_mock.read.return_value = json.dumps({"result": "ok", "data": {}}).encode()
-        resp_mock.__enter__ = um.Mock(return_value=resp_mock)
-        resp_mock.__exit__ = um.Mock(return_value=False)
-
-        # Apply mock to urlopen
-        mock_usbip_env["urlopen"].return_value = resp_mock
+    def test_restart_returns_accepted_response(self, client, mocker):
+        """POST /api/system/restart should respond accepted immediately."""
+        thread_mock = mocker.Mock()
+        thread_cls = mocker.patch("app.threading.Thread", return_value=thread_mock)
 
         resp = client.post("/api/system/restart")
-        assert resp.status_code == 200
-        assert resp.get_json()["ok"] is True
 
-        # Verify urlopen call targeting self restart
-        args, _ = mock_usbip_env["urlopen"].call_args
-        req = args[0]
-        assert req.get_method() == "POST"
-        assert req.full_url.endswith("/addons/self/restart")
-
-    def test_restart_failure(self, client, mock_usbip_env):
-        """POST /api/system/restart handles supervisor failure."""
-        import json
-        import unittest.mock as um
-
-        # Mock failed supervisor response
-        resp_mock = um.Mock()
-        resp_mock.read.return_value = json.dumps(
-            {"result": "error", "message": "Failed"}
-        ).encode()
-        resp_mock.__enter__ = um.Mock(return_value=resp_mock)
-        resp_mock.__exit__ = um.Mock(return_value=False)
-
-        mock_usbip_env["urlopen"].return_value = resp_mock
-
-        resp = client.post("/api/system/restart")
-        assert resp.status_code == 500
-        assert resp.get_json()["ok"] is False
+        assert resp.status_code == 202
+        assert resp.get_json() == {"ok": True, "accepted": True}
+        thread_cls.assert_called_once()
+        thread_mock.start.assert_called_once()

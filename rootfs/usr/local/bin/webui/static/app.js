@@ -1057,7 +1057,10 @@ async function restartAddon() {
                 window.location.reload();
             }, 10000);
         } else {
-            toast("Failed to restart add-on", "error");
+            toast("Restart request sent. Waiting for reconnect...", "accent");
+            setTimeout(() => {
+                window.location.reload();
+            }, 12000);
         }
     } catch (err) {
         console.warn("Restart request interrupted (expected during restart):", err);
