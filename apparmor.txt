@@ -30,7 +30,7 @@ profile ha_usbip_client flags=(attach_disconnected,mediate_deleted) {
   /run/{,**} rwk,
   /dev/{null,tty} rw,
 
-  # Bashio and addon scripts
+  # Bashio and app scripts
   /usr/lib/bashio/** ix,
   /usr/local/lib/usbip_lib/** r,
   /usr/local/bin/** ix,

@@ -314,7 +314,7 @@ def _template_globals():
 
     return {
         "ingress_path": ingress_path,
-        "version": "0.5.2-beta.3",
+        "version": "0.5.2-beta.4",
         "asset_stamp": asset_stamp,
     }
 
@@ -570,7 +570,7 @@ def api_config_set():
             ok = False
             detail = (
                 "Notification settings were not persisted by Supervisor. "
-                "If the add-on schema changed, reinstall the add-on to apply "
+                "If the app schema changed, reinstall the app to apply "
                 "the new schema."
             )
 
@@ -685,8 +685,8 @@ def api_notify():
 
 @app.route("/api/system/restart", methods=["POST"])
 def api_system_restart():
-    """Schedule add-on restart via Supervisor and return immediately."""
-    write_event("app", "User requested add-on restart from WebUI")
+    """Schedule app restart via Supervisor and return immediately."""
+    write_event("app", "User requested app restart from WebUI")
 
     def _restart_self_async() -> None:
         # Small delay allows HTTP response to be sent before container restarts.

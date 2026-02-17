@@ -2,15 +2,22 @@
 
 ## [Unreleased]
 
+## [0.5.2-beta.4] - 2026-02-17
+
+### Changed
+
+- **Publishing Clarity**: Documented that this project is distributed as a Home Assistant App repository.
+- **Release Runbook**: Added a dedicated app publishing checklist with required local quality gates and Home Assistant runtime validation steps.
+
 ## [0.5.2-beta.3] - 2026-02-17
 
 ### Changed
 
-- **Security Defaults**: Enabled AppArmor by default and aligned the profile with actual addon runtime paths and Python services.
+- **Security Defaults**: Enabled AppArmor by default and aligned the profile with actual app runtime paths and Python services.
 - **Privilege Hardening**: Removed `full_access` and switched to explicit USB/device mappings (`usb` plus `/dev/vhci`) with required capabilities only.
 - **API Permissions**: Enabled `homeassistant_api` so notification calls to `/core/api` are authorized and Supervisor permission warnings are reduced.
 - **Service Resilience**: Updated usbip finish handling to prefer automatic s6 restart behavior instead of halting the full container on transient usbip failures.
-- **WebUI (Ingress compatibility)**: Themed custom scrollbar; added internal scroll container so Home Assistant Ingress shows the add-on scrollbar; added cache-busting for `style.css`; removed debug marker; updated related tests.
+- **WebUI (Ingress compatibility)**: Themed custom scrollbar; added internal scroll container so Home Assistant Ingress shows the app scrollbar; added cache-busting for `style.css`; removed debug marker; updated related tests.
 - **Config UX**: Added a two-step confirmation restart action in the Config tab (`↻ RESTART APP`) to apply saved settings.
 
 ### Fixed
@@ -21,7 +28,7 @@
 
 - **Dashboard Diagnostics**: Added a compact first-run diagnostics panel in the WebUI Dashboard (module loaded, usbip availability, server reachability, discoverable devices).
 - **Actionable API Errors**: Improved USB/IP attach/detach error messages with user-facing guidance for common causes (network, timeout, missing device, permissions).
-- **Restart API Endpoint**: Added `POST /api/system/restart` to trigger add-on restart via Supervisor, including integration tests for success and failure paths.
+- **Restart API Endpoint**: Added `POST /api/system/restart` to trigger app restart via Supervisor, including integration tests for success and failure paths.
 
 ## [0.5.2-beta.2] - 2026-02-14
 

@@ -19,6 +19,7 @@ Special thanks to [rogerfar](https://github.com/rogerfar) and [Rene-Sackers](htt
 ## Contributing
 
 For development, contribution, architecture details, and release automation see [DEVELOPER.md](DEVELOPER.md).
+For apppublishing workflow see [docs/publishing.md](docs/publishing.md).
 
 ## Features
 
@@ -42,6 +43,12 @@ For development, contribution, architecture details, and release automation see 
 2. Install the **USB/IP Client** app.
 3. Configure the app options to specify the USB/IP server IP address, USB device bus IDs, and desired log level.
 4. Start the app.
+
+## Distribution and publishing
+
+- This repository is published as a **Home Assistant App repository**.
+- HACS is not used for publishing this app type.
+- If a HACS package is needed in the future, it must be delivered as a separate HACS-compatible repository (for example, integration/card/theme), not as this app.
 
 ### Development branch install
 
