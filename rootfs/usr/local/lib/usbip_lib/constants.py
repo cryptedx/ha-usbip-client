@@ -8,6 +8,16 @@ DEVICE_DETAILS_FILE = "/tmp/device_details.txt"
 ATTACHED_DEVICES_FILE = "/tmp/attached_devices.txt"
 DEVICE_MANIFEST_FILE = "/tmp/device_manifest.json"
 
+# Persistent files (/data survives addon restarts)
+LATENCY_HISTORY_FILE = "/data/usbip_latency_history.jsonl"
+
+# Latency history tuning
+LATENCY_HISTORY_WINDOW_SECONDS = 3600
+LATENCY_FLUSH_INTERVAL_SECONDS = 300
+LATENCY_HEARTBEAT_SECONDS = 900
+LATENCY_CHANGE_ABS_THRESHOLD_MS = 10.0
+LATENCY_CHANGE_REL_THRESHOLD = 0.2
+
 # System paths
 USB_IDS_FILE = "/usr/share/hwdata/usb.ids"
 

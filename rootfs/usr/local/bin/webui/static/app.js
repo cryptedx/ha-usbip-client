@@ -213,6 +213,173 @@ async function api(path, opts = {}) {
 }
 
 // ---- Dashboard ----
+function getLatencyPalette(index) {
+    const palette = ['var(--accent)', 'var(--warn)', 'var(--error)', 'var(--fg)', 'var(--fg-dim)'];
+    return palette[index % palette.length];
+}
+
+function buildLatencyPath(values, xForIndex, yForValue) {
+    let path = '';
+    let hasSegment = false;
+    for (let i = 0; i < values.length; i += 1) {
+        const value = values[i];
+        if (value === null || value === undefined || Number.isNaN(Number(value))) {
+            hasSegment = false;
+            continue;
+        }
+        const x = xForIndex(i);
+        const y = yForValue(Number(value));
+        if (!hasSegment) {
+            path += `M${x.toFixed(2)} ${y.toFixed(2)}`;
+            hasSegment = true;
+        } else {
+            path += ` L${x.toFixed(2)} ${y.toFixed(2)}`;
+        }
+    }
+    return path;
+}
+
+function renderLatencyGraph(history) {
+    const graphEl = document.getElementById('dash-latency-graph');
+    if (!graphEl) return;
+
+    if (!history || !history.series || !history.timestamps) {
+        graphEl.innerHTML = '<span class="dim">Latency history unavailable</span>';
+        return;
+    }
+
+    const servers = Object.keys(history.series || {});
+    const pointCount = (history.timestamps || []).length;
+    if (servers.length === 0 || pointCount === 0) {
+        graphEl.innerHTML = '<span class="dim">No latency history yet (up to 1h)</span>';
+        return;
+    }
+
+    const allValues = [];
+    servers.forEach(server => {
+        (history.series[server] || []).forEach(value => {
+            if (value !== null && value !== undefined && !Number.isNaN(Number(value))) {
+                allValues.push(Number(value));
+            }
+        });
+    });
+
+    if (allValues.length === 0) {
+        graphEl.innerHTML = '<span class="dim">All servers are currently offline</span>';
+        return;
+    }
+
+    const width = 640;
+    const height = 140;
+    const padLeft = 32;
+    const padRight = 8;
+    const padTop = 8;
+    const padBottom = 20;
+    const innerWidth = width - padLeft - padRight;
+    const innerHeight = height - padTop - padBottom;
+    const containerWidth = graphEl.clientWidth || width;
+
+    const maxValue = Math.max(...allValues);
+    const minValue = 0;
+    const valueRange = Math.max(10, maxValue - minValue);
+    const windowSeconds = Number(history.window_seconds) > 0 ? Number(history.window_seconds) : 3600;
+    const windowMs = windowSeconds * 1000;
+    const nowMs = Date.now();
+    const windowStartMs = nowMs - windowMs;
+    const parsedTimestamps = (history.timestamps || []).map((ts) => {
+        const parsed = Date.parse(ts);
+        return Number.isFinite(parsed) ? parsed : null;
+    });
+
+    const xForIndex = (i) => {
+        const ts = parsedTimestamps[i];
+        if (ts !== null) {
+            const clamped = Math.max(windowStartMs, Math.min(nowMs, ts));
+            const ratio = (clamped - windowStartMs) / windowMs;
+            return padLeft + ratio * innerWidth;
+        }
+        if (pointCount <= 1) return padLeft + innerWidth;
+        return padLeft + (i / (pointCount - 1)) * innerWidth;
+    };
+    const yForValue = (value) => {
+        const normalized = (value - minValue) / valueRange;
+        return padTop + (1 - normalized) * innerHeight;
+    };
+
+    const gridLines = [0, 0.5, 1].map((ratio) => {
+        const y = padTop + ratio * innerHeight;
+        return `<line class="latency-grid-line" x1="${padLeft}" y1="${y.toFixed(2)}" x2="${(width - padRight).toFixed(2)}" y2="${y.toFixed(2)}"></line>`;
+    }).join('');
+    const fullTimeMarkers = [
+        { ratio: 0, label: '-60m' },
+        { ratio: 0.25, label: '-45m' },
+        { ratio: 0.5, label: '-30m' },
+        { ratio: 0.75, label: '-15m' },
+        { ratio: 1, label: 'now' },
+    ];
+    const compactTimeMarkers = [
+        { ratio: 0, label: '-60m' },
+        { ratio: 0.5, label: '-30m' },
+        { ratio: 1, label: 'now' },
+    ];
+    const timeMarkers = containerWidth < 420 ? compactTimeMarkers : fullTimeMarkers;
+    const timeGridLines = timeMarkers.map((marker) => {
+        const x = padLeft + marker.ratio * innerWidth;
+        return `<line class="latency-grid-line" x1="${x.toFixed(2)}" y1="${padTop}" x2="${x.toFixed(2)}" y2="${(padTop + innerHeight).toFixed(2)}"></line>`;
+    }).join('');
+
+    const yTop = (minValue + valueRange).toFixed(0);
+    const yMid = (minValue + (valueRange / 2)).toFixed(0);
+    const yBottom = minValue.toFixed(0);
+
+    const lines = servers.map((server, idx) => {
+        const values = history.series[server] || [];
+        const path = buildLatencyPath(values, xForIndex, yForValue);
+        if (!path) return '';
+        const color = getLatencyPalette(idx);
+        return `<path class="latency-line" d="${path}" style="stroke:${color};"></path>`;
+    }).join('');
+    const points = servers.map((server, idx) => {
+        const values = history.series[server] || [];
+        const color = getLatencyPalette(idx);
+        return values.map((value, valueIdx) => {
+            if (value === null || value === undefined || Number.isNaN(Number(value))) {
+                return '';
+            }
+            const x = xForIndex(valueIdx);
+            const y = yForValue(Number(value));
+            return `<circle class="latency-point" cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="1.8" style="fill:${color};"></circle>`;
+        }).join('');
+    }).join('');
+
+    const labels = `
+        <text class="latency-axis-label" x="2" y="${(padTop + 4).toFixed(2)}">${esc(yTop)}ms</text>
+        <text class="latency-axis-label" x="2" y="${(padTop + innerHeight / 2 + 4).toFixed(2)}">${esc(yMid)}ms</text>
+        <text class="latency-axis-label" x="2" y="${(padTop + innerHeight + 4).toFixed(2)}">${esc(yBottom)}ms</text>
+        ${timeMarkers.map((marker) => {
+            const x = padLeft + marker.ratio * innerWidth;
+            const textAnchor = marker.ratio === 0 ? 'start' : marker.ratio === 1 ? 'end' : 'middle';
+            return `<text class="latency-axis-label" text-anchor="${textAnchor}" x="${x.toFixed(2)}" y="${(height - 4).toFixed(2)}">${marker.label}</text>`;
+        }).join('')}
+    `;
+
+    const legend = servers.map((server, idx) => {
+        const color = getLatencyPalette(idx);
+        return `<span class="latency-legend-item"><span class="latency-legend-dot" style="background:${color};"></span>${esc(server)}</span>`;
+    }).join('');
+
+    graphEl.innerHTML = `
+        <svg class="latency-graph" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="Latency over the last hour">
+            ${gridLines}
+            ${timeGridLines}
+            ${lines}
+            ${points}
+            ${labels}
+        </svg>
+        <div class="latency-legend">${legend}</div>
+    `;
+}
+
 async function refreshDashboard() {
     const [status, health, diagnostics] = await Promise.all([
         api('/api/status'),
@@ -237,8 +404,10 @@ async function refreshDashboard() {
                 return `<div class="item"><span>${icon} ${ip}</span><span class="${latClass}">${lat}</span></div>`;
             }).join('');
         }
+        renderLatencyGraph(health.history || {});
     } else {
         serversEl.innerHTML = '<span class="dim">Health check pending...</span>';
+        renderLatencyGraph(null);
     }
 
     // Devices

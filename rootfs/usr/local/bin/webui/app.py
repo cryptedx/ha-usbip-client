@@ -4,6 +4,8 @@
 import json
 import os
 import re
+import signal
+import atexit
 import threading
 import time
 import urllib.request
@@ -23,10 +25,21 @@ from usbip_lib.config import (
 )
 from usbip_lib.constants import (
     EVENTS_FILE,
+    LATENCY_CHANGE_ABS_THRESHOLD_MS,
+    LATENCY_CHANGE_REL_THRESHOLD,
+    LATENCY_FLUSH_INTERVAL_SECONDS,
+    LATENCY_HEARTBEAT_SECONDS,
+    LATENCY_HISTORY_FILE,
+    LATENCY_HISTORY_WINDOW_SECONDS,
     SUPERVISOR_TOKEN,
     SUPERVISOR_URL,
 )
 from usbip_lib.events import now_iso, read_events, write_event
+from usbip_lib.latency_history import (
+    append_latency_samples,
+    read_latency_window,
+    should_persist_change,
+)
 from usbip_lib.usbip import (
     detach_all,
     lookup_usb_name,
@@ -70,6 +83,87 @@ log_lock = threading.Lock()
 _log_seq: int = 0  # monotonic sequence counter for dedup
 health_state: dict = {}  # server_ip -> {latency_ms, online, last_check}
 health_lock = threading.Lock()
+latency_lock = threading.Lock()
+latency_buffer: list[dict] = []
+last_persisted_latency: dict[str, float | None] = {}
+last_latency_flush_ts: float = 0.0
+last_latency_heartbeat_ts: float = 0.0
+
+
+def _flush_latency_buffer(force: bool = False) -> bool:
+    """Flush buffered latency samples to persistent JSONL history file."""
+    global last_latency_flush_ts
+
+    with latency_lock:
+        if not latency_buffer:
+            return True
+
+        now_ts = time.time()
+        if (not force) and (
+            now_ts - last_latency_flush_ts < LATENCY_FLUSH_INTERVAL_SECONDS
+        ):
+            return True
+
+        batch = list(latency_buffer)
+
+    ok = append_latency_samples(
+        batch,
+        history_file=LATENCY_HISTORY_FILE,
+        window_seconds=LATENCY_HISTORY_WINDOW_SECONDS,
+    )
+    if not ok:
+        return False
+
+    with latency_lock:
+        if len(latency_buffer) >= len(batch) and latency_buffer[: len(batch)] == batch:
+            del latency_buffer[: len(batch)]
+        else:
+            latency_buffer.clear()
+        last_latency_flush_ts = now_ts
+    return True
+
+
+def _merge_pending_latency_samples(history: dict, pending_samples: list[dict]) -> dict:
+    """Merge unflushed in-memory latency samples into API history payload."""
+    timestamps = list(history.get("timestamps", []))
+    series_in = history.get("series", {})
+    series: dict[str, list[float | None]] = {
+        str(server): list(values or []) for server, values in series_in.items()
+    }
+
+    # Keep all series aligned with current timestamp length.
+    for server in list(series.keys()):
+        if len(series[server]) < len(timestamps):
+            series[server].extend([None] * (len(timestamps) - len(series[server])))
+
+    seen_timestamps = set(timestamps)
+    for sample in pending_samples:
+        ts = sample.get("ts")
+        if not ts or ts in seen_timestamps:
+            continue
+
+        sample_servers = sample.get("servers") if isinstance(sample, dict) else {}
+        if not isinstance(sample_servers, dict):
+            sample_servers = {}
+
+        for server in sample_servers.keys():
+            server_name = str(server)
+            if server_name not in series:
+                series[server_name] = [None] * len(timestamps)
+
+        timestamps.append(ts)
+        seen_timestamps.add(ts)
+        for server in list(series.keys()):
+            series[server].append(sample_servers.get(server))
+
+    return {
+        "window_seconds": history.get("window_seconds", LATENCY_HISTORY_WINDOW_SECONDS),
+        "sample_interval_seconds": history.get(
+            "sample_interval_seconds", HEALTH_INTERVAL
+        ),
+        "timestamps": timestamps,
+        "series": series,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -154,6 +248,8 @@ def _classify_usbip_error(raw_error: str, server: str = "", target: str = "") ->
 # ---------------------------------------------------------------------------
 def _health_checker():
     """Periodically check server health and device attachment."""
+    global last_latency_heartbeat_ts
+
     while True:
         try:
             config = get_app_config()
@@ -167,8 +263,10 @@ def _health_checker():
                     servers.add(srv)
 
             new_state = {}
+            sample_servers: dict[str, float | None] = {}
             for srv in servers:
                 latency = ping_server(srv)
+                sample_servers[srv] = latency
                 new_state[srv] = {
                     "online": latency is not None,
                     "latency_ms": latency,
@@ -177,6 +275,39 @@ def _health_checker():
             with health_lock:
                 health_state.clear()
                 health_state.update(new_state)
+
+            sample = {
+                "ts": now_iso(),
+                "servers": sample_servers,
+            }
+
+            with latency_lock:
+                latency_buffer.append(sample)
+                now_ts = time.time()
+
+                changed = False
+                for srv, current in sample_servers.items():
+                    previous = last_persisted_latency.get(srv)
+                    if should_persist_change(
+                        previous,
+                        current,
+                        abs_threshold_ms=LATENCY_CHANGE_ABS_THRESHOLD_MS,
+                        rel_threshold=LATENCY_CHANGE_REL_THRESHOLD,
+                    ):
+                        changed = True
+                    last_persisted_latency[srv] = current
+
+                heartbeat_due = (
+                    now_ts - last_latency_heartbeat_ts
+                ) >= LATENCY_HEARTBEAT_SECONDS
+                flush_due = (
+                    now_ts - last_latency_flush_ts
+                ) >= LATENCY_FLUSH_INTERVAL_SECONDS
+
+            if changed or heartbeat_due or flush_due:
+                if _flush_latency_buffer(force=True) and heartbeat_due:
+                    with latency_lock:
+                        last_latency_heartbeat_ts = now_ts
         except Exception:
             pass
         time.sleep(HEALTH_INTERVAL)
@@ -615,7 +746,29 @@ def api_events_clear():
 def api_health():
     with health_lock:
         state = dict(health_state)
-    return jsonify({"ok": True, "servers": state})
+    server_ips = sorted(state.keys()) if state else None
+    history = read_latency_window(
+        server_ips=server_ips,
+        history_file=LATENCY_HISTORY_FILE,
+        window_seconds=LATENCY_HISTORY_WINDOW_SECONDS,
+    )
+    if not history.get("timestamps") and state:
+        history = {
+            "window_seconds": LATENCY_HISTORY_WINDOW_SECONDS,
+            "sample_interval_seconds": HEALTH_INTERVAL,
+            "timestamps": [now_iso()],
+            "series": {
+                server_ip: [payload.get("latency_ms")]
+                for server_ip, payload in state.items()
+            },
+        }
+
+    with latency_lock:
+        pending_samples = list(latency_buffer)
+    if pending_samples:
+        history = _merge_pending_latency_samples(history, pending_samples)
+
+    return jsonify({"ok": True, "servers": state, "history": history})
 
 
 @app.route("/api/scan", methods=["POST"])
@@ -784,6 +937,14 @@ def ws_logs_connect():
 # Main
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
+
+    def _flush_latency_on_exit(*_args):
+        _flush_latency_buffer(force=True)
+
+    atexit.register(_flush_latency_on_exit)
+    signal.signal(signal.SIGTERM, _flush_latency_on_exit)
+    signal.signal(signal.SIGINT, _flush_latency_on_exit)
+
     # Start background threads
     threading.Thread(target=_health_checker, daemon=True).start()
     threading.Thread(target=_log_tailer, daemon=True).start()

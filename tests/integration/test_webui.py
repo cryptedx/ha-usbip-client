@@ -29,13 +29,17 @@ def mock_usbip_env(mocker, tmp_path):
     """Set up a fully mocked environment for the Flask app."""
     # Mock constants to use temp files
     events_file = str(tmp_path / "events.jsonl")
+    latency_file = str(tmp_path / "latency_history.jsonl")
     mocker.patch("usbip_lib.constants.EVENTS_FILE", events_file)
     mocker.patch("usbip_lib.events.EVENTS_FILE", events_file)
+    mocker.patch("usbip_lib.constants.LATENCY_HISTORY_FILE", latency_file)
+    mocker.patch("usbip_lib.latency_history.LATENCY_HISTORY_FILE", latency_file)
 
     # Also patch the EVENTS_FILE binding in app module (from-import creates a copy)
     import app as app_module
 
     mocker.patch.object(app_module, "EVENTS_FILE", events_file)
+    mocker.patch.object(app_module, "LATENCY_HISTORY_FILE", latency_file)
 
     # Mock supervisor API
     def _make_response(data):
@@ -56,6 +60,7 @@ def mock_usbip_env(mocker, tmp_path):
         "urlopen": mock_urlopen,
         "subprocess": mock_run,
         "events_file": events_file,
+        "latency_file": latency_file,
     }
 
 
@@ -154,6 +159,13 @@ class TestIndexPage:
         html = resp.get_data(as_text=True)
 
         assert 'id="dash-diagnostics"' in html
+
+    def test_dashboard_includes_latency_graph_container(self, client):
+        """Dashboard renders server-latency graph container server-side."""
+        resp = client.get("/")
+        html = resp.get_data(as_text=True)
+
+        assert 'id="dash-latency-graph"' in html
 
     def test_cookie_active_tab_renders_devices_as_active(self, client):
         """Initial active tab is rendered from cookie for full ingress reload compatibility."""
@@ -437,6 +449,18 @@ class TestStaticAppJsCompatibility:
         assert "loadTabData(activeButton.dataset.tab);" in js
         assert "else if (tab === 'events') refreshEvents();" in js
 
+    def test_dashboard_js_includes_latency_graph_renderer(self, client):
+        """Served app.js includes dashboard latency graph renderer hooks."""
+        resp = client.get("/static/app.js")
+        assert resp.status_code == 200
+        js = resp.get_data(as_text=True)
+
+        assert "function renderLatencyGraph(history)" in js
+        assert "document.getElementById('dash-latency-graph')" in js
+        assert "Latency over the last hour" in js
+        assert "-45m" in js
+        assert "-15m" in js
+
 
 class TestStaticCssCompatibility:
     def test_served_stylesheet_includes_custom_vertical_scrollbar(self, client):
@@ -450,6 +474,16 @@ class TestStaticCssCompatibility:
         assert "#app-scroll {" in css
         assert "#app-scroll::-webkit-scrollbar" in css
         assert "#app-scroll *::-webkit-scrollbar-thumb:hover" in css
+
+    def test_served_stylesheet_includes_latency_graph_styles(self, client):
+        """Served style.css includes dashboard latency graph classes."""
+        resp = client.get("/static/style.css")
+        assert resp.status_code == 200
+        css = resp.get_data(as_text=True)
+
+        assert ".latency-graph-wrap" in css
+        assert ".latency-graph" in css
+        assert ".latency-legend" in css
 
 
 class TestApiStatus:
@@ -804,6 +838,47 @@ class TestApiHealth:
         data = resp.get_json()
         assert data["ok"] is True
         assert "servers" in data
+        assert "history" in data
+        assert "timestamps" in data["history"]
+        assert "series" in data["history"]
+
+    def test_includes_pending_latency_buffer_samples(self, client):
+        import app as app_module
+
+        with app_module.health_lock:
+            app_module.health_state.clear()
+            app_module.health_state.update(
+                {
+                    "192.168.1.44": {
+                        "online": True,
+                        "latency_ms": 1.2,
+                        "last_check": "2026-02-17T10:00:00Z",
+                    }
+                }
+            )
+        with app_module.latency_lock:
+            app_module.latency_buffer.clear()
+            app_module.latency_buffer.extend(
+                [
+                    {
+                        "ts": "2026-02-17T10:00:30Z",
+                        "servers": {"192.168.1.44": 1.3},
+                    },
+                    {
+                        "ts": "2026-02-17T10:01:00Z",
+                        "servers": {"192.168.1.44": 1.4},
+                    },
+                ]
+            )
+
+        resp = client.get("/api/health")
+        data = resp.get_json()
+
+        assert data["ok"] is True
+        assert len(data["history"]["timestamps"]) >= 2
+        series = data["history"]["series"].get("192.168.1.44", [])
+        assert any(v == 1.3 for v in series)
+        assert any(v == 1.4 for v in series)
 
 
 class TestApiDiagnostics:

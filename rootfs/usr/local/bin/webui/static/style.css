@@ -372,6 +372,61 @@ body {
     border-bottom: none;
 }
 
+/* ---------- Dashboard latency graph ---------- */
+.latency-graph-wrap {
+    margin-top: .5rem;
+    border-top: 1px dashed var(--border);
+    padding-top: .5rem;
+}
+
+.latency-graph {
+    width: 100%;
+    height: 140px;
+    display: block;
+}
+
+.latency-grid-line {
+    stroke: var(--border);
+    stroke-width: 1;
+}
+
+.latency-axis-label {
+    fill: var(--fg-dim);
+    font-size: 10px;
+    font-family: inherit;
+}
+
+.latency-legend {
+    margin-top: .5rem;
+    display: flex;
+    gap: .5rem;
+    flex-wrap: wrap;
+    font-size: 11px;
+}
+
+.latency-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    color: var(--fg-dim);
+}
+
+.latency-legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.latency-line {
+    fill: none;
+    stroke-width: 2;
+}
+
+.latency-point {
+    opacity: .95;
+}
+
 /* ---------- Tables ---------- */
 .table-wrap {
     overflow-x: auto;
