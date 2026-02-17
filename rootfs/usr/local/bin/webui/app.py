@@ -314,7 +314,7 @@ def _template_globals():
 
     return {
         "ingress_path": ingress_path,
-        "version": "0.5.2-beta.2",
+        "version": "0.5.2-beta.3",
         "asset_stamp": asset_stamp,
     }
 

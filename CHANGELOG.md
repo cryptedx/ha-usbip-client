@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.5.2-beta.3] - 2026-02-17
+
 ### Changed
 
 - **Security Defaults**: Enabled AppArmor by default and aligned the profile with actual addon runtime paths and Python services.
