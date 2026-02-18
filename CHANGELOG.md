@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [0.5.2-beta.5] - 2026-02-18
+
+### Removed
+
+- **32-Bit Architecture Support (BREAKING)**: Dropped `armhf`, `armv7`, and `i386` architectures following Home Assistant's official deprecation timeline (unsupported since 2025.12). Users on 32-bit systems must migrate to 64-bit-compatible hardware. Supported architectures are now `aarch64` and `amd64`.
+
 ## [0.5.2-beta.4] - 2026-02-17
 
 ### Changed
