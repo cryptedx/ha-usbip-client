@@ -44,6 +44,20 @@ class TestWriteEvent:
         assert data["server"] == "192.168.1.44"
         assert "ts" in data
 
+    def test_includes_optional_data_payload(self, tmp_events_file):
+        write_event(
+            "flap_warning",
+            "unstable",
+            device="Stick",
+            server="192.168.1.44",
+            data={"device_key": "192.168.1.44:1-1.4", "count": 3},
+            events_file=tmp_events_file,
+        )
+        with open(tmp_events_file) as f:
+            data = json.loads(f.readline())
+        assert data["data"]["device_key"] == "192.168.1.44:1-1.4"
+        assert data["data"]["count"] == 3
+
     def test_write_to_bad_path(self):
         # Should not raise
         write_event("test", "detail", events_file="/nonexistent/path/events.jsonl")

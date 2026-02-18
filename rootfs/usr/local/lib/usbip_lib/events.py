@@ -17,6 +17,7 @@ def write_event(
     detail: str,
     device: str = "",
     server: str = "",
+    data: dict | None = None,
     events_file: str | None = None,
 ) -> None:
     """Append an event to the JSONL event log.
@@ -37,6 +38,8 @@ def write_event(
         "server": server,
         "detail": detail,
     }
+    if data is not None:
+        entry["data"] = data
     try:
         with open(events_file, "a") as f:
             f.write(json.dumps(entry) + "\n")

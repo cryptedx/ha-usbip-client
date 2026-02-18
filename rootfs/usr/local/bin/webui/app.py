@@ -62,6 +62,7 @@ VALID_WEBUI_TABS = {
     "events",
     "config",
 }
+FLAPPING_LEVEL_RANK = {"none": 0, "warning": 1, "critical": 2}
 
 app = Flask(
     __name__,
@@ -241,6 +242,65 @@ def _classify_usbip_error(raw_error: str, server: str = "", target: str = "") ->
         )
 
     return error
+
+
+def _build_flapping_warning_state(limit: int = 500) -> dict:
+    """Build active flapping warning state from recent events."""
+    active_by_key: dict[str, dict] = {}
+
+    for event in read_events(limit):
+        event_type = event.get("type", "")
+        payload = event.get("data", {})
+        if not isinstance(payload, dict):
+            payload = {}
+
+        device_key = payload.get("device_key")
+        if not device_key:
+            device_key = f"{event.get('server', '')}:{event.get('device', '')}"
+
+        if event_type == "flap_cleared":
+            active_by_key.pop(device_key, None)
+            continue
+
+        if event_type not in {"flap_warning", "flap_critical"}:
+            continue
+
+        level = payload.get("level", "warning")
+        if level not in {"warning", "critical"}:
+            level = "warning"
+
+        active_by_key[device_key] = {
+            "device_key": device_key,
+            "device": event.get("device", ""),
+            "server": event.get("server", ""),
+            "level": level,
+            "count": payload.get("count"),
+            "window_seconds": payload.get("window_seconds"),
+            "last_event_ts": event.get("ts", ""),
+        }
+
+    active_devices = sorted(
+        active_by_key.values(),
+        key=lambda item: (
+            FLAPPING_LEVEL_RANK.get(item.get("level", "none"), 0),
+            item.get("device_key", ""),
+        ),
+        reverse=True,
+    )
+
+    highest_level = "none"
+    for item in active_devices:
+        if item.get("level") == "critical":
+            highest_level = "critical"
+            break
+        if item.get("level") == "warning":
+            highest_level = "warning"
+
+    return {
+        "total": len(active_devices),
+        "highest_level": highest_level,
+        "devices": active_devices,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -486,7 +546,13 @@ def api_status():
     for d in devices:
         if d.get("device_id"):
             d["usb_name"] = lookup_usb_name(d["device_id"])
-    return jsonify({"ok": True, "devices": devices})
+    return jsonify(
+        {
+            "ok": True,
+            "devices": devices,
+            "warnings": {"flapping": _build_flapping_warning_state()},
+        }
+    )
 
 
 @app.route("/api/discover")

@@ -170,6 +170,26 @@ class TestSendHaNotification:
 
         mock_supervisor_request.assert_not_called()
 
+    def test_bypass_type_filter_still_sends(self, mocker):
+        mocker.patch(
+            "usbip_lib.config.get_app_config",
+            return_value={
+                "notifications_enabled": True,
+                "notification_types": ["device_lost"],
+            },
+        )
+        mock_supervisor_request = mocker.patch("usbip_lib.config.supervisor_request")
+
+        send_ha_notification(
+            "Title",
+            "Message",
+            notification_type="flap_critical",
+            bypass_type_filter=True,
+            token="test-token",
+        )
+
+        mock_supervisor_request.assert_called_once()
+
 
 class TestNormalizeNotificationConfig:
     def test_returns_empty_for_non_dict(self):
@@ -190,6 +210,8 @@ class TestNormalizeNotificationConfig:
             "device_lost",
             "device_recovered",
             "reattach_failed",
+            "flap_warning",
+            "flap_critical",
             "app_down",
             "app_restarted",
             "app_restart_failed",

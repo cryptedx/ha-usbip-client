@@ -1,16 +1,18 @@
 """Unit tests for the monitor service logic."""
 
 import json
-import time
 
 import pytest
 
 from usbip_lib.monitor import (
     attempt_reattach,
     check_dependent_app_health,
+    clear_flapping_state,
     clear_cooldowns,
+    evaluate_flapping_clear,
     find_missing_devices,
     is_on_cooldown,
+    record_flapping_recovery,
     restart_dependent_apps,
     set_cooldown,
 )
@@ -159,6 +161,51 @@ class TestReattachLogic:
             delay=0,
         )
         assert ok is False
+
+
+class TestFlappingDetection:
+    def setup_method(self):
+        clear_flapping_state()
+
+    def test_escalates_to_warning_and_critical(self):
+        device_key = "192.168.1.44:1-1.4"
+
+        assert record_flapping_recovery(device_key, now=1000.0) is None
+        assert record_flapping_recovery(device_key, now=1010.0) is None
+
+        warning = record_flapping_recovery(device_key, now=1020.0)
+        assert warning is not None
+        assert warning["level"] == "warning"
+        assert warning["count"] == 3
+
+        assert record_flapping_recovery(device_key, now=1030.0) is None
+
+        critical = record_flapping_recovery(device_key, now=1040.0)
+        assert critical is not None
+        assert critical["level"] == "critical"
+        assert critical["count"] == 5
+
+    def test_window_pruning_prevents_false_escalation(self):
+        device_key = "192.168.1.44:1-1.4"
+
+        assert record_flapping_recovery(device_key, now=1000.0) is None
+        assert record_flapping_recovery(device_key, now=1010.0) is None
+        # older recoveries fall outside 600s window
+        assert record_flapping_recovery(device_key, now=1701.0) is None
+
+    def test_clears_after_stable_window(self):
+        device_key = "192.168.1.44:1-1.4"
+        record_flapping_recovery(device_key, now=1000.0)
+        record_flapping_recovery(device_key, now=1010.0)
+        warning = record_flapping_recovery(device_key, now=1020.0)
+        assert warning and warning["level"] == "warning"
+
+        assert evaluate_flapping_clear(device_key, now=1800.0) is None
+
+        cleared = evaluate_flapping_clear(device_key, now=1925.0)
+        assert cleared is not None
+        assert cleared["level"] == "none"
+        assert cleared["previous_level"] == "warning"
 
 
 class TestDependentAppRestart:

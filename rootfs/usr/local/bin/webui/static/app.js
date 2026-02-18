@@ -20,6 +20,8 @@ const NOTIFICATION_TYPES = [
     'device_lost',
     'device_recovered',
     'reattach_failed',
+    'flap_warning',
+    'flap_critical',
     'app_down',
     'app_restarted',
     'app_restart_failed',
@@ -357,10 +359,10 @@ function renderLatencyGraph(history) {
         <text class="latency-axis-label" x="2" y="${(padTop + innerHeight / 2 + 4).toFixed(2)}">${esc(yMid)}ms</text>
         <text class="latency-axis-label" x="2" y="${(padTop + innerHeight + 4).toFixed(2)}">${esc(yBottom)}ms</text>
         ${timeMarkers.map((marker) => {
-            const x = padLeft + marker.ratio * innerWidth;
-            const textAnchor = marker.ratio === 0 ? 'start' : marker.ratio === 1 ? 'end' : 'middle';
-            return `<text class="latency-axis-label" text-anchor="${textAnchor}" x="${x.toFixed(2)}" y="${(height - 4).toFixed(2)}">${marker.label}</text>`;
-        }).join('')}
+        const x = padLeft + marker.ratio * innerWidth;
+        const textAnchor = marker.ratio === 0 ? 'start' : marker.ratio === 1 ? 'end' : 'middle';
+        return `<text class="latency-axis-label" text-anchor="${textAnchor}" x="${x.toFixed(2)}" y="${(height - 4).toFixed(2)}">${marker.label}</text>`;
+    }).join('')}
     `;
 
     const legend = servers.map((server, idx) => {
@@ -433,7 +435,15 @@ async function refreshDashboard() {
     // Badge
     const badge = document.getElementById('status-badge');
     if (badge) {
-        if (status.ok && (status.devices || []).length > 0) {
+        const flapping = status?.warnings?.flapping || {};
+        const flappingLevel = flapping.highest_level || 'none';
+        if (status.ok && flappingLevel === 'critical') {
+            badge.className = 'badge badge-error';
+            badge.textContent = '▲ FLAPPING CRITICAL';
+        } else if (status.ok && flappingLevel === 'warning') {
+            badge.className = 'badge badge-warn';
+            badge.textContent = '▲ FLAPPING WARN';
+        } else if (status.ok && (status.devices || []).length > 0) {
             badge.className = 'badge badge-ok';
             badge.textContent = '● ONLINE';
         } else {

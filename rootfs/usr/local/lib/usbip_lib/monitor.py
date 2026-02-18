@@ -16,6 +16,15 @@ from .usbip import attach_device
 _notification_cooldowns: dict[str, float] = {}
 COOLDOWN_SECONDS = 300  # 5 minutes
 
+# Flapping detection defaults
+FLAP_WINDOW_SECONDS = 600
+FLAP_WARNING_THRESHOLD = 3
+FLAP_CRITICAL_THRESHOLD = 5
+FLAP_CLEAR_STABLE_SECONDS = 900
+
+# Per-device flapping state: device_key -> state data
+_flapping_state: dict[str, dict] = {}
+
 # Track previous app health to avoid repeated alerts
 _app_health_prev: dict[str, str] = {}
 
@@ -34,6 +43,95 @@ def set_cooldown(device_key: str) -> None:
 def clear_cooldowns() -> None:
     """Reset all notification cooldowns (useful for testing)."""
     _notification_cooldowns.clear()
+
+
+def clear_flapping_state() -> None:
+    """Reset all flapping tracking state (useful for testing)."""
+    _flapping_state.clear()
+
+
+def record_flapping_recovery(device_key: str, now: float | None = None) -> dict | None:
+    """Record a successful recovery and evaluate flapping escalation.
+
+    Args:
+        device_key: Unique key for a device (typically server:bus_id).
+        now: Optional monotonic timestamp override for tests.
+
+    Returns:
+        A dict describing a level change when escalation occurred, else None.
+    """
+    now_ts = time.monotonic() if now is None else now
+    state = _flapping_state.setdefault(
+        device_key,
+        {
+            "recoveries": [],
+            "level": "none",
+            "last_recovery_ts": 0.0,
+        },
+    )
+
+    window_start = now_ts - FLAP_WINDOW_SECONDS
+    recoveries = [ts for ts in state["recoveries"] if ts >= window_start]
+    recoveries.append(now_ts)
+
+    previous_level = state["level"]
+    recovery_count = len(recoveries)
+
+    if recovery_count >= FLAP_CRITICAL_THRESHOLD:
+        new_level = "critical"
+    elif recovery_count >= FLAP_WARNING_THRESHOLD:
+        new_level = "warning"
+    else:
+        new_level = "none"
+
+    state["recoveries"] = recoveries
+    state["last_recovery_ts"] = now_ts
+    state["level"] = new_level
+
+    if new_level == previous_level or new_level == "none":
+        return None
+
+    return {
+        "device_key": device_key,
+        "level": new_level,
+        "count": recovery_count,
+        "window_seconds": FLAP_WINDOW_SECONDS,
+    }
+
+
+def evaluate_flapping_clear(device_key: str, now: float | None = None) -> dict | None:
+    """Evaluate whether a flapping warning should be cleared due to stability.
+
+    Args:
+        device_key: Unique key for a device (typically server:bus_id).
+        now: Optional monotonic timestamp override for tests.
+
+    Returns:
+        A dict describing clear transition when cleared, else None.
+    """
+    state = _flapping_state.get(device_key)
+    if not state:
+        return None
+
+    current_level = state.get("level", "none")
+    if current_level == "none":
+        return None
+
+    now_ts = time.monotonic() if now is None else now
+    last_recovery_ts = float(state.get("last_recovery_ts", 0.0))
+    if (now_ts - last_recovery_ts) < FLAP_CLEAR_STABLE_SECONDS:
+        return None
+
+    previous_level = current_level
+    state["recoveries"] = []
+    state["level"] = "none"
+
+    return {
+        "device_key": device_key,
+        "level": "none",
+        "previous_level": previous_level,
+        "stable_seconds": FLAP_CLEAR_STABLE_SECONDS,
+    }
 
 
 def find_missing_devices(manifest: list[dict], attached: list[dict]) -> list[dict]:

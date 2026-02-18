@@ -861,6 +861,18 @@ select option {
     color: var(--error);
 }
 
+.event-type.flap_warning {
+    color: var(--warn);
+}
+
+.event-type.flap_critical {
+    color: var(--error);
+}
+
+.event-type.flap_cleared {
+    color: var(--accent);
+}
+
 .event-type.detach_ok,
 .event-type.detach_all {
     color: var(--warn);

@@ -10,6 +10,8 @@ NOTIFICATION_TYPES = [
     "device_lost",
     "device_recovered",
     "reattach_failed",
+    "flap_warning",
+    "flap_critical",
     "app_down",
     "app_restarted",
     "app_restart_failed",
@@ -164,6 +166,7 @@ def send_ha_notification(
     title: str,
     message: str,
     notification_type: str | None = None,
+    bypass_type_filter: bool = False,
     token: str = SUPERVISOR_TOKEN,
     base_url: str = SUPERVISOR_URL,
 ) -> None:
@@ -179,7 +182,7 @@ def send_ha_notification(
     if not config.get("notifications_enabled", True):
         return
 
-    if notification_type:
+    if notification_type and not bypass_type_filter:
         allowed_types = config.get("notification_types", NOTIFICATION_TYPES)
         if notification_type not in allowed_types:
             return

@@ -61,6 +61,8 @@ SAMPLE_APP_CONFIG = {
         "device_lost",
         "device_recovered",
         "reattach_failed",
+        "flap_warning",
+        "flap_critical",
         "app_down",
         "app_restarted",
         "app_restart_failed",

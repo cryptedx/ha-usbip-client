@@ -120,6 +120,8 @@ class TestIndexPage:
         assert 'id="cfg-notif-type-device_lost"' in html
         assert 'id="cfg-notif-type-device_recovered"' in html
         assert 'id="cfg-notif-type-reattach_failed"' in html
+        assert 'id="cfg-notif-type-flap_warning"' in html
+        assert 'id="cfg-notif-type-flap_critical"' in html
         assert 'id="cfg-notif-type-app_down"' in html
         assert 'id="cfg-notif-type-app_restarted"' in html
         assert 'id="cfg-notif-type-app_restart_failed"' in html
@@ -503,6 +505,31 @@ class TestApiStatus:
         assert data["ok"] is True
         assert data["devices"] == []
 
+    def test_includes_flapping_warning_state(self, client, mock_usbip_env):
+        from usbip_lib.events import write_event
+
+        write_event(
+            "flap_warning",
+            "unstable",
+            device="Z-Wave Stick",
+            server="192.168.1.44",
+            data={
+                "device_key": "192.168.1.44:1-1.4",
+                "count": 3,
+                "window_seconds": 600,
+                "level": "warning",
+            },
+            events_file=mock_usbip_env["events_file"],
+        )
+
+        resp = client.get("/api/status")
+        data = resp.get_json()
+
+        assert data["ok"] is True
+        assert data["warnings"]["flapping"]["total"] == 1
+        assert data["warnings"]["flapping"]["highest_level"] == "warning"
+        assert data["warnings"]["flapping"]["devices"][0]["device"] == "Z-Wave Stick"
+
 
 class TestApiDiscover:
     def test_requires_server(self, client):
@@ -778,6 +805,8 @@ class TestApiConfig:
                     "device_lost",
                     "device_recovered",
                     "reattach_failed",
+                    "flap_warning",
+                    "flap_critical",
                     "app_down",
                     "app_restarted",
                     "app_restart_failed",

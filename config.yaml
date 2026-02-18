@@ -41,6 +41,8 @@ options:
     - device_lost
     - device_recovered
     - reattach_failed
+    - flap_warning
+    - flap_critical
     - app_down
     - app_restarted
     - app_restart_failed
@@ -65,7 +67,7 @@ schema:
   restart_retries: "int(0,10)?"
   notifications_enabled: "bool?"
   notification_types:
-    - list(device_lost|device_recovered|reattach_failed|app_down|app_restarted|app_restart_failed|device_attached|device_detached)
+    - list(device_lost|device_recovered|reattach_failed|flap_warning|flap_critical|app_down|app_restarted|app_restart_failed|device_attached|device_detached)
   dependent_apps:
     - name: str
       slug: str

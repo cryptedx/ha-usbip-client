@@ -20,8 +20,10 @@ from usbip_lib.logging_setup import setup_logging
 from usbip_lib.monitor import (
     attempt_reattach,
     check_dependent_app_health,
+    evaluate_flapping_clear,
     find_missing_devices,
     is_on_cooldown,
+    record_flapping_recovery,
     restart_dependent_apps,
     set_cooldown,
 )
@@ -117,6 +119,63 @@ def main() -> int:
                             device=name,
                             server=dev.get("server", ""),
                         )
+
+                        flap_change = record_flapping_recovery(device_key)
+                        if flap_change:
+                            flap_level = flap_change["level"]
+                            flap_count = flap_change["count"]
+                            flap_window_seconds = flap_change["window_seconds"]
+                            if flap_level == "warning":
+                                write_event(
+                                    "flap_warning",
+                                    (
+                                        f"Flapping detected for {name}: "
+                                        f"{flap_count} recoveries in {flap_window_seconds}s"
+                                    ),
+                                    device=name,
+                                    server=dev.get("server", ""),
+                                    data={
+                                        "device_key": device_key,
+                                        "count": flap_count,
+                                        "window_seconds": flap_window_seconds,
+                                        "level": "warning",
+                                    },
+                                )
+                                if not is_on_cooldown(f"flap_warn:{device_key}"):
+                                    send_ha_notification(
+                                        "USB/IP: Device Flapping Warning",
+                                        (
+                                            f"{name} ({bus_id}) is unstable: "
+                                            f"{flap_count} recoveries in {flap_window_seconds}s."
+                                        ),
+                                        notification_type="flap_warning",
+                                    )
+                                    set_cooldown(f"flap_warn:{device_key}")
+                            elif flap_level == "critical":
+                                write_event(
+                                    "flap_critical",
+                                    (
+                                        f"Flapping critical for {name}: "
+                                        f"{flap_count} recoveries in {flap_window_seconds}s"
+                                    ),
+                                    device=name,
+                                    server=dev.get("server", ""),
+                                    data={
+                                        "device_key": device_key,
+                                        "count": flap_count,
+                                        "window_seconds": flap_window_seconds,
+                                        "level": "critical",
+                                    },
+                                )
+                                send_ha_notification(
+                                    "USB/IP: Device Flapping Critical",
+                                    (
+                                        f"{name} ({bus_id}) is critically unstable: "
+                                        f"{flap_count} recoveries in {flap_window_seconds}s."
+                                    ),
+                                    notification_type="flap_critical",
+                                    bypass_type_filter=True,
+                                )
                     else:
                         if not is_on_cooldown(f"fail:{device_key}"):
                             send_ha_notification(
@@ -133,6 +192,36 @@ def main() -> int:
                     restart_dependent_apps(dependent_apps, restart_retries, logger)
             else:
                 logger.debug("All %d expected device(s) are attached.", len(manifest))
+
+            for dev in manifest:
+                bus_id = dev.get("bus_id", "")
+                name = dev.get("name", bus_id)
+                device_key = f"{dev.get('server', '')}:{bus_id}"
+                flap_clear = evaluate_flapping_clear(device_key)
+                if flap_clear:
+                    write_event(
+                        "flap_cleared",
+                        (
+                            f"Flapping cleared for {name} after "
+                            f"{flap_clear['stable_seconds']}s stable period"
+                        ),
+                        device=name,
+                        server=dev.get("server", ""),
+                        data={
+                            "device_key": device_key,
+                            "stable_seconds": flap_clear["stable_seconds"],
+                            "level": "none",
+                            "previous_level": flap_clear["previous_level"],
+                        },
+                    )
+                    send_ha_notification(
+                        "USB/IP: Device Flapping Cleared",
+                        (
+                            f"{name} ({bus_id}) has been stable for "
+                            f"{flap_clear['stable_seconds']}s."
+                        ),
+                        notification_type="flap_warning",
+                    )
 
             # Check dependent app health regardless of device status
             if dependent_apps:

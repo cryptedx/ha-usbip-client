@@ -35,18 +35,11 @@
                 "command": "ha apps rebuild local_ha_usbip_client"
             },
             {
-                "name": "🗑️ Uninstall USBIP",
+                "name": "📦 Un/Install USBIP",
                 "singleInstance": true,
                 "focus": true,
                 "color": "yellow",
-                "command": "ha apps uninstall local_ha_usbip_client"
-            },
-            {
-                "name": "📦 Install USBIP",
-                "singleInstance": true,
-                "focus": true,
-                "color": "cyan",
-                "command": "ha apps install local_ha_usbip_client"
+                "command": "ha apps uninstall local_ha_usbip_client && ha apps install local_ha_usbip_client"
             },
             {
                 "name": "📜 Logs USBIP (follow)",
