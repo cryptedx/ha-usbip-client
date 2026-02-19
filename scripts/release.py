@@ -85,6 +85,9 @@ def ensure_remote_tag_absent(tag: str) -> None:
 
 
 def stage_release_files() -> None:
+    # Stage all tracked modifications so code changes are not accidentally left out.
+    run_git("add", "--update")
+    # Explicitly stage version files in case any are new/untracked (e.g. fresh clone).
     run_git(
         "add",
         str(CONFIG_PATH.relative_to(ROOT)),
