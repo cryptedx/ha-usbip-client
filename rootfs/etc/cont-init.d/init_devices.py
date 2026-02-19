@@ -9,12 +9,12 @@ JSON manifest for the usbip service to consume.
 import sys
 
 from usbip_lib.config import get_app_config
+from usbip_lib.config import get_unique_servers
 from usbip_lib.events import write_event
 from usbip_lib.logging_setup import setup_logging
 from usbip_lib.usbip import (
     build_device_manifest,
     discover_devices,
-    write_device_details_file,
     write_device_manifest,
 )
 
@@ -36,7 +36,6 @@ def main() -> int:
 
     default_server = config.get("usbipd_server_address", "")
     attach_delay = config.get("attach_delay", 2)
-    devices = config.get("devices", [])
 
     if not default_server:
         logger.error("No usbipd_server_address configured.")
@@ -45,20 +44,12 @@ def main() -> int:
     logger.info("Attach delay between devices: %ds", attach_delay)
 
     # Collect unique server addresses
-    servers = set()
-    servers.add(default_server)
-    for dev in devices:
-        srv = dev.get("server")
-        if srv:
-            servers.add(srv)
+    servers = get_unique_servers(config)
 
     logger.debug("Unique servers to discover: %s", ", ".join(servers))
 
     # Discover available devices from all servers
     discovery_data = discover_devices(list(servers))
-
-    # Write legacy pipe-delimited file (backward compat with webui)
-    write_device_details_file(discovery_data)
 
     # Build device manifest
     manifest = build_device_manifest(config, discovery_data)

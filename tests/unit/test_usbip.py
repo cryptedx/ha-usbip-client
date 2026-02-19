@@ -20,7 +20,6 @@ from usbip_lib.usbip import (
     resolve_device_id_to_bus_id,
     run_cmd,
     write_attached_devices_file,
-    write_device_details_file,
     write_device_manifest,
 )
 
@@ -414,19 +413,6 @@ class TestAttachAllFromManifest:
         assert failed == 0
 
 
-# ---------------------------------------------------------------------------
-# File I/O helpers
-# ---------------------------------------------------------------------------
-class TestWriteDeviceDetailsFile:
-    def test_write(self, tmp_details_file):
-        write_device_details_file(SAMPLE_DISCOVERY_DATA, tmp_details_file)
-        with open(tmp_details_file) as f:
-            lines = f.readlines()
-        assert len(lines) == 2
-        assert "192.168.1.44|1-1.3|" in lines[0]
-        assert "10c4:ea60" in lines[0]
-
-
 class TestWriteAttachedDevicesFile:
     def test_write(self, tmp_attached_file):
         write_attached_devices_file([0, 1, 2], tmp_attached_file)
@@ -440,7 +426,6 @@ class TestCleanupTempFiles:
         # Create temp files
         for name in [
             "attached_devices.txt",
-            "device_details.txt",
             "device_manifest.json",
         ]:
             (tmp_path / name).write_text("data")
@@ -450,20 +435,14 @@ class TestCleanupTempFiles:
             str(tmp_path / "attached_devices.txt"),
         )
         mocker.patch(
-            "usbip_lib.usbip.DEVICE_DETAILS_FILE",
-            str(tmp_path / "device_details.txt"),
-        )
-        mocker.patch(
             "usbip_lib.usbip.DEVICE_MANIFEST_FILE",
             str(tmp_path / "device_manifest.json"),
         )
         cleanup_temp_files()
         assert not (tmp_path / "attached_devices.txt").exists()
-        assert not (tmp_path / "device_details.txt").exists()
         assert not (tmp_path / "device_manifest.json").exists()
 
     def test_missing_files_no_error(self, mocker):
         mocker.patch("usbip_lib.usbip.ATTACHED_DEVICES_FILE", "/nonexistent/a")
-        mocker.patch("usbip_lib.usbip.DEVICE_DETAILS_FILE", "/nonexistent/b")
         mocker.patch("usbip_lib.usbip.DEVICE_MANIFEST_FILE", "/nonexistent/c")
         cleanup_temp_files()  # Should not raise

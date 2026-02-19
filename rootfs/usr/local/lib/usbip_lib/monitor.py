@@ -8,19 +8,19 @@ import logging
 import time
 
 from .config import get_app_state, restart_app, send_ha_notification
+from .constants import (
+    COOLDOWN_SECONDS,
+    FLAP_CLEAR_STABLE_SECONDS,
+    FLAP_CRITICAL_THRESHOLD,
+    FLAP_WARNING_THRESHOLD,
+    FLAP_WINDOW_SECONDS,
+)
 from .events import write_event
 from .usbip import attach_device
 
 
 # Per-device cooldown tracking: bus_id -> last_notification_time
 _notification_cooldowns: dict[str, float] = {}
-COOLDOWN_SECONDS = 300  # 5 minutes
-
-# Flapping detection defaults
-FLAP_WINDOW_SECONDS = 600
-FLAP_WARNING_THRESHOLD = 3
-FLAP_CRITICAL_THRESHOLD = 5
-FLAP_CLEAR_STABLE_SECONDS = 900
 
 # Per-device flapping state: device_key -> state data
 _flapping_state: dict[str, dict] = {}
@@ -48,6 +48,11 @@ def clear_cooldowns() -> None:
 def clear_flapping_state() -> None:
     """Reset all flapping tracking state (useful for testing)."""
     _flapping_state.clear()
+
+
+def clear_app_health_state() -> None:
+    """Reset dependent app health state cache (useful for testing)."""
+    _app_health_prev.clear()
 
 
 def record_flapping_recovery(device_key: str, now: float | None = None) -> dict | None:
@@ -218,40 +223,56 @@ def restart_dependent_apps(
         name = app.get("name", slug)
         if not slug:
             continue
+        _retry_restart(
+            slug=slug,
+            name=name,
+            restart_retries=restart_retries,
+            logger=logger,
+            success_reason="after USB device recovery.",
+        )
 
-        for attempt in range(1, restart_retries + 1):
-            logger.info(
-                "Restarting %s (%s) — attempt %d/%d",
-                name,
-                slug,
-                attempt,
-                restart_retries,
-            )
-            ok = restart_app(slug)
-            if ok:
-                logger.info("Successfully restarted %s", name)
-                write_event("app_restart_ok", f"Restarted {name}", device=name)
-                send_ha_notification(
-                    "USB/IP: App Restarted",
-                    f"{name} was restarted after USB device recovery.",
-                    notification_type="app_restarted",
-                )
-                break
-            logger.warning(
-                "Restart attempt %d/%d failed for %s", attempt, restart_retries, name
-            )
-            if attempt < restart_retries:
-                time.sleep(5)
-        else:
-            logger.error(
-                "Failed to restart %s after %d attempts", name, restart_retries
-            )
-            write_event("app_restart_fail", f"Failed to restart {name}", device=name)
+
+def _retry_restart(
+    *,
+    slug: str,
+    name: str,
+    restart_retries: int,
+    logger: logging.Logger,
+    success_reason: str,
+) -> bool:
+    """Try restarting an app with retries and consistent event/notification writes."""
+    for attempt in range(1, restart_retries + 1):
+        logger.info(
+            "Restarting %s (%s) — attempt %d/%d",
+            name,
+            slug,
+            attempt,
+            restart_retries,
+        )
+        ok = restart_app(slug)
+        if ok:
+            logger.info("Successfully restarted %s", name)
+            write_event("app_restart_ok", f"Restarted {name}", device=name)
             send_ha_notification(
-                "USB/IP: App Restart Failed",
-                f"Could not restart {name} ({slug}) after {restart_retries} attempts.",
-                notification_type="app_restart_failed",
+                "USB/IP: App Restarted",
+                f"{name} was restarted {success_reason}",
+                notification_type="app_restarted",
             )
+            return True
+        logger.warning(
+            "Restart attempt %d/%d failed for %s", attempt, restart_retries, name
+        )
+        if attempt < restart_retries:
+            time.sleep(5)
+
+    logger.error("Failed to restart %s after %d attempts", name, restart_retries)
+    write_event("app_restart_fail", f"Failed to restart {name}", device=name)
+    send_ha_notification(
+        "USB/IP: App Restart Failed",
+        f"Could not restart {name} ({slug}) after {restart_retries} attempts.",
+        notification_type="app_restart_failed",
+    )
+    return False
 
 
 def check_dependent_app_health(
@@ -284,44 +305,13 @@ def check_dependent_app_health(
             # Restart app if it's in error state
             if state == "error":
                 logger.info("Attempting to restart failed app %s (%s)", name, slug)
-                for attempt in range(1, restart_retries + 1):
-                    logger.info(
-                        "Restarting %s (%s) — attempt %d/%d",
-                        name,
-                        slug,
-                        attempt,
-                        restart_retries,
-                    )
-                    ok = restart_app(slug)
-                    if ok:
-                        logger.info("Successfully restarted %s", name)
-                        write_event("app_restart_ok", f"Restarted {name}", device=name)
-                        send_ha_notification(
-                            "USB/IP: App Restarted",
-                            f"{name} was restarted due to error state.",
-                            notification_type="app_restarted",
-                        )
-                        break
-                    logger.warning(
-                        "Restart attempt %d/%d failed for %s",
-                        attempt,
-                        restart_retries,
-                        name,
-                    )
-                    if attempt < restart_retries:
-                        time.sleep(5)
-                else:
-                    logger.error(
-                        "Failed to restart %s after %d attempts", name, restart_retries
-                    )
-                    write_event(
-                        "app_restart_fail", f"Failed to restart {name}", device=name
-                    )
-                    send_ha_notification(
-                        "USB/IP: App Restart Failed",
-                        f"Could not restart {name} ({slug}) after {restart_retries} attempts.",
-                        notification_type="app_restart_failed",
-                    )
+                _retry_restart(
+                    slug=slug,
+                    name=name,
+                    restart_retries=restart_retries,
+                    logger=logger,
+                    success_reason="due to error state.",
+                )
         elif state == "started" and prev != "started":
             logger.info("Dependent app %s (%s) recovered — now %s", name, slug, state)
             write_event("app_health_ok", f"{name} recovered", device=name)

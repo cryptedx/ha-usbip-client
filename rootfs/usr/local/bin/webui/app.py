@@ -16,6 +16,7 @@ from flask_socketio import SocketIO
 from usbip_lib.config import (
     get_app_config,
     get_app_state,
+    get_unique_servers,
     list_installed_apps,
     normalize_dependent_apps_config,
     normalize_notification_config,
@@ -24,6 +25,7 @@ from usbip_lib.config import (
     set_app_config,
 )
 from usbip_lib.constants import (
+    HEALTH_INTERVAL_SECONDS,
     EVENTS_FILE,
     LATENCY_CHANGE_ABS_THRESHOLD_MS,
     LATENCY_CHANGE_REL_THRESHOLD,
@@ -41,11 +43,15 @@ from usbip_lib.latency_history import (
     should_persist_change,
 )
 from usbip_lib.usbip import (
+    attach_device,
+    detach_device,
     detach_all,
+    is_device_id,
     lookup_usb_name,
     parse_usbip_list,
     parse_usbip_port,
     ping_server,
+    resolve_device_id_to_bus_id,
     run_cmd,
 )
 
@@ -53,7 +59,6 @@ from usbip_lib.usbip import (
 # Constants (WebUI-specific only)
 # ---------------------------------------------------------------------------
 LOG_BUFFER_MAX = 2000
-HEALTH_INTERVAL = 30  # seconds
 VALID_WEBUI_TABS = {
     "dashboard",
     "devices",
@@ -160,7 +165,7 @@ def _merge_pending_latency_samples(history: dict, pending_samples: list[dict]) -
     return {
         "window_seconds": history.get("window_seconds", LATENCY_HISTORY_WINDOW_SECONDS),
         "sample_interval_seconds": history.get(
-            "sample_interval_seconds", HEALTH_INTERVAL
+            "sample_interval_seconds", HEALTH_INTERVAL_SECONDS
         ),
         "timestamps": timestamps,
         "series": series,
@@ -313,14 +318,7 @@ def _health_checker():
     while True:
         try:
             config = get_app_config()
-            servers = set()
-            default_srv = config.get("usbipd_server_address", "")
-            if default_srv:
-                servers.add(default_srv)
-            for dev in config.get("devices", []):
-                srv = dev.get("server")
-                if srv:
-                    servers.add(srv)
+            servers = get_unique_servers(config)
 
             new_state = {}
             sample_servers: dict[str, float | None] = {}
@@ -370,7 +368,7 @@ def _health_checker():
                         last_latency_heartbeat_ts = now_ts
         except Exception:
             pass
-        time.sleep(HEALTH_INTERVAL)
+        time.sleep(HEALTH_INTERVAL_SECONDS)
 
 
 def _log_tailer():
@@ -505,7 +503,7 @@ def _template_globals():
 
     return {
         "ingress_path": ingress_path,
-        "version": "0.5.2-beta.5",
+        "version": "0.5.2-beta.6",
         "asset_stamp": asset_stamp,
     }
 
@@ -577,15 +575,11 @@ def api_attach():
         return jsonify({"ok": False, "error": "server and busid required"}), 400
 
     # Pre-detach
-    run_cmd(["usbip", "detach", "-r", server, "-b", busid])
-    time.sleep(0.5)
-
-    rc, out, err = run_cmd(["usbip", "attach", "--remote", server, "--busid", busid])
-    success = rc == 0
+    success = attach_device(server=server, bus_id=busid, device_name=name)
     detail = (
         "attached"
         if success
-        else _classify_usbip_error(err or out, server=server, target=busid)
+        else _classify_usbip_error("", server=server, target=busid)
     )
     write_event(
         "attach_ok" if success else "attach_fail", detail, device=name, server=server
@@ -606,13 +600,8 @@ def api_detach():
     if port is None:
         return jsonify({"ok": False, "error": "port required"}), 400
     port = str(port)
-    rc, out, err = run_cmd(["usbip", "detach", "-p", port])
-    success = rc == 0
-    detail = (
-        "detached"
-        if success
-        else _classify_usbip_error(err or out, target=f"port {port}")
-    )
+    success = detach_device(port)
+    detail = "detached" if success else _classify_usbip_error("", target=f"port {port}")
     write_event(
         "detach_ok" if success else "detach_fail", detail, device=f"port {port}"
     )
@@ -658,13 +647,13 @@ def api_attach_all():
 
         # Resolve device_id to bus_id if needed
         busid = dev_or_bus
-        if re.match(r"^[0-9a-fA-F]{4}:[0-9a-fA-F]{4}$", dev_or_bus):
+        if is_device_id(dev_or_bus):
             if server not in discovery_cache:
                 discovery_cache[server] = parse_usbip_list(server)
-            found = [d for d in discovery_cache[server] if d["device_id"] == dev_or_bus]
-            if found:
-                busid = found[0]["busid"]
-            else:
+            resolved_busid = resolve_device_id_to_bus_id(
+                server, dev_or_bus, discovery_cache[server]
+            )
+            if not resolved_busid:
                 results.append(
                     {
                         "name": name,
@@ -673,6 +662,7 @@ def api_attach_all():
                     }
                 )
                 continue
+            busid = resolved_busid
 
         run_cmd(["usbip", "detach", "-r", server, "-b", busid])
         time.sleep(0.5)
@@ -740,8 +730,6 @@ def api_diagnostics():
 @app.route("/api/config")
 def api_config_get():
     config = get_app_config()
-    config, _ = normalize_dependent_apps_config(config)
-    config, _ = normalize_notification_config(config)
     return jsonify({"ok": True, "config": config})
 
 
@@ -821,7 +809,7 @@ def api_health():
     if not history.get("timestamps") and state:
         history = {
             "window_seconds": LATENCY_HISTORY_WINDOW_SECONDS,
-            "sample_interval_seconds": HEALTH_INTERVAL,
+            "sample_interval_seconds": HEALTH_INTERVAL_SECONDS,
             "timestamps": [now_iso()],
             "series": {
                 server_ip: [payload.get("latency_ms")]
@@ -929,7 +917,7 @@ def api_apps():
 @app.route("/api/app-health")
 def api_app_health():
     """Check health of configured dependent apps."""
-    config, _ = normalize_dependent_apps_config(get_app_config())
+    config = get_app_config()
     dependent = config.get("dependent_apps", [])
     results = []
     for app_item in dependent:

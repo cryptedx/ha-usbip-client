@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+## [0.5.2-beta.6] - 2026-02-19
+
+### Changed
+
+- **Refactor: monitor retry logic**: Deduplicated identical restart-retry loops in `monitor.py` into a single `_retry_restart()` helper; added `clear_app_health_state()` export for test isolation.
+- **Refactor: server collection**: Centralized USB/IP server discovery into `get_unique_servers()` in `config.py`; used in `init_devices.py` and WebUI health checker, replacing scattered manual loops.
+- **Refactor: WebUI attach/detach**: Routed `api_attach()` and `api_detach()` through `usbip_lib` library functions (`attach_device`, `detach_device`, `is_device_id`, `resolve_device_id_to_bus_id`) instead of direct subprocess calls.
+- **Refactor: constants**: Moved `HEALTH_INTERVAL_SECONDS` and all flapping thresholds (`COOLDOWN_SECONDS`, `FLAP_WINDOW_SECONDS`, `FLAP_WARNING_THRESHOLD`, `FLAP_CRITICAL_THRESHOLD`, `FLAP_CLEAR_STABLE_SECONDS`) to `constants.py`; removed local redefinitions in `monitor.py` and `app.py`.
+- **Refactor: logging init**: Standardized `detach_devices.py` and `services.d/webui/run` to use `setup_logging()` from `usbip_lib.logging_setup`.
+- **Refactor: normalization**: Removed redundant `normalize_notification_config()` and `normalize_dependent_apps_config()` calls from `send_ha_notification()`, `api_config_get()`, and `api_app_health()`; normalization already occurs at `get_app_config()` read time.
+- **Refactor: relative imports**: Fixed `latency_history.py` to use package-relative imports (`from .constants`, `from .events`).
+
+### Removed
+
+- **Dead code**: Removed `write_device_details_file()` and its associated `DEVICE_DETAILS_FILE` constant from the public API; the legacy pipe-delimited details file is no longer written.
+
 ## [0.5.2-beta.5] - 2026-02-18
 
 ### Removed

@@ -1,23 +1,13 @@
 #!/command/with-contenv python3
 """s6 cont-finish script: Detach all USB/IP devices on container shutdown."""
 
-import logging
 import sys
 
 from usbip_lib.events import write_event
+from usbip_lib.logging_setup import setup_logging
 from usbip_lib.usbip import cleanup_temp_files, detach_all, run_cmd
 
-# Minimal logging — config may not be available during shutdown
-logger = logging.getLogger("detach_devices")
-handler = logging.StreamHandler(sys.stdout)
-handler.setFormatter(
-    logging.Formatter(
-        "%(asctime)s [%(name)s] %(levelname)s: %(message)s",
-        datefmt="%H:%M:%S",
-    )
-)
-logger.addHandler(handler)
-logger.setLevel(logging.INFO)
+logger = setup_logging("info", name="detach_devices")
 
 logger.info("\U0001f534 Container stopping - detaching USB/IP devices")
 

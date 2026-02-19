@@ -125,8 +125,10 @@ class TestLatencyHistoryPersistence:
 
     def test_skips_malformed_lines_when_reading(self, tmp_path):
         history_file = str(tmp_path / "latency.jsonl")
-        ts = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat().replace(
-            "+00:00", "Z"
+        ts = (
+            (datetime.now(timezone.utc) - timedelta(minutes=5))
+            .isoformat()
+            .replace("+00:00", "Z")
         )
         with open(history_file, "w", encoding="utf-8") as handle:
             handle.write(

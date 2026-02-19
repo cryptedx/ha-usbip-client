@@ -86,6 +86,28 @@ def normalize_notification_config(config: dict) -> tuple[dict, bool]:
     return config, changed
 
 
+def get_unique_servers(config: dict) -> set[str]:
+    """Collect unique USB/IP server addresses from app config."""
+    if not isinstance(config, dict):
+        return set()
+
+    servers: set[str] = set()
+    default_server = str(config.get("usbipd_server_address", "")).strip()
+    if default_server:
+        servers.add(default_server)
+
+    devices = config.get("devices", [])
+    if isinstance(devices, list):
+        for device in devices:
+            if not isinstance(device, dict):
+                continue
+            server = str(device.get("server", "")).strip()
+            if server:
+                servers.add(server)
+
+    return servers
+
+
 def supervisor_request(
     method: str,
     path: str,
@@ -177,7 +199,6 @@ def send_ha_notification(
         message: Notification body text.
     """
     config = get_app_config(token=token, base_url=base_url)
-    config, _ = normalize_notification_config(config)
 
     if not config.get("notifications_enabled", True):
         return

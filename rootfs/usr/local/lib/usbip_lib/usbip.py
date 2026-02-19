@@ -13,7 +13,6 @@ from .constants import (
     BLIND_DETACH_MAX_PORT,
     DEFAULT_ATTACH_DELAY,
     DEFAULT_ATTACH_RETRIES,
-    DEVICE_DETAILS_FILE,
     DEVICE_MANIFEST_FILE,
     USB_IDS_FILE,
     USBIP_PORT,
@@ -295,21 +294,6 @@ def discover_devices(servers: list[str]) -> list[dict]:
     return all_devices
 
 
-def write_device_details_file(devices: list[dict], filepath: str | None = None) -> None:
-    """Write discovered devices to the pipe-delimited details file.
-
-    This maintains backward compatibility with the legacy shell format.
-    """
-    if filepath is None:
-        filepath = DEVICE_DETAILS_FILE
-    try:
-        with open(filepath, "w") as f:
-            for d in devices:
-                f.write(f"{d['server']}|{d['busid']}|{d['name']}|{d['device_id']}\n")
-    except OSError as e:
-        logger.warning("Failed to write device details file: %s", e)
-
-
 # ---------------------------------------------------------------------------
 # Attach / Detach
 # ---------------------------------------------------------------------------
@@ -584,7 +568,7 @@ def attach_all_from_manifest(
 # ---------------------------------------------------------------------------
 def cleanup_temp_files() -> None:
     """Remove temporary state files."""
-    for path in [ATTACHED_DEVICES_FILE, DEVICE_DETAILS_FILE, DEVICE_MANIFEST_FILE]:
+    for path in [ATTACHED_DEVICES_FILE, DEVICE_MANIFEST_FILE]:
         try:
             os.remove(path)
         except OSError:

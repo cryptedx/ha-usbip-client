@@ -24,12 +24,10 @@ def mock_full_env(mocker, tmp_path):
     """Mock all system dependencies for integration testing."""
     events_file = str(tmp_path / "events.jsonl")
     manifest_file = str(tmp_path / "manifest.json")
-    details_file = str(tmp_path / "details.txt")
     attached_file = str(tmp_path / "attached.txt")
 
     # Patch constants
     mocker.patch("usbip_lib.usbip.DEVICE_MANIFEST_FILE", manifest_file)
-    mocker.patch("usbip_lib.usbip.DEVICE_DETAILS_FILE", details_file)
     mocker.patch("usbip_lib.usbip.ATTACHED_DEVICES_FILE", attached_file)
     mocker.patch("usbip_lib.events.EVENTS_FILE", events_file)
     mocker.patch("usbip_lib.usbip.time.sleep")
@@ -54,7 +52,6 @@ def mock_full_env(mocker, tmp_path):
         "subprocess": mock_run,
         "events_file": events_file,
         "manifest_file": manifest_file,
-        "details_file": details_file,
         "attached_file": attached_file,
         "tmp_path": tmp_path,
     }
@@ -96,7 +93,6 @@ class TestInitDevicesLogic:
         from usbip_lib.usbip import (
             build_device_manifest,
             discover_devices,
-            write_device_details_file,
             write_device_manifest,
         )
 
@@ -107,9 +103,6 @@ class TestInitDevicesLogic:
 
         discovery = discover_devices(["192.168.1.44"])
         assert len(discovery) == 2
-
-        write_device_details_file(discovery, mock_full_env["details_file"])
-        assert os.path.exists(mock_full_env["details_file"])
 
         manifest = build_device_manifest(SAMPLE_APP_CONFIG, discovery)
         write_device_manifest(manifest, mock_full_env["manifest_file"])
@@ -238,7 +231,6 @@ class TestDetachCleanupLogic:
         # Create temp files
         for path in [
             mock_full_env["attached_file"],
-            mock_full_env["details_file"],
             mock_full_env["manifest_file"],
         ]:
             with open(path, "w") as f:
@@ -247,5 +239,4 @@ class TestDetachCleanupLogic:
         cleanup_temp_files()
 
         assert not os.path.exists(mock_full_env["attached_file"])
-        assert not os.path.exists(mock_full_env["details_file"])
         assert not os.path.exists(mock_full_env["manifest_file"])

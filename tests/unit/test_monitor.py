@@ -7,6 +7,7 @@ import pytest
 from usbip_lib.monitor import (
     attempt_reattach,
     check_dependent_app_health,
+    clear_app_health_state,
     clear_flapping_state,
     clear_cooldowns,
     evaluate_flapping_clear,
@@ -211,6 +212,9 @@ class TestFlappingDetection:
 class TestDependentAppRestart:
     """Test dependent app restart logic with mocked Supervisor API."""
 
+    def setup_method(self):
+        clear_app_health_state()
+
     def test_restart_success(self, mocker):
         mocker.patch("usbip_lib.config.restart_app", return_value=True)
         from usbip_lib.config import restart_app
@@ -262,3 +266,47 @@ class TestDependentAppRestart:
 
         state = get_app_state("core_zwave_js", token="test")
         assert state == "stopped"
+
+    def test_restart_dependent_apps_retries_then_succeeds(self, mocker):
+        logger = mocker.Mock()
+        mocker.patch("usbip_lib.monitor.time.sleep")
+        restart_mock = mocker.patch(
+            "usbip_lib.monitor.restart_app", side_effect=[False, True]
+        )
+        write_event_mock = mocker.patch("usbip_lib.monitor.write_event")
+        notify_mock = mocker.patch("usbip_lib.monitor.send_ha_notification")
+
+        restart_dependent_apps(
+            [{"name": "Z2M", "slug": "45df7312_zigbee2mqtt"}],
+            restart_retries=2,
+            logger=logger,
+        )
+
+        assert restart_mock.call_count == 2
+        write_event_mock.assert_called_with(
+            "app_restart_ok", "Restarted Z2M", device="Z2M"
+        )
+        notify_mock.assert_called_with(
+            "USB/IP: App Restarted",
+            "Z2M was restarted after USB device recovery.",
+            notification_type="app_restarted",
+        )
+
+    def test_check_dependent_app_health_retries_error_state(self, mocker):
+        logger = mocker.Mock()
+        mocker.patch("usbip_lib.monitor.time.sleep")
+        mocker.patch("usbip_lib.monitor.get_app_state", return_value="error")
+        restart_mock = mocker.patch("usbip_lib.monitor.restart_app", return_value=True)
+        write_event_mock = mocker.patch("usbip_lib.monitor.write_event")
+
+        check_dependent_app_health(
+            [{"name": "Z2M", "slug": "45df7312_zigbee2mqtt"}],
+            restart_retries=2,
+            logger=logger,
+        )
+
+        restart_mock.assert_called_once_with("45df7312_zigbee2mqtt")
+        assert any(
+            call.args[:2] == ("app_health_fail", "Z2M is error")
+            for call in write_event_mock.call_args_list
+        )

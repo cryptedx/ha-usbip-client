@@ -7,6 +7,7 @@ import pytest
 from usbip_lib.config import (
     get_app_config,
     get_app_state,
+    get_unique_servers,
     list_installed_apps,
     normalize_notification_config,
     normalize_dependent_apps_config,
@@ -124,6 +125,26 @@ class TestNormalizeDependentAppsConfig:
         config, changed = normalize_dependent_apps_config({"log_level": "info"})
         assert changed is True
         assert config["dependent_apps"] == []
+
+
+class TestGetUniqueServers:
+    def test_collects_default_and_device_servers(self):
+        servers = get_unique_servers(
+            {
+                "usbipd_server_address": "192.168.1.44",
+                "devices": [
+                    {"server": "192.168.1.45"},
+                    {"server": "192.168.1.44"},
+                    {},
+                ],
+            }
+        )
+        assert servers == {"192.168.1.44", "192.168.1.45"}
+
+    def test_handles_invalid_inputs(self):
+        assert get_unique_servers({}) == set()
+        assert get_unique_servers({"devices": [None, "bad", {"server": ""}]}) == set()
+        assert get_unique_servers([]) == set()
 
 
 class TestSendHaNotification:

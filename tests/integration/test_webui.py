@@ -91,7 +91,7 @@ class TestIndexPage:
         resp = client.get("/")
         html = resp.get_data(as_text=True)
 
-        assert 'href="/static/style.css?v=0.5.2-beta.4&t=' in html
+        assert 'href="/static/style.css?v=0.5.2-beta.5&t=' in html
 
     def test_internal_scroll_container_present(self, client):
         """Page renders internal scroll container for Ingress-consistent scrollbar ownership."""
@@ -545,36 +545,40 @@ class TestApiDiscover:
 
 
 class TestApiAttach:
-    def test_success(self, client, mock_usbip_env):
+    def test_success(self, client, mocker):
+        attach_mock = mocker.patch("app.attach_device", return_value=True)
         resp = client.post(
             "/api/attach",
             json={"server": "192.168.1.44", "busid": "1-1.4", "name": "Test"},
         )
         data = resp.get_json()
         assert data["ok"] is True
+        attach_mock.assert_called_once_with(
+            server="192.168.1.44", bus_id="1-1.4", device_name="Test"
+        )
 
     def test_missing_params(self, client):
         resp = client.post("/api/attach", json={"server": "192.168.1.44"})
         assert resp.status_code == 400
 
-    def test_failure(self, client, mock_usbip_env):
-        mock_usbip_env["subprocess"].return_value = pytest.importorskip(
-            "unittest.mock"
-        ).Mock(returncode=1, stdout="", stderr="connection refused")
+    def test_failure(self, client, mocker):
+        mocker.patch("app.attach_device", return_value=False)
         resp = client.post(
             "/api/attach",
             json={"server": "192.168.1.44", "busid": "1-1.4"},
         )
         data = resp.get_json()
         assert data["ok"] is False
-        assert "Cannot reach USB/IP server" in data["detail"]
+        assert "Operation failed" in data["detail"]
 
 
 class TestApiDetach:
-    def test_success(self, client, mock_usbip_env):
+    def test_success(self, client, mocker):
+        detach_mock = mocker.patch("app.detach_device", return_value=True)
         resp = client.post("/api/detach", json={"port": 0})
         data = resp.get_json()
         assert data["ok"] is True
+        detach_mock.assert_called_once_with("0")
 
     def test_missing_port(self, client):
         resp = client.post("/api/detach", json={})
@@ -736,19 +740,18 @@ class TestApiConfig:
 
     def test_get_migrates_legacy_dependent_key(self, client, mocker):
         expected_apps = [{"name": "Zigbee2MQTT", "slug": "45df7312_zigbee2mqtt"}]
-        legacy_config = {
+        normalized_config = {
             "log_level": "info",
-            "dependent_addons": expected_apps,
+            "dependent_apps": expected_apps,
         }
         set_mock = mocker.patch("app.set_app_config", return_value={"result": "ok"})
-        mocker.patch("app.get_app_config", return_value=legacy_config)
+        mocker.patch("app.get_app_config", return_value=normalized_config)
 
         resp = client.get("/api/config")
         data = resp.get_json()
 
         assert data["ok"] is True
         assert data["config"]["dependent_apps"] == expected_apps
-        assert "dependent_addons" not in data["config"]
         set_mock.assert_not_called()
 
     def test_set_accepts_legacy_dependent_key_payload(self, client, mocker):

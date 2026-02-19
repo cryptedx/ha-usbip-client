@@ -3,6 +3,7 @@
 from .config import (
     get_app_config,
     get_app_state,
+    get_unique_servers,
     list_installed_apps,
     restart_app,
     send_ha_notification,
@@ -11,7 +12,6 @@ from .config import (
 )
 from .constants import (
     ATTACHED_DEVICES_FILE,
-    DEVICE_DETAILS_FILE,
     DEVICE_MANIFEST_FILE,
     EVENTS_FILE,
     SUPERVISOR_TOKEN,
@@ -23,6 +23,8 @@ from .logging_setup import setup_logging
 from .monitor import (
     attempt_reattach,
     check_dependent_app_health,
+    clear_app_health_state,
+    clear_flapping_state,
     clear_cooldowns,
     find_missing_devices,
     is_on_cooldown,
@@ -48,7 +50,6 @@ from .usbip import (
     resolve_device_id_to_bus_id,
     run_cmd,
     write_attached_devices_file,
-    write_device_details_file,
     write_device_manifest,
 )
 
@@ -56,6 +57,7 @@ __all__ = [
     # config
     "get_app_config",
     "get_app_state",
+    "get_unique_servers",
     "list_installed_apps",
     "restart_app",
     "set_app_config",
@@ -63,7 +65,6 @@ __all__ = [
     "send_ha_notification",
     # constants
     "EVENTS_FILE",
-    "DEVICE_DETAILS_FILE",
     "ATTACHED_DEVICES_FILE",
     "DEVICE_MANIFEST_FILE",
     "USB_IDS_FILE",
@@ -83,6 +84,8 @@ __all__ = [
     "is_on_cooldown",
     "set_cooldown",
     "clear_cooldowns",
+    "clear_flapping_state",
+    "clear_app_health_state",
     # usbip
     "run_cmd",
     "parse_usbip_port",
@@ -94,7 +97,6 @@ __all__ = [
     "load_kernel_module",
     "remount_sysfs",
     "discover_devices",
-    "write_device_details_file",
     "attach_device",
     "detach_device",
     "detach_all",

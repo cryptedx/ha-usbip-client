@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 from datetime import datetime, timedelta, timezone
 
-from usbip_lib.constants import LATENCY_HISTORY_FILE, LATENCY_HISTORY_WINDOW_SECONDS
-from usbip_lib.events import now_iso
+from .constants import LATENCY_HISTORY_FILE, LATENCY_HISTORY_WINDOW_SECONDS
+from .events import now_iso
 
 
 def _parse_iso(ts: str) -> datetime | None:
