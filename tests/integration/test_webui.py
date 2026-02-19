@@ -91,7 +91,9 @@ class TestIndexPage:
         resp = client.get("/")
         html = resp.get_data(as_text=True)
 
-        assert 'href="/static/style.css?v=0.5.2-beta.6&t=' in html
+        import app as _app
+
+        assert f'href="/static/style.css?v={_app.APP_VERSION}&t=' in html
 
     def test_internal_scroll_container_present(self, client):
         """Page renders internal scroll container for Ingress-consistent scrollbar ownership."""

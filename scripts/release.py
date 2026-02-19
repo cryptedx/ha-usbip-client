@@ -172,8 +172,8 @@ def main() -> int:
         )
         webui_changed = replace_once(
             WEBUI_PATH,
-            r'"version":\s*"[^"]+",',
-            f'"version": "{version}",',
+            r'^APP_VERSION\s*=\s*"[^"]+"$',
+            f'APP_VERSION = "{version}"',
             apply_changes=not args.dry_run,
         )
         ascii_version = to_ascii_version(version)

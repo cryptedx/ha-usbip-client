@@ -58,6 +58,7 @@ from usbip_lib.usbip import (
 # ---------------------------------------------------------------------------
 # Constants (WebUI-specific only)
 # ---------------------------------------------------------------------------
+APP_VERSION = "0.5.2-beta.6"
 LOG_BUFFER_MAX = 2000
 VALID_WEBUI_TABS = {
     "dashboard",
@@ -503,7 +504,7 @@ def _template_globals():
 
     return {
         "ingress_path": ingress_path,
-        "version": "0.5.2-beta.6",
+        "version": APP_VERSION,
         "asset_stamp": asset_stamp,
     }
 
