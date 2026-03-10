@@ -3,31 +3,48 @@
 bashio::config.require 'log_level'
 bashio::log.level "$(bashio::config 'log_level')"
 
-bashio::log.info "Starting USB/IP devices attachment process."
+bashio::log.info "Starting USB/IP client watchdog."
 
-# Run the attach device script
-bashio::log.info "Running the mount_devices script."
-if /usr/local/bin/mount_devices; then
-    bashio::log.info "USB/IP devices attached successfully."
-    attached_devices=0
-    bashio::log.info "Reading the mount script for attached devices..."
-    while read -r line; do
-        if [[ "$line" == *"attach --remote="* ]]; then
-            attached_devices=$((attached_devices + 1))
-            device_info=$(echo "$line" | sed -E 's/.*--remote=([0-9.]+) --busid=([0-9.-]+)/Server IP: \1, Bus ID: \2/')
-            bashio::log.info "Attached device: ${device_info}"
-        fi
-    done < "/usr/local/bin/mount_devices"
+attach_all() {
+    bashio::log.info "Attaching all configured USB/IP devices..."
 
-    if [[ $attached_devices -eq 0 ]]; then
-        bashio::log.warning "No devices were attached. Please check your configuration."
+    # Detach any existing vhci ports cleanly.
+    # || true guards against grep returning 1 (no matches) under set -euo pipefail
+    local ports
+    ports=$(usbip port 2>/dev/null | grep -E '^Port [0-9]+' | awk '{print $2}' | tr -d ':' || true)
+    for port in ${ports}; do
+        bashio::log.info "Detaching existing port ${port}..."
+        /usr/sbin/usbip detach -p "${port}" >/dev/null 2>&1 || true
+    done
+    sleep 1
+
+    if /usr/local/bin/mount_devices; then
+        bashio::log.info "USB/IP devices attached."
     else
-        bashio::log.info "$attached_devices device(s) successfully attached."
+        bashio::log.warning "mount_devices failed -- will retry in 30s."
     fi
-else
-    bashio::log.error "Failed to attach USB/IP devices. Is the USB/IP server online and device(s) USB attached?"
-fi
+}
 
-# Keep the service running
-bashio::log.info "Keeping service alive."
-exec sleep infinity
+# Initial attach
+attach_all
+
+# Reconnect watchdog loop — check every 30s, reattach if any device is missing
+while true; do
+    sleep 30
+
+    MISSING=false
+    for device in $(bashio::config 'devices|keys'); do
+        server=$(bashio::config "devices[${device}].server_address")
+        bus=$(bashio::config "devices[${device}].bus_id")
+        # 'if !' is safe under set -e; grep returning 1 is handled by the if condition
+        if ! usbip port 2>/dev/null | grep -q "usbip://${server}.*/${bus}"; then
+            bashio::log.info "Device ${bus} from ${server} not attached -- will reattach."
+            MISSING=true
+        fi
+    done
+
+    if [[ "${MISSING}" == "true" ]]; then
+        bashio::log.info "Reconnecting missing USB/IP devices..."
+        attach_all
+    fi
+done
