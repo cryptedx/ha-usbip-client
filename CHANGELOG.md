@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [0.5.2-beta.7] - 2026-03-15
+
+### Fixed
+
+- **vhci-hcd startup loading**: Restored the minimal runtime permissions needed for container-side `modprobe vhci-hcd` by granting `SYS_MODULE` and allowing read access to host module metadata paths in AppArmor.
+
 ## [0.5.2-beta.6] - 2026-02-19
 
 ### Changed

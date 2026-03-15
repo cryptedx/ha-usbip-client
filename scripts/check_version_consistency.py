@@ -13,7 +13,7 @@ TEMPLATE_PATH = ROOT / "rootfs/usr/local/bin/webui/templates/index.html"
 FILES_AND_PATTERNS = {
     ROOT / "config.yaml": r'^version:\s*"([^"]+)"\s*$',
     ROOT / "repository.yaml": r'^version:\s*"([^"]+)"\s*$',
-    ROOT / "rootfs/usr/local/bin/webui/app.py": r'"version":\s*"([^"]+)",',
+    ROOT / "rootfs/usr/local/bin/webui/app.py": r'^APP_VERSION\s*=\s*"([^"]+)"\s*$',
 }
 
 VERSION_RE = re.compile(r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z][0-9A-Za-z.-]*)?$")

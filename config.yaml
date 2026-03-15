@@ -25,6 +25,7 @@ devices:
 privileged:
   - NET_ADMIN
   - SYS_ADMIN
+  - SYS_MODULE
   - SYS_RAWIO
 options:
   log_level: info

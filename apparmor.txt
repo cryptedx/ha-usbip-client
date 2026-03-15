@@ -11,6 +11,7 @@ profile ha_usbip_client flags=(attach_disconnected,mediate_deleted) {
   # Required capabilities for USB/IP and sysfs operations
   capability net_admin,
   capability sys_admin,
+  capability sys_module,
   capability sys_rawio,
 
   # Required for remounting sysfs in container context
@@ -48,6 +49,11 @@ profile ha_usbip_client flags=(attach_disconnected,mediate_deleted) {
   /data/** rw,
   /config/** rw,
   /usr/share/hwdata/usb.ids r,
+  /etc/modprobe.d/** r,
+  /usr/lib/modprobe.d/** r,
+  /run/modprobe.d/** r,
+  /lib/modules/** r,
+  /usr/lib/modules/** r,
 
   # USB/IP and kernel interfaces
   /sys/** r,
