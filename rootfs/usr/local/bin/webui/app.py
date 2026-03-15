@@ -58,7 +58,7 @@ from usbip_lib.usbip import (
 # ---------------------------------------------------------------------------
 # Constants (WebUI-specific only)
 # ---------------------------------------------------------------------------
-APP_VERSION = "0.5.2-beta.6"
+APP_VERSION = "0.5.2-beta.7"
 LOG_BUFFER_MAX = 2000
 VALID_WEBUI_TABS = {
     "dashboard",

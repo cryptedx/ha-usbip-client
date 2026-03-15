@@ -17,6 +17,12 @@ TEMPLATE_PATH = ROOT / "rootfs/usr/local/bin/webui/templates/index.html"
 CHANGELOG_PATH = ROOT / "CHANGELOG.md"
 
 VERSION_RE = re.compile(r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z][0-9A-Za-z.-]*)?$")
+ASCII_VERSION_RE = re.compile(r"v(\d+\.\d+\.\d+(?:β)?)\s+│")
+FILES_AND_PATTERNS = {
+    CONFIG_PATH: r'^version:\s*"([^"]+)"\s*$',
+    REPOSITORY_PATH: r'^version:\s*"([^"]+)"\s*$',
+    WEBUI_PATH: r'^APP_VERSION\s*=\s*"([^"]+)"\s*$',
+}
 
 
 def to_ascii_version(version: str) -> str:
@@ -56,20 +62,89 @@ def assert_changelog_contains(version: str) -> None:
         )
 
 
-def replace_once(
-    path: Path, pattern: str, replacement: str, apply_changes: bool
-) -> bool:
-    original = path.read_text(encoding="utf-8")
-    updated, count = re.subn(pattern, replacement, original, flags=re.MULTILINE)
-    if count != 1:
+def extract_version(path: Path, pattern: str) -> str:
+    matches = re.findall(pattern, path.read_text(encoding="utf-8"), flags=re.MULTILINE)
+    if len(matches) != 1:
         raise ValueError(
-            f"Expected exactly one match in {path.relative_to(ROOT)} for pattern: {pattern}"
+            f"Expected exactly one version match in {path.relative_to(ROOT)}"
         )
-    if updated != original:
-        if apply_changes:
-            path.write_text(updated, encoding="utf-8")
-        return True
-    return False
+    return matches[0]
+
+
+def extract_ascii_version(path: Path) -> str:
+    matches = ASCII_VERSION_RE.findall(path.read_text(encoding="utf-8"))
+    if len(matches) != 1:
+        raise ValueError(
+            f"Expected exactly one ASCII version token in {path.relative_to(ROOT)}"
+        )
+    return matches[0]
+
+
+def extract_latest_changelog_version(path: Path = CHANGELOG_PATH) -> str:
+    for line in path.read_text(encoding="utf-8").splitlines():
+        match = re.match(r"^## \[([^\]]+)\]", line)
+        if not match:
+            continue
+        version = match.group(1).strip()
+        if version.lower() == "unreleased":
+            continue
+        return version
+
+    raise ValueError(
+        f"Expected at least one versioned changelog section in {path.relative_to(ROOT)}"
+    )
+
+
+def extract_current_versions() -> dict[str, str]:
+    versions: dict[str, str] = {}
+    for path, pattern in FILES_AND_PATTERNS.items():
+        version = extract_version(path, pattern)
+        if not VERSION_RE.match(version):
+            raise ValueError(
+                f"Invalid version format in {path.relative_to(ROOT)}: {version}"
+            )
+        versions[str(path.relative_to(ROOT))] = version
+    return versions
+
+
+def validate_target_version(
+    version: str, current_versions: dict[str, str], changelog_version: str
+) -> None:
+    unique_versions = set(current_versions.values())
+    if len(unique_versions) != 1:
+        details = "\n".join(
+            f"- {path}: {found_version}"
+            for path, found_version in sorted(current_versions.items())
+        )
+        raise ValueError(f"Version mismatch detected in repository files:\n{details}")
+
+    current_version = next(iter(unique_versions))
+    if current_version != version:
+        raise ValueError(
+            "Requested version "
+            f"{version} does not match current repository version {current_version}. "
+            "Bump and commit the version before running release.py."
+        )
+
+    if changelog_version != version:
+        raise ValueError(
+            "Top versioned changelog section "
+            f"{changelog_version} does not match requested version {version}."
+        )
+
+
+def assert_clean_worktree() -> None:
+    unstaged = run_git("diff", "--quiet", check=False)
+    if unstaged.returncode != 0:
+        raise ValueError(
+            "Working tree has unstaged changes. Commit or stash them before preparing a release."
+        )
+
+    staged = run_git("diff", "--cached", "--quiet", check=False)
+    if staged.returncode != 0:
+        raise ValueError(
+            "Index has staged but uncommitted changes. Commit them before preparing a release."
+        )
 
 
 def ensure_local_tag_absent(tag: str) -> None:
@@ -84,40 +159,12 @@ def ensure_remote_tag_absent(tag: str) -> None:
         raise ValueError(f"Tag already exists on remote: {tag}")
 
 
-def stage_release_files() -> None:
-    # Stage all tracked modifications so code changes are not accidentally left out.
-    run_git("add", "--update")
-    # Explicitly stage version files in case any are new/untracked (e.g. fresh clone).
-    run_git(
-        "add",
-        str(CONFIG_PATH.relative_to(ROOT)),
-        str(REPOSITORY_PATH.relative_to(ROOT)),
-        str(WEBUI_PATH.relative_to(ROOT)),
-        str(TEMPLATE_PATH.relative_to(ROOT)),
-        str(CHANGELOG_PATH.relative_to(ROOT)),
-    )
-
-
-def has_staged_changes() -> bool:
-    result = run_git("diff", "--cached", "--quiet", check=False)
-    return result.returncode != 0
-
-
-def commit_release(version: str) -> bool:
-    stage_release_files()
-    if not has_staged_changes():
-        return False
-    run_git("commit", "-m", f"chore(release): {version}")
-    return True
-
-
 def create_tag(tag: str, version: str) -> None:
     run_git("tag", "-a", tag, "-m", f"Release {version}")
 
 
-def push_release(branch: str, tag: str, commit_created: bool) -> None:
-    if commit_created:
-        run_git("push", "origin", branch)
+def push_release(branch: str, tag: str) -> None:
+    run_git("push", "origin", branch)
     run_git("push", "origin", tag)
 
 
@@ -154,82 +201,44 @@ def main() -> int:
     try:
         branch = current_branch()
         validate_branch(version, branch)
+        assert_clean_worktree()
+        current_versions = extract_current_versions()
+        changelog_version = extract_latest_changelog_version()
+        validate_target_version(version, current_versions, changelog_version)
+
+        found_ascii = extract_ascii_version(TEMPLATE_PATH)
+        expected_ascii = to_ascii_version(version)
+        if found_ascii != expected_ascii:
+            raise ValueError(
+                "ASCII version mismatch in "
+                f"{TEMPLATE_PATH.relative_to(ROOT)}: expected v{expected_ascii}, found v{found_ascii}"
+            )
+
         assert_changelog_contains(version)
         ensure_local_tag_absent(tag)
         ensure_remote_tag_absent(tag)
-
-        config_changed = replace_once(
-            CONFIG_PATH,
-            r'^version:\s*"[^"]+"\s*$',
-            f'version: "{version}"',
-            apply_changes=not args.dry_run,
-        )
-        repository_changed = replace_once(
-            REPOSITORY_PATH,
-            r'^version:\s*"[^"]+"\s*$',
-            f'version: "{version}"',
-            apply_changes=not args.dry_run,
-        )
-        webui_changed = replace_once(
-            WEBUI_PATH,
-            r'^APP_VERSION\s*=\s*"[^"]+"$',
-            f'APP_VERSION = "{version}"',
-            apply_changes=not args.dry_run,
-        )
-        ascii_version = to_ascii_version(version)
-        template_changed = replace_once(
-            TEMPLATE_PATH,
-            r"v\d+\.\d+\.\d+(?:β)?(\s+│)",
-            rf"v{ascii_version}\1",
-            apply_changes=not args.dry_run,
-        )
 
         if args.dry_run:
             print(f"Dry-run successful for version: {version}")
             print(f"Tag candidate: {tag}")
             print(
-                "Would update versions in: "
-                + ", ".join(
-                    [
-                        name
-                        for name, changed in [
-                            (str(CONFIG_PATH.relative_to(ROOT)), config_changed),
-                            (
-                                str(REPOSITORY_PATH.relative_to(ROOT)),
-                                repository_changed,
-                            ),
-                            (str(WEBUI_PATH.relative_to(ROOT)), webui_changed),
-                            (str(TEMPLATE_PATH.relative_to(ROOT)), template_changed),
-                        ]
-                        if changed
-                    ]
-                )
-                if any(
-                    [
-                        config_changed,
-                        repository_changed,
-                        webui_changed,
-                        template_changed,
-                    ]
-                )
-                else "No version file updates required (already at requested version)."
+                "Validated current repository version in: config.yaml, repository.yaml, "
+                "rootfs/usr/local/bin/webui/app.py, rootfs/usr/local/bin/webui/templates/index.html, CHANGELOG.md"
             )
-            print("Would create commit: chore(release): " + version)
             print("Would create tag: " + tag)
             if args.push:
                 print("Would push branch and tag to origin.")
             return 0
 
-        commit_created = commit_release(version)
         create_tag(tag, version)
 
         if args.push:
-            push_release(branch, tag, commit_created)
+            push_release(branch, tag)
 
         print(f"Release prepared: {version}")
         print(f"Tag created: {tag}")
         if args.push:
-            print("Pushed to origin.")
+            print("Pushed branch and tag to origin.")
         else:
             print(
                 "Tag not pushed yet. Push with: git push origin HEAD && git push origin "

@@ -8,6 +8,10 @@
 
 - **vhci-hcd startup loading**: Restored the minimal runtime permissions needed for container-side `modprobe vhci-hcd` by granting `SYS_MODULE` and allowing read access to host module metadata paths in AppArmor.
 
+### Changed
+
+- **Release workflow**: Release-affecting changes now bump the app version and changelog in the same commit; `scripts/release.py` validates and tags the already versioned repository state instead of rewriting version files.
+
 ## [0.5.2-beta.6] - 2026-02-19
 
 ### Changed

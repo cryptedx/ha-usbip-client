@@ -27,7 +27,7 @@ repos:
         entry: .venv/bin/python scripts/check_version_consistency.py
         language: system
         pass_filenames: false
-        files: ^(config\.yaml|repository\.yaml|rootfs/usr/local/bin/webui/app\.py)$
+        always_run: true
 
       - id: markdown-lint
         name: Markdown lint (pymarkdown)

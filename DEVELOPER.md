@@ -64,7 +64,11 @@ The repository enforces these checks before each commit:
   - `config.yaml`
   - `repository.yaml`
   - `rootfs/usr/local/bin/webui/app.py`
+  - `rootfs/usr/local/bin/webui/templates/index.html`
+  - first versioned section in `CHANGELOG.md`
 - Full test suite: `PYTHONPATH=./rootfs/usr/local/lib .venv/bin/python -m pytest -q`
+
+For release-affecting commits on `dev`, the same hook also requires the version bump metadata (`config.yaml`, `repository.yaml`, `rootfs/usr/local/bin/webui/app.py`, `CHANGELOG.md`) to be staged in the same commit.
 
 If you must bypass hooks temporarily, use `git commit --no-verify` only for local emergency work and follow up by running `.venv/bin/pre-commit run --all-files` before pushing.
 
@@ -75,21 +79,26 @@ Version values should stay aligned in:
 - `config.yaml`
 - `repository.yaml`
 - `rootfs/usr/local/bin/webui/app.py` (template global `version`)
+- `rootfs/usr/local/bin/webui/templates/index.html` (ASCII header token)
 
 Changelog format follows Keep a Changelog style in `CHANGELOG.md`.
+
+On `dev`, release-affecting fixes are expected to bump the prerelease version and update the matching versioned changelog section in the same commit. `scripts/release.py` validates and tags that already versioned commit; it does not rewrite version files or create a separate release commit.
 
 ## Release Automation (Local + GitHub)
 
 Release flow is tag-driven:
 
-1. Prepare changelog section (`## [X.Y.Z]` or `## [X.Y.Z-beta.1]`).
-1. Run local release helper:
+1. Prepare and commit the release-ready version bump across `config.yaml`, `repository.yaml`, `rootfs/usr/local/bin/webui/app.py`, and the matching changelog section (`## [X.Y.Z]` or `## [X.Y.Z-beta.1]`).
+1. Run local release helper from a clean worktree:
 
 ```bash
 ./scripts/release.py 0.5.1-beta.1 --push
 ```
 
 1. GitHub Actions workflow `.github/workflows/release.yml` creates the GitHub release from the pushed tag and publishes the matching section from `CHANGELOG.md` as the release notes.
+
+The helper validates that the committed repository state already matches the requested version, then creates the tag and optionally pushes branch plus tag.
 
 ### Branch and tag policy
 
@@ -102,7 +111,7 @@ Release flow is tag-driven:
 
 ### Dry-run
 
-Use dry-run to validate everything without changing files, creating commits, or tags:
+Use dry-run to validate branch, version, changelog, and tag state without creating tags or pushing:
 
 ```bash
 ./scripts/release.py 0.5.1-beta.1 --dry-run
