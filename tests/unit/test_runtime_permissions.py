@@ -35,4 +35,3 @@ class TestAppArmorModuleAccess:
             "/usr/lib/modules/** r,",
         ]:
             assert required_rule in profile
-
