@@ -18,7 +18,9 @@ def test_validate_target_version_accepts_matching_repo_state():
 
 
 def test_validate_target_version_rejects_internal_repo_mismatch():
-    with pytest.raises(ValueError, match="Version mismatch detected in repository files"):
+    with pytest.raises(
+        ValueError, match="Version mismatch detected in repository files"
+    ):
         validate_target_version(
             "0.5.2-beta.7",
             {
