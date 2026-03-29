@@ -1,0 +1,132 @@
+name: Bug report
+description: Report a bug in the beta or stable app
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please use this template for both beta and stable installs.
+        If you are testing the beta branch, mention that clearly below.
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues first.
+          required: true
+        - label: I can reproduce this issue consistently.
+          required: true
+        - label: I included recent logs.
+          required: true
+        - label: I mentioned whether I am using the beta branch or a stable release.
+          required: true
+  - type: dropdown
+    id: install_source
+    attributes:
+      label: Branch or install source
+      description: Where is the app installed from?
+      options:
+        - Stable release
+        - Beta branch
+        - Custom repository
+    validations:
+      required: true
+  - type: input
+    id: app_version
+    attributes:
+      label: App version
+      placeholder: 0.5.2-beta.7
+    validations:
+      required: true
+  - type: input
+    id: ha_version
+    attributes:
+      label: Home Assistant version
+      placeholder: 2026.3.0
+    validations:
+      required: true
+  - type: dropdown
+    id: install_type
+    attributes:
+      label: Installation type
+      description: Which Home Assistant installation type are you using?
+      options:
+        - Home Assistant OS
+        - Home Assistant Container
+        - Home Assistant Supervised
+        - Home Assistant Core
+        - Other
+    validations:
+      required: false
+  - type: input
+    id: device_count
+    attributes:
+      label: Relevant hardware or USB/IP device count
+      placeholder: 2 USB devices
+    validations:
+      required: false
+  - type: textarea
+    id: configuration
+    attributes:
+      label: Configuration
+      description: Include the USB/IP server address and any device names or bus IDs involved.
+      placeholder: |
+        USB/IP server address:
+        Device names or bus IDs:
+        Attach delay:
+        Monitor interval:
+        Reattach retries:
+    validations:
+      required: false
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: Describe the problem as clearly as possible.
+    validations:
+      required: true
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual-behavior
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Paste the most relevant recent log lines here.
+      render: shell
+    validations:
+      required: true
+  - type: upload
+    id: screenshots
+    attributes:
+      label: Screenshot(s)
+      description: Add screenshots here if they help explain the issue.
+    validations:
+      required: false
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Add any other details that may help.
+    validations:
+      required: false

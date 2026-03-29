@@ -1,0 +1,76 @@
+name: Feature request / improvement
+description: Suggest a new feature or improvement for the app
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please use this template for new ideas, improvements, or feature requests.
+        If your request is related to the beta branch, mention that clearly below.
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues first.
+          required: true
+        - label: I explained the problem or use case clearly.
+          required: true
+        - label: I mentioned whether this affects the beta branch, stable release, or both.
+          required: true
+        - label: I included any relevant screenshots or logs if they help explain the request.
+          required: true
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Beta / stable impact
+      description: Which branch should this apply to?
+      options:
+        - Beta branch
+        - Stable release
+        - Both
+    validations:
+      required: true
+  - type: input
+    id: summary
+    attributes:
+      label: Summary
+      description: What would you like to improve or add?
+    validations:
+      required: true
+  - type: textarea
+    id: problem-or-use-case
+    attributes:
+      label: Problem or use case
+      description: What problem does this solve, or what workflow does it improve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed solution
+      description: Describe the feature or improvement you would like to see.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives-considered
+    attributes:
+      label: Alternatives considered
+      description: Have you considered other solutions or workarounds?
+    validations:
+      required: false
+  - type: upload
+    id: screenshots
+    attributes:
+      label: Screenshot(s)
+      description: Add screenshots or mockups if they help explain the request.
+    validations:
+      required: false
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Add any other relevant details, screenshots, or examples.
+    validations:
+      required: false
