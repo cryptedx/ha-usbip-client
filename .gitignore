@@ -16,6 +16,8 @@ __pycache__/
 # Ignore VSCode settings
 .aider*
 .github/*
+!.github/ISSUE_TEMPLATE/
+!.github/ISSUE_TEMPLATE/*.md
 !.github/workflows/
 !.github/workflows/*.yml
 
