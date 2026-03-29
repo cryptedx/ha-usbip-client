@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [1.0.1-beta.1] - 2026-03-29
+
+### Changed
+
+- **Dev branch refresh**: `dev` now tracks the stable 1.0.0 release and is prepared for the next prerelease cycle.
+
 ## [1.0.0] - 2026-03-29
 
 ### Changed
