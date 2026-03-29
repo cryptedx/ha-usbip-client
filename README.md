@@ -2,7 +2,6 @@
 
 ![Supports aarch64 Architecture][aarch64-shield]
 ![Supports amd64 Architecture][amd64-shield]
-
 ![Project Maintenance][maintenance-shield]
 
 This is a Home Assistant app that acts as a USB/IP client. It connects to an existing USB/IP server to access remote USB devices, making them available to Home Assistant.
