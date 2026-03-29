@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-03-29
+
+### Changed
+
+- **First stable release**: Version 1.0.0 is here, and the app is ready for its first stable main-branch publish.
+
 ## [0.5.2-beta.7] - 2026-03-15
 
 ### Fixed

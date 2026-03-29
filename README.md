@@ -127,8 +127,6 @@ Recommendations
 - Review the `privileged` and `host_network` settings in `config.yaml` before deploying to sensitive hosts.
 - For development or advanced deployment details see `DEVELOPER.md`.
 
-## License```
-
 ## License
 
 This project is licensed under the MIT License.
