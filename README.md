@@ -118,13 +118,13 @@ The app performs kernel- and USB-level operations and therefore still requires e
 - AppArmor: enabled by default with an addon-specific profile aligned to the actual runtime scripts and binaries.
 - Required capabilities: the app requests only the kernel/network capabilities needed for USB/IP (`NET_ADMIN`, `SYS_ADMIN`, `SYS_MODULE`, `SYS_RAWIO`) and `vhci-hcd` kernel module access.
 - Device access: raw USB and `/dev/vhci` are mapped explicitly instead of using Docker-style full privileged access.
-- Network & host access: the app uses the host network stack for USB/IP communication.
+- Network & host access: the app uses the container network for USB/IP communication. The WebUI listens on internal port 8099 for Ingress, and direct browser access is optional through explicit Home Assistant port mapping.
 - Diagnostics: the Dashboard includes first-run checks (module loaded, usbip command available, server reachable) to speed up troubleshooting.
 
 Recommendations
 
 - Use the app in a trusted network environment and keep Home Assistant updated.
-- Review the `privileged` and `host_network` settings in `config.yaml` before deploying to sensitive hosts.
+- Review the `privileged` settings and any `ports` mapping in `config.yaml` before deploying to sensitive hosts.
 - For development or advanced deployment details see `DEVELOPER.md`.
 
 ## License

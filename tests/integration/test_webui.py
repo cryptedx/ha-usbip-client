@@ -677,6 +677,17 @@ class TestApiConfig:
         data = resp.get_json()
         assert data["ok"] is True
 
+    def test_set_rejects_webui_port(self, client):
+        resp = client.post(
+            "/api/config",
+            json={"log_level": "debug", "webui_port": 8099},
+        )
+        data = resp.get_json()
+
+        assert data["ok"] is False
+        assert data["response"]["result"] == "error"
+        assert "webui_port" in data["response"]["message"]
+
     def test_backup_returns_current_config_shape(self, client):
         resp = client.get("/api/config/backup")
         data = resp.get_json()

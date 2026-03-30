@@ -19,6 +19,19 @@ NOTIFICATION_TYPES = [
     "device_detached",
 ]
 
+UNSUPPORTED_CONFIG_FIELDS = {
+    "webui_port": (
+        "Direct WebUI host access is configured through Home Assistant port mapping, "
+        "not app options."
+    )
+}
+
+
+def _unsupported_config_keys(config: dict) -> list[str]:
+    if not isinstance(config, dict):
+        return []
+    return [key for key in UNSUPPORTED_CONFIG_FIELDS if key in config]
+
 
 def normalize_dependent_apps_config(config: dict) -> tuple[dict, bool]:
     """Normalize legacy dependent config key to dependent_apps."""
@@ -156,6 +169,8 @@ def get_app_config(
         options = resp.get("data", {}).get("options", {})
         normalized, _ = normalize_dependent_apps_config(options)
         normalized, _ = normalize_notification_config(normalized)
+        for field in _unsupported_config_keys(normalized):
+            normalized.pop(field, None)
         return normalized
     return {}
 
@@ -173,6 +188,17 @@ def set_app_config(
     Returns:
         Supervisor response dict.
     """
+    unsupported_fields = _unsupported_config_keys(options)
+    if unsupported_fields:
+        field_list = ", ".join(unsupported_fields)
+        return {
+            "result": "error",
+            "message": (
+                f"Unsupported option(s): {field_list}. "
+                "Use Home Assistant port mapping for direct WebUI access."
+            ),
+        }
+
     normalized, _ = normalize_dependent_apps_config(options)
     normalized, _ = normalize_notification_config(normalized)
     return supervisor_request(

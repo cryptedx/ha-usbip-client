@@ -159,3 +159,5 @@ If schema fields in `config.yaml` changed, apply a clean reinstall:
 ha apps uninstall local_ha_usbip_client
 ha apps install local_ha_usbip_client
 ```
+
+- Ingress always targets the internal WebUI port 8099. If you enable direct browser access, validate it against the explicit Home Assistant host port mapping you configured; do not assume `:8099` unless you mapped that port.

@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [1.0.1-beta.2] - 2026-03-30
+
+### Changed
+
+- **WebUI host access**: Direct browser access is now opt-in through explicit Home Assistant port mapping. The default manifest no longer claims host port 8099, which avoids collisions with other apps.
+
 ## [1.0.1-beta.1] - 2026-03-29
 
 ### Changed

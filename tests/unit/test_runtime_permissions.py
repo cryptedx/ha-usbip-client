@@ -8,6 +8,7 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CONFIG_PATH = REPO_ROOT / "config.yaml"
 APPARMOR_PATH = REPO_ROOT / "apparmor.txt"
+WEBUI_RUN_PATH = REPO_ROOT / "rootfs/etc/services.d/webui/run"
 
 
 class TestConfigPermissions:
@@ -16,6 +17,23 @@ class TestConfigPermissions:
 
         assert "SYS_MODULE" in config["privileged"]
         assert "vhci-hcd" in config["kernel_modules"]
+
+    def test_webui_uses_port_mapping_instead_of_host_network(self):
+        config = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8"))
+
+        assert config["ingress"] is True
+        assert config["ingress_port"] == 8099
+        assert "host_network" not in config
+        assert config["ports"] == {"8099/tcp": None}
+        assert config["ports_description"] == {"8099/tcp": "Direct WebUI access"}
+
+
+class TestWebUiRunScript:
+    def test_logs_internal_port(self):
+        run_script = WEBUI_RUN_PATH.read_text(encoding="utf-8")
+
+        assert "internal port" in run_script
+        assert "WEBUI_INTERNAL_PORT" in run_script
 
 
 class TestAppArmorModuleAccess:
