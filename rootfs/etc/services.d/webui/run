@@ -9,7 +9,7 @@ from usbip_lib.logging_setup import setup_logging
 logger = setup_logging("info", name="webui_run")
 
 logger.info(
-	"Starting WebUI service on internal port %s...", WEBUI_INTERNAL_PORT
+    "Starting WebUI service on internal port %s...", WEBUI_INTERNAL_PORT
 )
 
 os.execvp("python3", ["python3", "/usr/local/bin/webui/app.py"])
