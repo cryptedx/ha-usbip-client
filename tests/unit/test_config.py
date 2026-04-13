@@ -58,6 +58,27 @@ class TestGetAppConfig:
         assert config["usbipd_server_address"] == "192.168.1.44"
         assert len(config["devices"]) == 2
 
+    def test_strips_unsupported_webui_port(self, mocker):
+        response = {
+            "result": "ok",
+            "data": {
+                "options": {
+                    "log_level": "info",
+                    "webui_port": 8099,
+                }
+            },
+        }
+        resp = mocker.Mock()
+        resp.read.return_value = json.dumps(response).encode()
+        resp.__enter__ = mocker.Mock(return_value=resp)
+        resp.__exit__ = mocker.Mock(return_value=False)
+        mocker.patch("usbip_lib.config.urllib.request.urlopen", return_value=resp)
+
+        config = get_app_config(token="test")
+
+        assert config["log_level"] == "info"
+        assert "webui_port" not in config
+
     def test_api_error(self, mocker):
         resp = mocker.Mock()
         resp.read.return_value = json.dumps({"result": "error"}).encode()
@@ -88,6 +109,18 @@ class TestSetAppConfig:
     def test_success(self, mock_supervisor_api):
         result = set_app_config({"log_level": "debug"}, token="test-token")
         assert result["result"] == "ok"
+
+    def test_rejects_unsupported_webui_port(self, mocker):
+        supervisor_request_mock = mocker.patch("usbip_lib.config.supervisor_request")
+
+        result = set_app_config(
+            {"log_level": "debug", "webui_port": 8099},
+            token="test-token",
+        )
+
+        assert result["result"] == "error"
+        assert "webui_port" in result["message"]
+        supervisor_request_mock.assert_not_called()
 
     def test_normalizes_legacy_dependent_key_before_post(self, mocker):
         mock_urlopen = mocker.patch("usbip_lib.config.urllib.request.urlopen")

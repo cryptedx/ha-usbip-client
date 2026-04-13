@@ -18,7 +18,10 @@ homeassistant_api: true
 hassio_role: manager
 kernel_modules:
   - vhci-hcd
-host_network: true
+ports:
+  8099/tcp: null
+ports_description:
+  8099/tcp: Direct WebUI access
 usb: true
 devices:
   - /dev/vhci

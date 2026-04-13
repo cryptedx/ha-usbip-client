@@ -35,6 +35,7 @@ from usbip_lib.constants import (
     LATENCY_HISTORY_WINDOW_SECONDS,
     SUPERVISOR_TOKEN,
     SUPERVISOR_URL,
+    WEBUI_INTERNAL_PORT,
 )
 from usbip_lib.events import now_iso, read_events, write_event
 from usbip_lib.latency_history import (
@@ -1004,12 +1005,15 @@ if __name__ == "__main__":
     threading.Thread(target=_health_checker, daemon=True).start()
     threading.Thread(target=_log_tailer, daemon=True).start()
 
-    write_event("webui_start", "WebUI service started")
+    write_event(
+        "webui_start",
+        f"WebUI service started on internal port {WEBUI_INTERNAL_PORT}",
+    )
 
     socketio.run(
         app,
         host="0.0.0.0",
-        port=8099,
+        port=WEBUI_INTERNAL_PORT,
         debug=False,
         use_reloader=False,
         log_output=False,
