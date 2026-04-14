@@ -7,7 +7,7 @@ description: >
   A Home Assistant app to act as a USB/IP client, enabling remote USB devices
   from a USB/IP server to be accessed in Home Assistant. This app supports high availability
   configurations and device discovery.
-version: "1.0.1-beta.2"
+version: "1.0.1-beta.3"
 arch:
   - aarch64
   - amd64
