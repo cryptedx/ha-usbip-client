@@ -137,7 +137,7 @@ class TestIndexPage:
 
         assert 'id="cfg-webui-port"' in html
         assert "Direct WebUI Host Port" in html
-        assert "Leave blank or set 0 to disable direct host access" in html
+        assert "does not change the internal Ingress" in html
 
     def test_dependent_apps_handlers_present(self, client):
         """Rendered HTML uses apps-only dependent app handlers and IDs."""
@@ -453,12 +453,18 @@ class TestStaticAppJsCompatibility:
         assert resp.status_code == 200
         js = resp.get_data(as_text=True)
 
+        assert "let currentConfig = null;" in js
         assert (
             "document.getElementById('cfg-webui-port').value = cfg.webui_port ?? '';"
             in js
         )
         assert "const webuiPortEl = document.getElementById('cfg-webui-port');" in js
         assert "Direct WebUI host port must be blank, 0, or between 1 and 65535." in js
+        assert (
+            "Direct host-port changes require an app restart and do not change the internal Ingress port."
+            in js
+        )
+        assert "Direct host-port changes do not change the internal Ingress port." in js
 
     def test_initial_load_hydrates_active_tab_data(self, client):
         """Initial page load hydrates currently active tab data (ingress/full reload safe)."""

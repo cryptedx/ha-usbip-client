@@ -14,6 +14,7 @@ function buildApiUrl(path) {
 let logPaused = false;
 let logFilter = 'all';
 let allLogLines = []; // master unfiltered log buffer
+let currentConfig = null;
 // Controls whether the logs auto-scroll: 'when_not_paused' or 'always'
 let logAutoScroll = 'when_not_paused';
 const NOTIFICATION_TYPES = [
@@ -832,6 +833,7 @@ async function loadConfig(forceReload = false) {
         return;
     }
     const cfg = data.config;
+    currentConfig = cfg;
 
     document.getElementById('cfg-log-level').value = cfg.log_level || 'info';
     document.getElementById('cfg-server').value = cfg.usbipd_server_address || '';
@@ -938,6 +940,7 @@ async function saveConfig() {
     const delayVal = parseInt(delayEl.value);
     const webuiPortRaw = webuiPortEl.value.trim();
     let webuiPort = null;
+    const previousWebuiPort = currentConfig?.webui_port ?? null;
 
     if (webuiPortRaw && webuiPortRaw !== '0') {
         webuiPort = parseInt(webuiPortRaw, 10);
@@ -975,7 +978,12 @@ async function saveConfig() {
 
     const data = await api('/api/config', { method: 'POST', body: JSON.stringify(config) });
     if (data.ok) {
-        toast('Configuration saved! Restart app to apply.');
+        currentConfig = { ...(currentConfig || {}), ...config };
+        if (previousWebuiPort !== webuiPort) {
+            toast('Configuration saved. Direct host-port changes require an app restart and do not change the internal Ingress port.', 'accent');
+        } else {
+            toast('Configuration saved! Restart app to apply.');
+        }
     } else {
         const detail = data.detail || data.error || data.response?.message || 'unknown error';
         toast(`Save failed: ${detail}`, 'error');
@@ -1002,7 +1010,12 @@ function restoreConfig(input) {
         try {
             const config = JSON.parse(e.target.result);
             const data = await api('/api/config/restore', { method: 'POST', body: JSON.stringify(config) });
-            toast(data.ok ? 'Config restored! Restart app to apply.' : 'Restore failed', data.ok ? '' : 'error');
+            toast(
+                data.ok
+                    ? 'Config restored! Restart app to apply. Direct host-port changes do not change the internal Ingress port.'
+                    : 'Restore failed',
+                data.ok ? '' : 'error'
+            );
             loadConfig();
         } catch (err) {
             toast('Invalid JSON file', 'error');

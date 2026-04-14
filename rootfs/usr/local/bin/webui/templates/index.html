@@ -417,10 +417,20 @@
                   max="65535"
                   placeholder="Disabled"
                 />
-                <p class="dim" style="margin-top: 0.5rem">
-                  Leave blank or set 0 to disable direct host access. Home
-                  Assistant Ingress still uses the internal app port.
-                </p>
+                <span
+                  class="dim hint"
+                  tabindex="0"
+                  role="button"
+                  id="cfg-webui-port-hint"
+                  aria-label="Direct WebUI host port help"
+                  >ℹ
+                  <span class="tooltip" role="tooltip">
+                    Changes only the optional direct-access host port published
+                    by Home Assistant. It does not change the internal Ingress
+                    port. Leave blank or set 0 to disable direct host access,
+                    then restart the app after changing this value.
+                  </span>
+                </span>
               </div>
               <div class="form-group">
                 <label>Attach Delay (s):</label>

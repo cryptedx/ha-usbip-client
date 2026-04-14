@@ -650,6 +650,13 @@ select option {
     color: var(--fg);
 }
 
+#cfg-webui-port {
+    width: 160px;
+    min-width: 160px;
+    flex: 0 0 160px;
+    box-sizing: border-box;
+}
+
 /* ---------- Config device rows ---------- */
 .device-row {
     display: flex;
