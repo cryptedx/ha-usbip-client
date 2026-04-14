@@ -1,5 +1,4 @@
-ARG BUILD_FROM
-FROM ${BUILD_FROM}
+FROM ghcr.io/home-assistant/base:latest
 
 # Install Python dependencies
 COPY requirements.txt /tmp/requirements.txt

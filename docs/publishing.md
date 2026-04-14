@@ -22,6 +22,9 @@ PYTHONPATH=./rootfs/usr/local/lib .venv/bin/python -m pytest -q
   - `config.yaml`
   - `repository.yaml`
   - `CHANGELOG.md`
+- Keep the Home Assistant base image declaration in `Dockerfile`;
+  local Supervisor builds now use the Dockerfile as the source of truth and
+  `build.yaml` is deprecated.
 - Verify release automation assumptions in:
   - `.github/workflows/release.yml`
   - `scripts/release.py`
