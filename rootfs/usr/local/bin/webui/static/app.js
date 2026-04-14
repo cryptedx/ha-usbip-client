@@ -835,6 +835,7 @@ async function loadConfig(forceReload = false) {
 
     document.getElementById('cfg-log-level').value = cfg.log_level || 'info';
     document.getElementById('cfg-server').value = cfg.usbipd_server_address || '';
+    document.getElementById('cfg-webui-port').value = cfg.webui_port ?? '';
     document.getElementById('cfg-delay').value = cfg.attach_delay ?? 2;
 
     // Populate discover server field too
@@ -927,13 +928,25 @@ async function saveConfig() {
 
     const logLevelEl = document.getElementById('cfg-log-level');
     const serverEl = document.getElementById('cfg-server');
+    const webuiPortEl = document.getElementById('cfg-webui-port');
     const delayEl = document.getElementById('cfg-delay');
-    if (!logLevelEl || !serverEl || !delayEl) {
+    if (!logLevelEl || !serverEl || !webuiPortEl || !delayEl) {
         toast('Config form is not fully loaded. Please reload page.', 'error');
         return;
     }
 
     const delayVal = parseInt(delayEl.value);
+    const webuiPortRaw = webuiPortEl.value.trim();
+    let webuiPort = null;
+
+    if (webuiPortRaw && webuiPortRaw !== '0') {
+        webuiPort = parseInt(webuiPortRaw, 10);
+        if (Number.isNaN(webuiPort) || webuiPort < 1 || webuiPort > 65535) {
+            toast('Direct WebUI host port must be blank, 0, or between 1 and 65535.', 'error');
+            webuiPortEl.focus();
+            return;
+        }
+    }
 
     // Read auto-scroll preference and apply it immediately
     const autoScrollEl = document.getElementById('cfg-log-auto-scroll');
@@ -943,6 +956,7 @@ async function saveConfig() {
     const config = {
         log_level: logLevelEl.value,
         usbipd_server_address: serverEl.value.trim(),
+        webui_port: webuiPort,
         attach_delay: isNaN(delayVal) ? 2 : delayVal,
         monitor_interval: parseInt(document.getElementById('cfg-monitor-interval')?.value) || 30,
         reattach_retries: parseInt(document.getElementById('cfg-reattach-retries')?.value) || 3,

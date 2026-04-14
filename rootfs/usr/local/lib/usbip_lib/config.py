@@ -3,7 +3,7 @@
 import json
 import urllib.request
 
-from .constants import SUPERVISOR_TOKEN, SUPERVISOR_URL
+from .constants import SUPERVISOR_TOKEN, SUPERVISOR_URL, WEBUI_INTERNAL_PORT
 
 
 NOTIFICATION_TYPES = [
@@ -19,18 +19,103 @@ NOTIFICATION_TYPES = [
     "device_detached",
 ]
 
-UNSUPPORTED_CONFIG_FIELDS = {
-    "webui_port": (
-        "Direct WebUI host access is configured through Home Assistant port mapping, "
-        "not app options."
-    )
-}
+WEBUI_PORT_FIELD = "webui_port"
+WEBUI_NETWORK_KEY = f"{WEBUI_INTERNAL_PORT}/tcp"
 
 
-def _unsupported_config_keys(config: dict) -> list[str]:
+def _strip_virtual_config_fields(config: dict) -> tuple[dict, bool]:
+    """Remove fields that are derived from Supervisor runtime state."""
     if not isinstance(config, dict):
-        return []
-    return [key for key in UNSUPPORTED_CONFIG_FIELDS if key in config]
+        return {}, False
+    if not config:
+        return {}, False
+
+    changed = False
+    if WEBUI_PORT_FIELD in config:
+        del config[WEBUI_PORT_FIELD]
+        changed = True
+
+    return config, changed
+
+
+def _normalize_webui_port(value: object) -> int | None:
+    """Validate direct WebUI host-port values from UI or Supervisor payloads."""
+    if value is None:
+        return None
+
+    if isinstance(value, bool):
+        raise ValueError(
+            "Direct WebUI host port must be blank/0 to disable or an integer "
+            "between 1 and 65535."
+        )
+
+    if isinstance(value, str):
+        value = value.strip()
+        if not value or value == "0":
+            return None
+        if not value.isdigit():
+            raise ValueError(
+                "Direct WebUI host port must be blank/0 to disable or an integer "
+                "between 1 and 65535."
+            )
+        value = int(value)
+    elif value == 0:
+        return None
+    elif not isinstance(value, int):
+        raise ValueError(
+            "Direct WebUI host port must be blank/0 to disable or an integer "
+            "between 1 and 65535."
+        )
+
+    if value < 1 or value > 65535:
+        raise ValueError(
+            "Direct WebUI host port must be blank/0 to disable or an integer "
+            "between 1 and 65535."
+        )
+
+    return value
+
+
+def _get_webui_port(config_data: dict) -> int | None:
+    """Read the effective direct WebUI host port from Supervisor app info."""
+    if not isinstance(config_data, dict):
+        return None
+
+    network = config_data.get("network")
+    if not isinstance(network, dict):
+        return None
+
+    try:
+        return _normalize_webui_port(network.get(WEBUI_NETWORK_KEY))
+    except ValueError:
+        return None
+
+
+def _build_supervisor_config_payload(options: dict) -> tuple[dict, str | None]:
+    """Translate WebUI config payload into Supervisor options + network payloads."""
+    if not isinstance(options, dict):
+        return {}, "Configuration payload must be an object."
+
+    normalized_options = dict(options)
+    network_payload = None
+
+    if WEBUI_PORT_FIELD in normalized_options:
+        raw_webui_port = normalized_options.pop(WEBUI_PORT_FIELD)
+        try:
+            webui_port = _normalize_webui_port(raw_webui_port)
+        except ValueError as exc:
+            return {}, str(exc)
+        network_payload = {WEBUI_NETWORK_KEY: webui_port}
+
+    normalized_options, _ = normalize_dependent_apps_config(normalized_options)
+    normalized_options, _ = normalize_notification_config(normalized_options)
+    normalized_options, _ = _strip_virtual_config_fields(normalized_options)
+
+    payload = {"options": normalized_options}
+    if network_payload is not None:
+        payload["network"] = network_payload
+
+    return payload, None
 
 
 def normalize_dependent_apps_config(config: dict) -> tuple[dict, bool]:
@@ -166,11 +251,17 @@ def get_app_config(
         "GET", "/addons/self/info", token=token, base_url=base_url
     )
     if resp.get("result") == "ok":
-        options = resp.get("data", {}).get("options", {})
+        config_data = resp.get("data", {})
+        options = config_data.get("options", {})
+        if not isinstance(options, dict):
+            options = {}
+        else:
+            options = dict(options)
+
         normalized, _ = normalize_dependent_apps_config(options)
         normalized, _ = normalize_notification_config(normalized)
-        for field in _unsupported_config_keys(normalized):
-            normalized.pop(field, None)
+        normalized, _ = _strip_virtual_config_fields(normalized)
+        normalized[WEBUI_PORT_FIELD] = _get_webui_port(config_data)
         return normalized
     return {}
 
@@ -188,23 +279,14 @@ def set_app_config(
     Returns:
         Supervisor response dict.
     """
-    unsupported_fields = _unsupported_config_keys(options)
-    if unsupported_fields:
-        field_list = ", ".join(unsupported_fields)
-        return {
-            "result": "error",
-            "message": (
-                f"Unsupported option(s): {field_list}. "
-                "Use Home Assistant port mapping for direct WebUI access."
-            ),
-        }
+    payload, error = _build_supervisor_config_payload(options)
+    if error:
+        return {"result": "error", "message": error}
 
-    normalized, _ = normalize_dependent_apps_config(options)
-    normalized, _ = normalize_notification_config(normalized)
     return supervisor_request(
         "POST",
         "/addons/self/options",
-        {"options": normalized},
+        payload,
         token=token,
         base_url=base_url,
     )

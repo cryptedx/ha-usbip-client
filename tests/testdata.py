@@ -78,9 +78,11 @@ SAMPLE_APP_CONFIG = {
     "log_auto_scroll": "when_not_paused",
 }
 
+SAMPLE_APP_NETWORK = {"8099/tcp": None}
+
 SAMPLE_SUPERVISOR_INFO_RESPONSE = {
     "result": "ok",
-    "data": {"options": SAMPLE_APP_CONFIG},
+    "data": {"options": SAMPLE_APP_CONFIG, "network": SAMPLE_APP_NETWORK},
 }
 
 SAMPLE_DISCOVERY_DATA = [

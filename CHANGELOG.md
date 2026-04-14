@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **WebUI direct host port**: Added a Configuration-tab control for the direct WebUI host port. It updates Home Assistant's host-port mapping for `8099/tcp`, while leaving Ingress on the internal app port. Leave the field blank or set it to `0` to disable direct host access.
+
 ## [1.0.1-beta.2] - 2026-03-30
 
 ### Changed

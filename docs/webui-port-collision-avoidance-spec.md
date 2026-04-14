@@ -1,6 +1,6 @@
 # WebUI Port Collision Avoidance Specification
 
-Status: Proposed
+Status: Implemented
 Date: 2026-03-30
 
 ## Summary
@@ -60,7 +60,7 @@ host port and would not solve the actual problem.
 - Do not redesign the USB/IP attach, detach, or monitor flow.
 - Do not introduce a dynamic internal WebUI port.
 - Do not move Ingress away from port 8099.
-- Do not implement custom in-app port mapping controls in this change.
+- Do not add networking behavior outside Supervisor-managed port mappings.
 
 ## Target Design
 
@@ -84,6 +84,8 @@ host port and would not solve the actual problem.
 - The app manifest declares `ports` and `ports_description` for `8099/tcp`.
 - The default mapping value is `null`, which keeps direct host access disabled unless the user
   explicitly enables it in Home Assistant.
+- The WebUI Configuration tab may surface the effective direct host port as a convenience control,
+  but persistence still goes through the Supervisor `network` mapping for `8099/tcp`.
 
 Recommended manifest shape:
 
@@ -143,11 +145,11 @@ Files:
 
 Required behavior:
 
-- Remove or reword any UI text that claims the direct WebUI port is configurable inside the
-  app if that is not actually implemented.
+- If the app exposes a direct host-port control in the WebUI, it must write through the
+  Supervisor `network` mapping for `8099/tcp` instead of inventing a second persistence path.
 - If the UI shows a direct-access URL, make it conditional and clearly label it as optional.
-- Do not accept or advertise unsupported fields such as `webui_port` unless a verified,
-  implemented persistence path exists.
+- A virtual field such as `webui_port` is acceptable only if it is translated to and from the
+  Supervisor `network` payload and covered by tests.
 
 This change should prefer accuracy over feature ambition.
 
@@ -257,7 +259,7 @@ Validation checklist:
 
 Not part of this change, but reasonable later if still needed:
 
-- Add a separate, verified design for reading and writing direct host port mappings through the
-  Supervisor API.
-- Surface direct access state in the WebUI only after the persistence path is confirmed and
-  tested.
+- Surface the effective direct-access URL in the WebUI only when the configured host port is
+  known and verified.
+- Consider adding an explicit enable/disable toggle if the single blank-or-zero field proves too
+  implicit for users.

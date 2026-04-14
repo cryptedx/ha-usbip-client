@@ -130,6 +130,15 @@ class TestIndexPage:
         assert 'id="cfg-notif-type-device_attached"' in html
         assert 'id="cfg-notif-type-device_detached"' in html
 
+    def test_config_includes_direct_webui_port_control(self, client):
+        """Config tab renders direct WebUI host-port control."""
+        resp = client.get("/")
+        html = resp.get_data(as_text=True)
+
+        assert 'id="cfg-webui-port"' in html
+        assert "Direct WebUI Host Port" in html
+        assert "Leave blank or set 0 to disable direct host access" in html
+
     def test_dependent_apps_handlers_present(self, client):
         """Rendered HTML uses apps-only dependent app handlers and IDs."""
         resp = client.get("/")
@@ -438,6 +447,19 @@ class TestStaticAppJsCompatibility:
         assert "buttonEl.disabled = true;" in js
         assert "buttonEl.textContent = 'RESTARTING...';" in js
 
+    def test_config_js_handles_direct_webui_port(self, client):
+        """Config JS hydrates and validates the direct WebUI host-port field."""
+        resp = client.get("/static/app.js")
+        assert resp.status_code == 200
+        js = resp.get_data(as_text=True)
+
+        assert (
+            "document.getElementById('cfg-webui-port').value = cfg.webui_port ?? '';"
+            in js
+        )
+        assert "const webuiPortEl = document.getElementById('cfg-webui-port');" in js
+        assert "Direct WebUI host port must be blank, 0, or between 1 and 65535." in js
+
     def test_initial_load_hydrates_active_tab_data(self, client):
         """Initial page load hydrates currently active tab data (ingress/full reload safe)."""
         resp = client.get("/static/app.js")
@@ -671,22 +693,44 @@ class TestApiConfig:
         assert data["config"].get("log_auto_scroll") == "when_not_paused"
         assert data["config"].get("notifications_enabled") is True
         assert "device_lost" in data["config"].get("notification_types", [])
+        assert "webui_port" in data["config"]
+        assert data["config"]["webui_port"] is None
 
     def test_set(self, client, mock_usbip_env):
         resp = client.post("/api/config", json={"log_level": "debug"})
         data = resp.get_json()
         assert data["ok"] is True
 
-    def test_set_rejects_webui_port(self, client):
+    def test_set_accepts_webui_port(self, client, mocker):
+        set_mock = mocker.patch("app.set_app_config", return_value={"result": "ok"})
+        mocker.patch(
+            "app.get_app_config",
+            return_value={
+                **SAMPLE_APP_CONFIG,
+                "webui_port": 18199,
+            },
+        )
+
         resp = client.post(
             "/api/config",
-            json={"log_level": "debug", "webui_port": 8099},
+            json={"log_level": "debug", "webui_port": 18199},
+        )
+        data = resp.get_json()
+
+        assert data["ok"] is True
+        payload = set_mock.call_args.args[0]
+        assert payload["webui_port"] == 18199
+
+    def test_set_rejects_invalid_webui_port(self, client):
+        resp = client.post(
+            "/api/config",
+            json={"log_level": "debug", "webui_port": "invalid"},
         )
         data = resp.get_json()
 
         assert data["ok"] is False
         assert data["response"]["result"] == "error"
-        assert "webui_port" in data["response"]["message"]
+        assert "Direct WebUI host port" in data["response"]["message"]
 
     def test_backup_returns_current_config_shape(self, client):
         resp = client.get("/api/config/backup")
@@ -696,9 +740,20 @@ class TestApiConfig:
         assert data.get("log_auto_scroll") == "when_not_paused"
         assert data.get("notifications_enabled") is True
         assert isinstance(data.get("dependent_apps"), list)
+        assert "webui_port" in data
+        assert data["webui_port"] is None
 
     def test_restore_normalizes_legacy_payload_and_writes_event(self, client, mocker):
         set_mock = mocker.patch("app.set_app_config", return_value={"result": "ok"})
+        mocker.patch(
+            "app.get_app_config",
+            return_value={
+                **SAMPLE_APP_CONFIG,
+                "notifications_enabled": True,
+                "notification_types": ["device_lost"],
+                "webui_port": 18199,
+            },
+        )
 
         resp = client.post(
             "/api/config/restore",
@@ -707,6 +762,7 @@ class TestApiConfig:
                 "dependent_addons": [{"name": "Z2M", "slug": "z2m"}],
                 "notifications_enabled": "yes",
                 "notification_types": ["device_lost", "invalid", 123, "device_lost"],
+                "webui_port": 18199,
             },
         )
         data = resp.get_json()
@@ -717,6 +773,7 @@ class TestApiConfig:
         assert "dependent_addons" not in saved
         assert saved["notifications_enabled"] is True
         assert saved["notification_types"] == ["device_lost"]
+        assert saved["webui_port"] == 18199
 
         events_resp = client.get("/api/events")
         events = events_resp.get_json()["events"]
@@ -844,6 +901,28 @@ class TestApiConfig:
 
         assert data["ok"] is False
         assert "not persisted" in data["detail"].lower()
+
+    def test_set_reports_webui_port_persist_mismatch(self, client, mocker):
+        mocker.patch("app.set_app_config", return_value={"result": "ok"})
+        mocker.patch(
+            "app.get_app_config",
+            return_value={
+                **SAMPLE_APP_CONFIG,
+                "webui_port": None,
+            },
+        )
+
+        resp = client.post(
+            "/api/config",
+            json={
+                "log_level": "debug",
+                "webui_port": 18199,
+            },
+        )
+        data = resp.get_json()
+
+        assert data["ok"] is False
+        assert "Direct WebUI host port" in data["detail"]
 
 
 class TestApiEvents:

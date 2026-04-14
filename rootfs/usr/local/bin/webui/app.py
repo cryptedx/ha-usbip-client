@@ -735,6 +735,33 @@ def api_config_get():
     return jsonify({"ok": True, "config": config})
 
 
+def _config_persist_mismatch_detail(
+    expected_config: dict, persisted_config: dict
+) -> str:
+    """Return a user-facing detail message when Supervisor persistence differs."""
+    expected_enabled = expected_config.get("notifications_enabled", True)
+    expected_types = set(expected_config.get("notification_types", []))
+    persisted_enabled = persisted_config.get("notifications_enabled", True)
+    persisted_types = set(persisted_config.get("notification_types", []))
+
+    if persisted_enabled != expected_enabled or persisted_types != expected_types:
+        return (
+            "Notification settings were not persisted by Supervisor. "
+            "If the app schema changed, reinstall the app to apply "
+            "the new schema."
+        )
+
+    if "webui_port" in expected_config and expected_config.get(
+        "webui_port"
+    ) != persisted_config.get("webui_port"):
+        return (
+            "Direct WebUI host port was not persisted by Supervisor. "
+            "Restart the app and verify the Home Assistant host port mapping."
+        )
+
+    return ""
+
+
 @app.route("/api/config", methods=["POST"])
 def api_config_set():
     data = request.get_json(force=True)
@@ -747,19 +774,9 @@ def api_config_set():
     if ok:
         persisted = get_app_config()
         persisted, _ = normalize_notification_config(persisted)
-
-        expected_enabled = data.get("notifications_enabled", True)
-        expected_types = set(data.get("notification_types", []))
-        persisted_enabled = persisted.get("notifications_enabled", True)
-        persisted_types = set(persisted.get("notification_types", []))
-
-        if persisted_enabled != expected_enabled or persisted_types != expected_types:
+        detail = _config_persist_mismatch_detail(data, persisted)
+        if detail:
             ok = False
-            detail = (
-                "Notification settings were not persisted by Supervisor. "
-                "If the app schema changed, reinstall the app to apply "
-                "the new schema."
-            )
 
     write_event("config_change", json.dumps(data)[:200])
     return jsonify({"ok": ok, "response": resp, "detail": detail})
@@ -778,8 +795,15 @@ def api_config_restore():
     data, _ = normalize_notification_config(data)
     resp = set_app_config(data)
     ok = resp.get("result") == "ok"
+    detail = ""
+    if ok:
+        persisted = get_app_config()
+        persisted, _ = normalize_notification_config(persisted)
+        detail = _config_persist_mismatch_detail(data, persisted)
+        if detail:
+            ok = False
     write_event("config_restore", "Configuration restored from backup")
-    return jsonify({"ok": ok, "response": resp})
+    return jsonify({"ok": ok, "response": resp, "detail": detail})
 
 
 @app.route("/api/events")

@@ -409,6 +409,20 @@
                 <input type="text" id="cfg-server" placeholder="192.168.1.44" />
               </div>
               <div class="form-group">
+                <label>Direct WebUI Host Port:</label>
+                <input
+                  type="number"
+                  id="cfg-webui-port"
+                  min="0"
+                  max="65535"
+                  placeholder="Disabled"
+                />
+                <p class="dim" style="margin-top: 0.5rem">
+                  Leave blank or set 0 to disable direct host access. Home
+                  Assistant Ingress still uses the internal app port.
+                </p>
+              </div>
+              <div class="form-group">
                 <label>Attach Delay (s):</label>
                 <input
                   type="number"

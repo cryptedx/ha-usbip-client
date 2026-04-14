@@ -64,6 +64,7 @@ For apppublishing workflow see [docs/publishing.md](docs/publishing.md).
 - **restart_retries**: Optional dependent app restart retries. Default `3`, range `0-10`.
 - **dependent_apps**: Optional list with `name` and `slug`.
 - **Recommended for dependent apps**: Let USB/IP Client manage dependent apps and disable **Start on boot** and **Watchdog** for each of them in Home Assistant.
+- **Direct WebUI host port**: Configure this in the WebUI Configuration tab, not in the Home Assistant app options schema. Leave it blank or set it to `0` to disable direct browser access outside Ingress.
 - **devices**: Device list containing:
   - **name**: Display name.
   - **device_or_bus_id**: Bus ID (`1-1.1.3`) or USB device ID (`0658:0200`).
@@ -94,6 +95,7 @@ devices:
 - After startup, the app connects to the configured USB/IP server and attaches configured devices.
 - Attached devices become available in Home Assistant integrations.
 - Use the WebUI panel for discovery, attach/detach actions, logs, and event tracking.
+- In the WebUI Configuration tab, you can set the optional direct host port for browser access outside Home Assistant Ingress. Leave it blank or set it to `0` to disable direct host access.
 
 ## Screenshots
 
@@ -118,7 +120,7 @@ The app performs kernel- and USB-level operations and therefore still requires e
 - AppArmor: enabled by default with an addon-specific profile aligned to the actual runtime scripts and binaries.
 - Required capabilities: the app requests only the kernel/network capabilities needed for USB/IP (`NET_ADMIN`, `SYS_ADMIN`, `SYS_MODULE`, `SYS_RAWIO`) and `vhci-hcd` kernel module access.
 - Device access: raw USB and `/dev/vhci` are mapped explicitly instead of using Docker-style full privileged access.
-- Network & host access: the app uses the container network for USB/IP communication. The WebUI listens on internal port 8099 for Ingress, and direct browser access is optional through explicit Home Assistant port mapping.
+- Network & host access: the app uses the container network for USB/IP communication. The WebUI listens on internal port 8099 for Ingress, and direct browser access is optional through Home Assistant port mapping. You can manage that host port from the WebUI Configuration tab without changing the internal Ingress port.
 - Diagnostics: the Dashboard includes first-run checks (module loaded, usbip command available, server reachable) to speed up troubleshooting.
 
 Recommendations
