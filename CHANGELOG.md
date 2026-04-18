@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-04-18
+
+### Fixed
+
+- **Docker base image**: Migrated base image declaration from deprecated `build.yaml` into `Dockerfile` directly. Fixes `base name (${BUILD_FROM}) should not be blank` build error when installing the app through Home Assistant Supervisor.
+
+### Changed
+
+- **WebUI direct host port**: Added a Configuration-tab control for the direct WebUI host port. It updates Home Assistant's host-port mapping for `8099/tcp`, while leaving Ingress on the internal app port. Leave the field blank or set it to `0` to disable direct host access.
+- **WebUI host access**: Direct browser access is now opt-in through explicit Home Assistant port mapping. The default manifest no longer claims host port 8099, which avoids collisions with other apps.
+
 ## [1.0.1-beta.3] - 2026-04-14
 
 ### Fixed
