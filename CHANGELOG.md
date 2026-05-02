@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-05-02
+
+### Fixed
+
+- **Dependent app restart loop**: Restart now also triggers when a dependent app is `stopped`, and retry behavior is evaluated per monitor cycle while notification/event emission remains transition-based.
+
 ## [1.0.1] - 2026-04-18
 
 ### Fixed
