@@ -28,6 +28,12 @@ _flapping_state: dict[str, dict] = {}
 # Track previous app health to avoid repeated alerts
 _app_health_prev: dict[str, str] = {}
 
+# Supervisor app states that should trigger an auto-restart attempt while the
+# app is configured as a dependent app. ``unknown`` is intentionally excluded
+# because it typically means the Supervisor API call failed and we cannot
+# safely act on it.
+RESTARTABLE_APP_STATES: frozenset[str] = frozenset({"error", "stopped"})
+
 
 def is_on_cooldown(device_key: str) -> bool:
     """Check if a device notification is within the cooldown window."""
@@ -302,18 +308,27 @@ def check_dependent_app_health(
                 f"{name} ({slug}) state: {state}. USB device may have failed.",
                 notification_type="app_down",
             )
-            # Restart app if it's in error state
-            if state == "error":
-                logger.info("Attempting to restart failed app %s (%s)", name, slug)
-                _retry_restart(
-                    slug=slug,
-                    name=name,
-                    restart_retries=restart_retries,
-                    logger=logger,
-                    success_reason="due to error state.",
-                )
         elif state == "started" and prev != "started":
             logger.info("Dependent app %s (%s) recovered — now %s", name, slug, state)
             write_event("app_health_ok", f"{name} recovered", device=name)
+
+        # Drive restart eligibility from the current state on every cycle so
+        # that an app which stays unhealthy after a failed/no-op restart will
+        # be retried on the next monitor pass. Notification/event emission
+        # above stays transition-based to avoid log/notification spam.
+        if state in RESTARTABLE_APP_STATES:
+            logger.info(
+                "Attempting to restart unhealthy app %s (%s) — current state: %s",
+                name,
+                slug,
+                state,
+            )
+            _retry_restart(
+                slug=slug,
+                name=name,
+                restart_retries=restart_retries,
+                logger=logger,
+                success_reason=f"due to {state} state.",
+            )
 
         _app_health_prev[slug] = state

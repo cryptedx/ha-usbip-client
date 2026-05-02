@@ -310,3 +310,88 @@ class TestDependentAppRestart:
             call.args[:2] == ("app_health_fail", "Z2M is error")
             for call in write_event_mock.call_args_list
         )
+
+    def test_check_dependent_app_health_restarts_stopped_state(self, mocker):
+        logger = mocker.Mock()
+        mocker.patch("usbip_lib.monitor.time.sleep")
+        mocker.patch("usbip_lib.monitor.get_app_state", return_value="stopped")
+        restart_mock = mocker.patch("usbip_lib.monitor.restart_app", return_value=True)
+        notify_mock = mocker.patch("usbip_lib.monitor.send_ha_notification")
+        write_event_mock = mocker.patch("usbip_lib.monitor.write_event")
+
+        check_dependent_app_health(
+            [{"name": "Z2M", "slug": "45df7312_zigbee2mqtt"}],
+            restart_retries=2,
+            logger=logger,
+        )
+
+        restart_mock.assert_called_once_with("45df7312_zigbee2mqtt")
+        assert any(
+            call.args[:2] == ("app_health_fail", "Z2M is stopped")
+            for call in write_event_mock.call_args_list
+        )
+        assert any(
+            call.args[0] == "USB/IP: App Restarted"
+            and "due to stopped state." in call.args[1]
+            for call in notify_mock.call_args_list
+        )
+
+    def test_check_dependent_app_health_does_not_restart_unknown_state(self, mocker):
+        logger = mocker.Mock()
+        mocker.patch("usbip_lib.monitor.time.sleep")
+        mocker.patch("usbip_lib.monitor.get_app_state", return_value="unknown")
+        restart_mock = mocker.patch("usbip_lib.monitor.restart_app", return_value=True)
+        mocker.patch("usbip_lib.monitor.send_ha_notification")
+        mocker.patch("usbip_lib.monitor.write_event")
+
+        check_dependent_app_health(
+            [{"name": "Z2M", "slug": "45df7312_zigbee2mqtt"}],
+            restart_retries=2,
+            logger=logger,
+        )
+
+        restart_mock.assert_not_called()
+
+    def test_check_dependent_app_health_retries_on_next_cycle_when_still_unhealthy(
+        self, mocker
+    ):
+        logger = mocker.Mock()
+        mocker.patch("usbip_lib.monitor.time.sleep")
+        mocker.patch("usbip_lib.monitor.get_app_state", return_value="stopped")
+        restart_mock = mocker.patch("usbip_lib.monitor.restart_app", return_value=True)
+        mocker.patch("usbip_lib.monitor.send_ha_notification")
+        mocker.patch("usbip_lib.monitor.write_event")
+
+        apps = [{"name": "Z2M", "slug": "45df7312_zigbee2mqtt"}]
+        check_dependent_app_health(apps, restart_retries=1, logger=logger)
+        check_dependent_app_health(apps, restart_retries=1, logger=logger)
+
+        assert restart_mock.call_count == 2
+
+    def test_check_dependent_app_health_does_not_spam_notifications_across_cycles(
+        self, mocker
+    ):
+        logger = mocker.Mock()
+        mocker.patch("usbip_lib.monitor.time.sleep")
+        mocker.patch("usbip_lib.monitor.get_app_state", return_value="stopped")
+        mocker.patch("usbip_lib.monitor.restart_app", return_value=True)
+        notify_mock = mocker.patch("usbip_lib.monitor.send_ha_notification")
+        write_event_mock = mocker.patch("usbip_lib.monitor.write_event")
+
+        apps = [{"name": "Z2M", "slug": "45df7312_zigbee2mqtt"}]
+        check_dependent_app_health(apps, restart_retries=1, logger=logger)
+        check_dependent_app_health(apps, restart_retries=1, logger=logger)
+
+        app_down_calls = [
+            c
+            for c in notify_mock.call_args_list
+            if c.kwargs.get("notification_type") == "app_down"
+        ]
+        assert len(app_down_calls) == 1
+
+        health_fail_events = [
+            c
+            for c in write_event_mock.call_args_list
+            if c.args[:1] == ("app_health_fail",)
+        ]
+        assert len(health_fail_events) == 1
