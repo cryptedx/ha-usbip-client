@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-07-02
+
+### Fixed
+
+- **Home Assistant 2026.7 install**: Added temporary Python build dependencies and updated `gevent` so the app installs on HAOS images using CPython 3.14.
+
 ## [1.0.2] - 2026-05-02
 
 ### Fixed

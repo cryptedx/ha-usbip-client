@@ -11,8 +11,13 @@ RUN apk add --no-cache \
     device-mapper-libs \
     python3 \
     py3-pip \
+    && apk add --no-cache --virtual .build-deps \
+    build-base \
+    python3-dev \
+    libffi-dev \
     && pip3 install --no-cache-dir --break-system-packages \
     -r /tmp/requirements.txt \
+    && apk del .build-deps \
     && rm /tmp/requirements.txt
 
 # Copy root filesystem
