@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [1.0.4] - 2026-07-06
+
+### Fixed
+
+- **Dependent app restart timeout**: Allow Supervisor restart requests more time to respond so slow but successful dependent app restarts are not reported as failed.
+
 ## [1.0.3] - 2026-07-02
 
 ### Fixed

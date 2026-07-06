@@ -212,6 +212,7 @@ def supervisor_request(
     json_data: dict | None = None,
     token: str = SUPERVISOR_TOKEN,
     base_url: str = SUPERVISOR_URL,
+    timeout: int = 10,
 ) -> dict:
     """Make a request to the HA Supervisor API.
 
@@ -221,6 +222,7 @@ def supervisor_request(
         json_data: Optional JSON body.
         token: Supervisor auth token.
         base_url: Supervisor base URL.
+        timeout: Seconds before aborting the request.
 
     Returns:
         Parsed JSON response dict.
@@ -233,7 +235,7 @@ def supervisor_request(
     data = json.dumps(json_data).encode() if json_data else None
     req = urllib.request.Request(url, data=data, headers=headers, method=method)
     try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
             return json.loads(resp.read().decode())
     except Exception as e:
         return {"result": "error", "message": str(e)}
@@ -385,6 +387,10 @@ def restart_app(
         True if restart was successful.
     """
     resp = supervisor_request(
-        "POST", f"/addons/{slug}/restart", token=token, base_url=base_url
+        "POST",
+        f"/addons/{slug}/restart",
+        token=token,
+        base_url=base_url,
+        timeout=60,
     )
     return resp.get("result") == "ok"

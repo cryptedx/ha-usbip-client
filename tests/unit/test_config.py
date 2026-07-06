@@ -429,6 +429,7 @@ class TestRestartApp:
         req = call_args[0][0]
         assert "/addons/45df7312_zigbee2mqtt/restart" in req.full_url
         assert req.method == "POST"
+        assert call_args.kwargs["timeout"] == 60
 
     def test_failure(self, mocker):
         mock_urlopen = mocker.patch("usbip_lib.config.urllib.request.urlopen")
