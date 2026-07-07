@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.6] - 2026-07-07
+
+### Fixed
+
+- **Empty manifest recovery**: Rebuild the USB/IP device manifest from configured devices when the monitor finds it empty, so recovered USB/IP servers can reattach devices and restart dependent apps without requiring a manual app restart.
+
 ## [1.0.5] - 2026-07-07
 
 ### Added

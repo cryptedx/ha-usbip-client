@@ -8,7 +8,7 @@ import logging
 import time
 import urllib.request
 
-from .config import get_app_state, restart_app, send_ha_notification
+from .config import get_app_state, get_unique_servers, restart_app, send_ha_notification
 from .constants import (
     COOLDOWN_SECONDS,
     FLAP_CLEAR_STABLE_SECONDS,
@@ -19,7 +19,12 @@ from .constants import (
     POST_REATTACH_ACTION_TIMEOUT_SECONDS,
 )
 from .events import write_event
-from .usbip import attach_device
+from .usbip import (
+    attach_device,
+    build_device_manifest,
+    discover_devices,
+    write_device_manifest,
+)
 
 
 # Per-device cooldown tracking: bus_id -> last_notification_time
@@ -215,6 +220,23 @@ def attempt_reattach(device: dict, retries: int, logger: logging.Logger) -> bool
         )
 
     return ok
+
+
+def refresh_device_manifest(config: dict, logger: logging.Logger) -> list[dict]:
+    """Rediscover configured USB/IP devices and persist a fresh manifest."""
+    servers = sorted(get_unique_servers(config))
+    if not servers:
+        logger.debug("No USB/IP servers configured; cannot rebuild device manifest.")
+        return []
+
+    discovery_data = discover_devices(servers)
+    manifest = build_device_manifest(config, discovery_data)
+    write_device_manifest(manifest)
+    if manifest:
+        logger.info("Rebuilt device manifest with %d device(s).", len(manifest))
+    else:
+        logger.debug("Device rediscovery found no configured devices.")
+    return manifest
 
 
 def restart_dependent_apps(

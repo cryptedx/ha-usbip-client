@@ -398,6 +398,49 @@ class TestDependentAppRestart:
         assert len(health_fail_events) == 1
 
 
+class TestManifestRefresh:
+    def test_refresh_device_manifest_rediscovers_configured_devices(self, mocker):
+        from usbip_lib.monitor import refresh_device_manifest
+
+        logger = mocker.Mock()
+        config = {
+            "usbipd_server_address": "192.168.1.44",
+            "devices": [{"name": "Zigbee", "device_or_bus_id": "10c4:ea60"}],
+        }
+        discovery = [
+            {
+                "server": "192.168.1.44",
+                "busid": "1-1.2",
+                "name": "Silicon Labs CP210x UART Bridge",
+                "device_id": "10c4:ea60",
+            }
+        ]
+        manifest = [
+            {
+                "server": "192.168.1.44",
+                "bus_id": "1-1.2",
+                "name": "Zigbee",
+                "delay": 2,
+                "retries": 3,
+            }
+        ]
+        mocker.patch(
+            "usbip_lib.monitor.get_unique_servers", return_value={"192.168.1.44"}
+        )
+        discover_mock = mocker.patch(
+            "usbip_lib.monitor.discover_devices", return_value=discovery
+        )
+        build_mock = mocker.patch(
+            "usbip_lib.monitor.build_device_manifest", return_value=manifest
+        )
+        write_mock = mocker.patch("usbip_lib.monitor.write_device_manifest")
+
+        assert refresh_device_manifest(config, logger) == manifest
+        discover_mock.assert_called_once_with(["192.168.1.44"])
+        build_mock.assert_called_once_with(config, discovery)
+        write_mock.assert_called_once_with(manifest)
+
+
 class TestPostReattachActions:
     def test_runs_post_action_with_capped_timeout(self, mocker):
         logger = mocker.Mock()
