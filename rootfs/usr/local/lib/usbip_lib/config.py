@@ -3,7 +3,13 @@
 import json
 import urllib.request
 
-from .constants import SUPERVISOR_TOKEN, SUPERVISOR_URL, WEBUI_INTERNAL_PORT
+from .constants import (
+    POST_REATTACH_ACTION_METHODS,
+    POST_REATTACH_ACTION_TIMEOUT_SECONDS,
+    SUPERVISOR_TOKEN,
+    SUPERVISOR_URL,
+    WEBUI_INTERNAL_PORT,
+)
 
 
 NOTIFICATION_TYPES = [
@@ -109,6 +115,7 @@ def _build_supervisor_config_payload(options: dict) -> tuple[dict, str | None]:
 
     normalized_options, _ = normalize_dependent_apps_config(normalized_options)
     normalized_options, _ = normalize_notification_config(normalized_options)
+    normalized_options, _ = normalize_post_reattach_actions_config(normalized_options)
     normalized_options, _ = _strip_virtual_config_fields(normalized_options)
 
     payload = {"options": normalized_options}
@@ -140,6 +147,63 @@ def normalize_dependent_apps_config(config: dict) -> tuple[dict, bool]:
 
     if "dependent_addons" in config:
         del config["dependent_addons"]
+        changed = True
+
+    return config, changed
+
+
+def _normalize_post_reattach_timeout(value: object) -> int:
+    if isinstance(value, bool):
+        return POST_REATTACH_ACTION_TIMEOUT_SECONDS
+    try:
+        timeout = int(value)
+    except (TypeError, ValueError):
+        return POST_REATTACH_ACTION_TIMEOUT_SECONDS
+    return max(1, min(timeout, POST_REATTACH_ACTION_TIMEOUT_SECONDS))
+
+
+def normalize_post_reattach_actions_config(config: dict) -> tuple[dict, bool]:
+    """Normalize optional HTTP actions run after successful device recovery."""
+    if not isinstance(config, dict):
+        return {}, False
+    if not config:
+        return {}, False
+
+    changed = False
+    actions = config.get("post_reattach_actions")
+    if not isinstance(actions, list):
+        config["post_reattach_actions"] = []
+        return config, True
+
+    normalized_actions: list[dict] = []
+    for action in actions:
+        if not isinstance(action, dict):
+            changed = True
+            continue
+
+        url = str(action.get("url", "")).strip()
+        if not url.startswith(("http://", "https://")):
+            changed = True
+            continue
+
+        method = str(action.get("method", "POST")).strip().upper()
+        if method not in POST_REATTACH_ACTION_METHODS:
+            changed = True
+            continue
+
+        name = str(action.get("name", "")).strip() or url
+        normalized_action = {
+            "name": name,
+            "url": url,
+            "method": method,
+            "timeout": _normalize_post_reattach_timeout(action.get("timeout")),
+        }
+        if normalized_action != action:
+            changed = True
+        normalized_actions.append(normalized_action)
+
+    if normalized_actions != actions:
+        config["post_reattach_actions"] = normalized_actions
         changed = True
 
     return config, changed
@@ -262,6 +326,7 @@ def get_app_config(
 
         normalized, _ = normalize_dependent_apps_config(options)
         normalized, _ = normalize_notification_config(normalized)
+        normalized, _ = normalize_post_reattach_actions_config(normalized)
         normalized, _ = _strip_virtual_config_fields(normalized)
         normalized[WEBUI_PORT_FIELD] = _get_webui_port(config_data)
         return normalized

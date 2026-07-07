@@ -151,6 +151,16 @@ class TestIndexPage:
         assert "loadAvailableAddons" not in html
         assert "saveDependentAddons" not in html
 
+    def test_config_includes_post_reattach_actions_editor(self, client):
+        """Config tab renders the post-reattach action editor."""
+        resp = client.get("/")
+        html = resp.get_data(as_text=True)
+
+        assert "Post-Reattach Actions" in html
+        assert 'id="cfg-post-reattach-actions-list"' in html
+        assert 'id="cfg-add-post-reattach-action"' in html
+        assert 'onclick="addPostReattachAction()"' not in html
+
     def test_config_reload_button_uses_forced_reload(self, client):
         """Config reload button triggers explicit forced reload handler."""
         resp = client.get("/")
@@ -402,6 +412,17 @@ class TestStaticAppJsCompatibility:
         assert "loadAvailableAddons" not in js
         assert "saveDependentAddons" not in js
         assert "restartAddon" in js
+
+    def test_config_save_preserves_post_reattach_actions(self, client):
+        resp = client.get("/static/app.js")
+        assert resp.status_code == 200
+        js = resp.get_data(as_text=True)
+
+        assert "function getPostReattachActionsFromForm()" in js
+        assert "addPostReattachActionButton.addEventListener" in js
+        assert "post_reattach_actions: getPostReattachActionsFromForm()," in js
+        assert "window.addPostReattachAction = addPostReattachAction;" in js
+        assert "window.removePostReattachAction = removePostReattachAction;" in js
 
     def test_persists_active_tab_via_cookie(self, client):
         """Tab persistence uses cookie for server-side rendering in Ingress."""
@@ -929,6 +950,34 @@ class TestApiConfig:
 
         assert data["ok"] is False
         assert "Direct WebUI host port" in data["detail"]
+
+    def test_set_reports_post_reattach_actions_persist_mismatch(self, client, mocker):
+        mocker.patch("app.set_app_config", return_value={"result": "ok"})
+        mocker.patch(
+            "app.get_app_config",
+            return_value={
+                **SAMPLE_APP_CONFIG,
+                "post_reattach_actions": [],
+            },
+        )
+
+        resp = client.post(
+            "/api/config",
+            json={
+                "log_level": "debug",
+                "post_reattach_actions": [
+                    {
+                        "name": "Companion surface rescan",
+                        "url": "http://companion:8000/api/surfaces/rescan",
+                        "method": "POST",
+                    }
+                ],
+            },
+        )
+        data = resp.get_json()
+
+        assert data["ok"] is False
+        assert "Post-reattach actions" in data["detail"]
 
 
 class TestApiEvents:

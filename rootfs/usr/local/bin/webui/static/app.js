@@ -15,6 +15,7 @@ let logPaused = false;
 let logFilter = 'all';
 let allLogLines = []; // master unfiltered log buffer
 let currentConfig = null;
+let _postReattachActions = [];
 // Controls whether the logs auto-scroll: 'when_not_paused' or 'always'
 let logAutoScroll = 'when_not_paused';
 const NOTIFICATION_TYPES = [
@@ -86,6 +87,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const notificationsEnabled = document.getElementById('cfg-notifications-enabled');
     if (notificationsEnabled) {
         notificationsEnabled.addEventListener('change', setNotificationControlsState);
+    }
+
+    const addPostReattachActionButton = document.getElementById('cfg-add-post-reattach-action');
+    if (addPostReattachActionButton) {
+        addPostReattachActionButton.addEventListener('click', addPostReattachAction);
     }
 });
 
@@ -891,6 +897,7 @@ async function loadConfig(forceReload = false) {
 
     // Load dependent apps selection
     loadDependentAppsConfig(cfg.dependent_apps || []);
+    loadPostReattachActionsConfig(cfg.post_reattach_actions || []);
 
     if (forceReload) {
         toast('Configuration reloaded');
@@ -908,6 +915,59 @@ function addDeviceRow(name = '', devId = '', server = '') {
     <button class="btn btn-xs btn-error" onclick="this.parentElement.remove()">✕</button>
   `;
     container.appendChild(row);
+}
+
+function loadPostReattachActionsConfig(actions) {
+    _postReattachActions = Array.isArray(actions) ? actions : [];
+    renderPostReattachActionsList();
+}
+
+function renderPostReattachActionsList() {
+    const el = document.getElementById('cfg-post-reattach-actions-list');
+    if (!el) return;
+    if (_postReattachActions.length === 0) {
+        el.innerHTML = '<span class="dim">No post-reattach actions configured</span>';
+        return;
+    }
+    el.innerHTML = _postReattachActions.map((action, i) => {
+        const method = `${action.method || 'POST'}`.toUpperCase() === 'GET' ? 'GET' : 'POST';
+        const timeout = Math.max(1, Math.min(parseInt(action.timeout, 10) || 3, 3));
+        return `
+            <div class="device-row post-reattach-action-row">
+                <input type="text" placeholder="Name" value="${esc(action.name || '')}" class="post-action-name">
+                <select class="post-action-method">
+                    <option value="GET" ${method === 'GET' ? 'selected' : ''}>GET</option>
+                    <option value="POST" ${method === 'POST' ? 'selected' : ''}>POST</option>
+                </select>
+                <input type="text" placeholder="https://host/path" value="${esc(action.url || '')}" class="post-action-url">
+                <input type="number" min="1" max="3" value="${timeout}" class="post-action-timeout">
+                <button class="btn btn-xs btn-error" onclick="removePostReattachAction(${i})">\u2715</button>
+            </div>
+        `;
+    }).join('');
+}
+
+function getPostReattachActionsFromForm() {
+    const rows = document.querySelectorAll('#cfg-post-reattach-actions-list .post-reattach-action-row');
+    return Array.from(rows).map(row => {
+        const name = row.querySelector('.post-action-name')?.value.trim() || '';
+        const method = row.querySelector('.post-action-method')?.value || 'POST';
+        const url = row.querySelector('.post-action-url')?.value.trim() || '';
+        const timeout = parseInt(row.querySelector('.post-action-timeout')?.value, 10) || 3;
+        return { name, method, url, timeout };
+    }).filter(action => action.url);
+}
+
+function addPostReattachAction() {
+    _postReattachActions = getPostReattachActionsFromForm();
+    _postReattachActions.push({ name: '', method: 'POST', url: '', timeout: 3 });
+    renderPostReattachActionsList();
+}
+
+function removePostReattachAction(index) {
+    _postReattachActions = getPostReattachActionsFromForm();
+    _postReattachActions.splice(index, 1);
+    renderPostReattachActionsList();
 }
 
 async function saveConfig() {
@@ -967,6 +1027,7 @@ async function saveConfig() {
         notifications_enabled: !!document.getElementById('cfg-notifications-enabled')?.checked,
         notification_types: getSelectedNotificationTypes(),
         log_auto_scroll: autoScrollVal,
+        post_reattach_actions: getPostReattachActionsFromForm(),
         devices,
     };
 
@@ -1200,6 +1261,8 @@ window.cycleTheme = cycleTheme;
 window.refreshDashboard = refreshDashboard;
 window.loadConfig = loadConfig;
 window.saveConfig = saveConfig;
+window.addPostReattachAction = addPostReattachAction;
+window.removePostReattachAction = removePostReattachAction;
 window.backupConfig = backupConfig;
 window.restoreConfig = restoreConfig;
 window.toast = toast;

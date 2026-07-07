@@ -6,6 +6,7 @@ unit-tested via normal imports.
 
 import logging
 import time
+import urllib.request
 
 from .config import get_app_state, restart_app, send_ha_notification
 from .constants import (
@@ -14,6 +15,8 @@ from .constants import (
     FLAP_CRITICAL_THRESHOLD,
     FLAP_WARNING_THRESHOLD,
     FLAP_WINDOW_SECONDS,
+    POST_REATTACH_ACTION_METHODS,
+    POST_REATTACH_ACTION_TIMEOUT_SECONDS,
 )
 from .events import write_event
 from .usbip import attach_device
@@ -236,6 +239,73 @@ def restart_dependent_apps(
             logger=logger,
             success_reason="after USB device recovery.",
         )
+
+
+def _post_reattach_timeout(value: object) -> int:
+    if isinstance(value, bool):
+        return POST_REATTACH_ACTION_TIMEOUT_SECONDS
+    try:
+        timeout = int(value)
+    except (TypeError, ValueError):
+        return POST_REATTACH_ACTION_TIMEOUT_SECONDS
+    return max(1, min(timeout, POST_REATTACH_ACTION_TIMEOUT_SECONDS))
+
+
+def run_post_reattach_actions(actions: list[dict], logger: logging.Logger) -> None:
+    """Run configured HTTP actions after at least one device was recovered."""
+    for action in actions:
+        if not isinstance(action, dict):
+            continue
+
+        url = str(action.get("url", "")).strip()
+        name = str(action.get("name", "")).strip() or url or "Post-reattach action"
+        method = str(action.get("method", "POST")).strip().upper()
+        timeout = _post_reattach_timeout(action.get("timeout"))
+
+        if not url.startswith(("http://", "https://")):
+            logger.warning("Skipping post-reattach action %s: invalid URL", name)
+            write_event(
+                "post_reattach_fail",
+                f"{name} has an invalid URL",
+                device=name,
+            )
+            continue
+        if method not in POST_REATTACH_ACTION_METHODS:
+            logger.warning("Skipping post-reattach action %s: invalid method", name)
+            write_event(
+                "post_reattach_fail",
+                f"{name} has an invalid method",
+                device=name,
+            )
+            continue
+
+        try:
+            request = urllib.request.Request(url, method=method)
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                status = int(getattr(response, "status", 0) or 0)
+        except Exception as exc:
+            logger.warning("Post-reattach action %s failed: %s", name, exc)
+            write_event(
+                "post_reattach_fail",
+                f"{name} failed: {exc}",
+                device=name,
+            )
+            continue
+
+        if 200 <= status < 300:
+            logger.info("Post-reattach action %s returned HTTP %d", name, status)
+            write_event(
+                "post_reattach_ok",
+                f"{name} returned HTTP {status}",
+                device=name,
+            )
+        else:
+            logger.warning("Post-reattach action %s returned HTTP %d", name, status)
+            write_event(
+                "post_reattach_fail",
+                f"{name} returned HTTP {status}",
+                device=name,
+            )
 
 
 def _retry_restart(

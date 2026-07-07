@@ -63,6 +63,7 @@ For apppublishing workflow see [docs/publishing.md](docs/publishing.md).
 - **reattach_retries**: Optional reattach retries. Default `3`, range `0-10`.
 - **restart_retries**: Optional dependent app restart retries. Default `3`, range `0-10`.
 - **dependent_apps**: Optional list with `name` and `slug`.
+- **post_reattach_actions**: Optional HTTP actions after a successful device reattach. Supports `GET` and `POST`; timeout is capped at `3` seconds. Configure these in the WebUI Configuration tab or Home Assistant app options.
 - **Recommended for dependent apps**: Let USB/IP Client manage dependent apps and disable **Start on boot** and **Watchdog** for each of them in Home Assistant.
 - **Direct WebUI host port**: Configure this in the WebUI Configuration tab, not in the Home Assistant app options schema. Leave it blank or set it to `0` to disable direct browser access outside Ingress.
 - **devices**: Device list containing:
@@ -83,6 +84,11 @@ dependent_apps:
     slug: "45df7312_zigbee2mqtt"
   - name: "Z-Wave JS"
     slug: "core_zwave_js"
+post_reattach_actions:
+  - name: "Companion surface rescan"
+    url: "http://a0820fdc-bitfocus-companion:8000/api/surfaces/rescan"
+    method: POST
+    timeout: 3
 devices:
   - name: "Zigbee Stick"
     device_or_bus_id: "1-1.1.3"
@@ -96,6 +102,7 @@ devices:
 - Attached devices become available in Home Assistant integrations.
 - Use the WebUI panel for discovery, attach/detach actions, logs, and event tracking.
 - In the WebUI Configuration tab, you can set the optional direct host port for browser access outside Home Assistant Ingress. Leave it blank or set it to `0` to disable direct host access.
+- In the WebUI Configuration tab, you can add post-reattach HTTP actions without editing YAML.
 
 ## Screenshots
 

@@ -1,6 +1,11 @@
 # Changelog
 
-## [Unreleased]
+## [1.0.5] - 2026-07-07
+
+### Added
+
+- **Post-reattach HTTP actions**: Added optional `post_reattach_actions` so a successful USB/IP device recovery can trigger short `GET` or `POST` HTTP calls, such as a Bitfocus Companion surface rescan, without restarting the dependent app.
+- **WebUI post-reattach actions**: Added a Configuration-tab editor for `post_reattach_actions`.
 
 ## [1.0.4] - 2026-07-06
 

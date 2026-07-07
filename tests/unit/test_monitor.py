@@ -14,6 +14,7 @@ from usbip_lib.monitor import (
     find_missing_devices,
     is_on_cooldown,
     record_flapping_recovery,
+    run_post_reattach_actions,
     restart_dependent_apps,
     set_cooldown,
 )
@@ -395,3 +396,56 @@ class TestDependentAppRestart:
             if c.args[:1] == ("app_health_fail",)
         ]
         assert len(health_fail_events) == 1
+
+
+class TestPostReattachActions:
+    def test_runs_post_action_with_capped_timeout(self, mocker):
+        logger = mocker.Mock()
+        response = mocker.Mock()
+        response.status = 200
+        response.__enter__ = mocker.Mock(return_value=response)
+        response.__exit__ = mocker.Mock(return_value=False)
+        urlopen_mock = mocker.patch(
+            "usbip_lib.monitor.urllib.request.urlopen",
+            return_value=response,
+        )
+        write_event_mock = mocker.patch("usbip_lib.monitor.write_event")
+
+        run_post_reattach_actions(
+            [
+                {
+                    "name": "Companion surface rescan",
+                    "url": "http://companion:8000/api/surfaces/rescan",
+                    "method": "POST",
+                    "timeout": 30,
+                }
+            ],
+            logger=logger,
+        )
+
+        req = urlopen_mock.call_args.args[0]
+        assert req.full_url == "http://companion:8000/api/surfaces/rescan"
+        assert req.get_method() == "POST"
+        assert urlopen_mock.call_args.kwargs["timeout"] == 3
+        write_event_mock.assert_called_with(
+            "post_reattach_ok",
+            "Companion surface rescan returned HTTP 200",
+            device="Companion surface rescan",
+        )
+
+    def test_skips_invalid_post_action_url(self, mocker):
+        logger = mocker.Mock()
+        urlopen_mock = mocker.patch("usbip_lib.monitor.urllib.request.urlopen")
+        write_event_mock = mocker.patch("usbip_lib.monitor.write_event")
+
+        run_post_reattach_actions(
+            [{"name": "Bad action", "url": "file:///tmp/nope", "method": "POST"}],
+            logger=logger,
+        )
+
+        urlopen_mock.assert_not_called()
+        write_event_mock.assert_called_with(
+            "post_reattach_fail",
+            "Bad action has an invalid URL",
+            device="Bad action",
+        )

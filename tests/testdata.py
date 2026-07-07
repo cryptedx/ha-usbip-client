@@ -70,6 +70,7 @@ SAMPLE_APP_CONFIG = {
         "device_detached",
     ],
     "dependent_apps": [],
+    "post_reattach_actions": [],
     "devices": [
         {"name": "Z-Wave Stick", "device_or_bus_id": "0658:0200"},
         {"name": "Zigbee Stick", "device_or_bus_id": "1-1.3"},

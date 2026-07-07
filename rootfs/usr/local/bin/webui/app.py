@@ -20,6 +20,7 @@ from usbip_lib.config import (
     list_installed_apps,
     normalize_dependent_apps_config,
     normalize_notification_config,
+    normalize_post_reattach_actions_config,
     restart_app,
     send_ha_notification,
     set_app_config,
@@ -59,7 +60,7 @@ from usbip_lib.usbip import (
 # ---------------------------------------------------------------------------
 # Constants (WebUI-specific only)
 # ---------------------------------------------------------------------------
-APP_VERSION = "1.0.4"
+APP_VERSION = "1.0.5"
 LOG_BUFFER_MAX = 2000
 VALID_WEBUI_TABS = {
     "dashboard",
@@ -759,6 +760,15 @@ def _config_persist_mismatch_detail(
             "Restart the app and verify the Home Assistant host port mapping."
         )
 
+    if expected_config.get("post_reattach_actions", []) != persisted_config.get(
+        "post_reattach_actions", []
+    ):
+        return (
+            "Post-reattach actions were not persisted by Supervisor. "
+            "If the app schema changed, reinstall the app to apply "
+            "the new schema."
+        )
+
     return ""
 
 
@@ -767,6 +777,7 @@ def api_config_set():
     data = request.get_json(force=True)
     data, _ = normalize_dependent_apps_config(data)
     data, _ = normalize_notification_config(data)
+    data, _ = normalize_post_reattach_actions_config(data)
     resp = set_app_config(data)
     ok = resp.get("result") == "ok"
 
@@ -793,6 +804,7 @@ def api_config_restore():
     data = request.get_json(force=True)
     data, _ = normalize_dependent_apps_config(data)
     data, _ = normalize_notification_config(data)
+    data, _ = normalize_post_reattach_actions_config(data)
     resp = set_app_config(data)
     ok = resp.get("result") == "ok"
     detail = ""

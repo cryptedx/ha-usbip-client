@@ -11,6 +11,7 @@ from usbip_lib.config import (
     list_installed_apps,
     normalize_notification_config,
     normalize_dependent_apps_config,
+    normalize_post_reattach_actions_config,
     restart_app,
     send_ha_notification,
     set_app_config,
@@ -195,6 +196,50 @@ class TestNormalizeDependentAppsConfig:
         config, changed = normalize_dependent_apps_config({"log_level": "info"})
         assert changed is True
         assert config["dependent_apps"] == []
+
+
+class TestNormalizePostReattachActionsConfig:
+    def test_adds_missing_post_reattach_actions_key(self):
+        config, changed = normalize_post_reattach_actions_config({"log_level": "info"})
+
+        assert changed is True
+        assert config["post_reattach_actions"] == []
+
+    def test_keeps_valid_action_and_caps_timeout(self):
+        config, changed = normalize_post_reattach_actions_config(
+            {
+                "post_reattach_actions": [
+                    {
+                        "name": "Companion surface rescan",
+                        "url": "http://companion:8000/api/surfaces/rescan",
+                        "method": "post",
+                        "timeout": 30,
+                    }
+                ]
+            }
+        )
+
+        assert changed is True
+        assert config["post_reattach_actions"] == [
+            {
+                "name": "Companion surface rescan",
+                "url": "http://companion:8000/api/surfaces/rescan",
+                "method": "POST",
+                "timeout": 3,
+            }
+        ]
+
+    def test_drops_invalid_action_urls(self):
+        config, changed = normalize_post_reattach_actions_config(
+            {
+                "post_reattach_actions": [
+                    {"name": "Bad", "url": "file:///tmp/nope", "method": "POST"}
+                ]
+            }
+        )
+
+        assert changed is True
+        assert config["post_reattach_actions"] == []
 
 
 class TestGetUniqueServers:
