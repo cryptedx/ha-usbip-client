@@ -9,7 +9,6 @@ import subprocess
 import time
 
 from .constants import (
-    ATTACHED_DEVICES_FILE,
     BLIND_DETACH_MAX_PORT,
     DEFAULT_ATTACH_DELAY,
     DEFAULT_ATTACH_RETRIES,
@@ -568,25 +567,7 @@ def attach_all_from_manifest(
 # ---------------------------------------------------------------------------
 def cleanup_temp_files() -> None:
     """Remove temporary state files."""
-    for path in [ATTACHED_DEVICES_FILE, DEVICE_MANIFEST_FILE]:
-        try:
-            os.remove(path)
-        except OSError:
-            pass
-
-
-def write_attached_devices_file(ports: list[int], filepath: str | None = None) -> None:
-    """Write attached port numbers to file.
-
-    Args:
-        ports: List of port numbers.
-        filepath: Output file path.
-    """
-    if filepath is None:
-        filepath = ATTACHED_DEVICES_FILE
     try:
-        with open(filepath, "w") as f:
-            for port in ports:
-                f.write(f"{port}\n")
-    except OSError as e:
-        logger.warning("Failed to write attached devices file: %s", e)
+        os.remove(DEVICE_MANIFEST_FILE)
+    except OSError:
+        pass

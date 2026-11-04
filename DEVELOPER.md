@@ -19,10 +19,14 @@ For any code change, follow this minimal sequence:
 - `rootfs/etc/services.d/`: long-running services (`usbip`, `monitor`, `webui`)
 - `rootfs/etc/cont-finish.d/`: shutdown cleanup scripts (`detach_devices.py`)
 - `rootfs/usr/local/lib/usbip_lib/`: shared Python library (`config`, `usbip`, `monitor`, `events`, `logging_setup`)
-- `rootfs/usr/local/bin/webui/`: Flask + Socket.IO WebUI
+- `rootfs/usr/local/bin/webui/`: Flask WebUI served by gevent
 - `tests/unit/` and `tests/integration/`: pytest test suites
 
 ## Local Development
+
+Local verification requires Python 3.11+ and Node.js. Node runs the JavaScript
+runtime regression and syntax check; no npm package or browser runtime is
+required.
 
 1. Clone the repository and open it in VS Code.
 1. Install development dependencies:
@@ -160,4 +164,4 @@ ha apps uninstall local_ha_usbip_client
 ha apps install local_ha_usbip_client
 ```
 
-- Ingress always targets the internal WebUI port 8099. If you enable direct browser access, validate it against the explicit Home Assistant host port mapping you configured; do not assume `:8099` unless you mapped that port.
+- Ingress always targets the internal WebUI port 8099. Open and validate the WebUI only through signed-in Home Assistant Ingress; no direct host port is published.

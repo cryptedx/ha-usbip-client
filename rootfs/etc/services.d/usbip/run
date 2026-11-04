@@ -18,7 +18,6 @@ from usbip_lib.usbip import (
     parse_usbip_port,
     read_device_manifest,
     remount_sysfs,
-    write_attached_devices_file,
 )
 
 
@@ -44,10 +43,6 @@ def main() -> int:
     time.sleep(1)
     attached = parse_usbip_port()
     attached_count = len(attached)
-
-    # Write port numbers to file
-    port_numbers = [d["port"] for d in attached]
-    write_attached_devices_file(port_numbers)
 
     # Log results and write events
     if attached_count == 0:

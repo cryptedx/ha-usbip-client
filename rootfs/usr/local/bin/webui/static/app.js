@@ -410,7 +410,7 @@ async function refreshDashboard() {
                 const latClass = !s.online ? 'latency-bad' : s.latency_ms < 50 ? 'latency-good' : s.latency_ms < 200 ? 'latency-mid' : 'latency-bad';
                 const icon = s.online ? '●' : '○';
                 const lat = s.online ? `${s.latency_ms}ms` : 'OFFLINE';
-                return `<div class="item"><span>${icon} ${ip}</span><span class="${latClass}">${lat}</span></div>`;
+                return `<div class="item"><span>${icon} ${esc(ip)}</span><span class="${latClass}">${lat}</span></div>`;
             }).join('');
         }
         renderLatencyGraph(health.history || {});
@@ -474,7 +474,7 @@ async function refreshDashboard() {
             return `<div class="item">
                 <span>${icon} ${esc(a.name)}</span>
                 <span><span class="badge ${cls}">${esc(a.state.toUpperCase())}</span>
-                ${!isUp ? `<button class="btn btn-xs" onclick="restartApp('${esc(a.slug)}','${esc(a.name)}', this)">RESTART</button>` : ''}
+                ${!isUp ? `<button class="btn btn-xs dep-app-restart" data-slug="${escAttr(a.slug)}" data-name="${escAttr(a.name)}">RESTART</button>` : ''}
                 </span>
             </div>`;
         }).join('');
@@ -540,13 +540,13 @@ async function refreshDevices() {
     tbody.innerHTML = data.devices.map(d => {
         const name = d.usb_name || d.info || '-';
         return `<tr>
-      <td><input type="checkbox" class="dev-check" data-port="${d.port}"></td>
+      <td><input type="checkbox" class="dev-check" data-port="${escAttr(d.port)}"></td>
       <td>${d.port}</td>
       <td>${esc(name)}</td>
       <td>${esc(d.device_id || '-')}</td>
       <td>${esc(d.server || d.remote_busid || '-')}</td>
       <td><span class="badge badge-ok">${esc(d.status || 'attached')}</span></td>
-      <td><button class="btn btn-warn btn-xs" onclick="detachOne(${d.port})">DETACH</button></td>
+      <td><button class="btn btn-warn btn-xs detach-one" data-port="${escAttr(d.port)}">DETACH</button></td>
     </tr>`;
     }).join('');
 }
@@ -637,7 +637,7 @@ async function discoverDevices() {
     <td>${esc(d.name)}</td>
     <td>${esc(d.device_id)}</td>
     <td class="dim">${esc(d.usb_name || '-')}</td>
-    <td><button class="btn btn-xs" onclick="quickAttach('${esc(d.server)}','${esc(d.busid)}','${esc(d.name)}')">▶ ATTACH</button></td>
+    <td><button class="btn btn-xs quick-attach" data-server="${escAttr(d.server)}" data-busid="${escAttr(d.busid)}" data-name="${escAttr(d.name)}">▶ ATTACH</button></td>
   </tr>`).join('');
 }
 
@@ -816,7 +816,7 @@ async function refreshEvents() {
         const ts = new Date(e.ts).toLocaleString();
         return `<div class="event-entry">
       <span class="event-ts">${esc(ts)}</span>
-      <span class="event-type ${esc(e.type)}">${esc(e.type)}</span>
+      <span class="event-type ${escAttr(e.type)}">${esc(e.type)}</span>
       <span class="event-detail">${esc(e.device || '')} ${esc(e.server || '')} — ${esc(e.detail)}</span>
     </div>`;
     }).join('');
@@ -843,7 +843,6 @@ async function loadConfig(forceReload = false) {
 
     document.getElementById('cfg-log-level').value = cfg.log_level || 'info';
     document.getElementById('cfg-server').value = cfg.usbipd_server_address || '';
-    document.getElementById('cfg-webui-port').value = cfg.webui_port ?? '';
     document.getElementById('cfg-delay').value = cfg.attach_delay ?? 2;
 
     // Populate discover server field too
@@ -909,9 +908,9 @@ function addDeviceRow(name = '', devId = '', server = '') {
     const row = document.createElement('div');
     row.className = 'device-row';
     row.innerHTML = `
-    <input type="text" placeholder="Name" value="${esc(name)}" class="cfg-dev-name">
-    <input type="text" placeholder="Device/Bus ID" value="${esc(devId)}" class="cfg-dev-id">
-    <input type="text" placeholder="Server (optional)" value="${esc(server)}" class="cfg-dev-server">
+    <input type="text" placeholder="Name" value="${escAttr(name)}" class="cfg-dev-name">
+    <input type="text" placeholder="Device/Bus ID" value="${escAttr(devId)}" class="cfg-dev-id">
+    <input type="text" placeholder="Server (optional)" value="${escAttr(server)}" class="cfg-dev-server">
     <button class="btn btn-xs btn-error" onclick="this.parentElement.remove()">✕</button>
   `;
     container.appendChild(row);
@@ -934,13 +933,13 @@ function renderPostReattachActionsList() {
         const timeout = Math.max(1, Math.min(parseInt(action.timeout, 10) || 3, 3));
         return `
             <div class="device-row post-reattach-action-row">
-                <input type="text" placeholder="Name" value="${esc(action.name || '')}" class="post-action-name">
+                <input type="text" placeholder="Name" value="${escAttr(action.name || '')}" class="post-action-name">
                 <select class="post-action-method">
                     <option value="GET" ${method === 'GET' ? 'selected' : ''}>GET</option>
                     <option value="POST" ${method === 'POST' ? 'selected' : ''}>POST</option>
                 </select>
-                <input type="text" placeholder="https://host/path" value="${esc(action.url || '')}" class="post-action-url">
-                <input type="number" min="1" max="3" value="${timeout}" class="post-action-timeout">
+                <input type="text" placeholder="https://host/path" value="${escAttr(action.url || '')}" class="post-action-url">
+                <input type="number" min="1" max="3" value="${escAttr(timeout)}" class="post-action-timeout">
                 <button class="btn btn-xs btn-error" onclick="removePostReattachAction(${i})">\u2715</button>
             </div>
         `;
@@ -970,6 +969,11 @@ function removePostReattachAction(index) {
     renderPostReattachActionsList();
 }
 
+function readIntegerConfig(id, fallback) {
+    const value = Number.parseInt(document.getElementById(id)?.value, 10);
+    return Number.isInteger(value) ? value : fallback;
+}
+
 async function saveConfig() {
     const devices = [];
     document.querySelectorAll('#cfg-devices-list .device-row').forEach(row => {
@@ -990,26 +994,13 @@ async function saveConfig() {
 
     const logLevelEl = document.getElementById('cfg-log-level');
     const serverEl = document.getElementById('cfg-server');
-    const webuiPortEl = document.getElementById('cfg-webui-port');
     const delayEl = document.getElementById('cfg-delay');
-    if (!logLevelEl || !serverEl || !webuiPortEl || !delayEl) {
+    if (!logLevelEl || !serverEl || !delayEl) {
         toast('Config form is not fully loaded. Please reload page.', 'error');
         return;
     }
 
     const delayVal = parseInt(delayEl.value);
-    const webuiPortRaw = webuiPortEl.value.trim();
-    let webuiPort = null;
-    const previousWebuiPort = currentConfig?.webui_port ?? null;
-
-    if (webuiPortRaw && webuiPortRaw !== '0') {
-        webuiPort = parseInt(webuiPortRaw, 10);
-        if (Number.isNaN(webuiPort) || webuiPort < 1 || webuiPort > 65535) {
-            toast('Direct WebUI host port must be blank, 0, or between 1 and 65535.', 'error');
-            webuiPortEl.focus();
-            return;
-        }
-    }
 
     // Read auto-scroll preference and apply it immediately
     const autoScrollEl = document.getElementById('cfg-log-auto-scroll');
@@ -1019,11 +1010,10 @@ async function saveConfig() {
     const config = {
         log_level: logLevelEl.value,
         usbipd_server_address: serverEl.value.trim(),
-        webui_port: webuiPort,
         attach_delay: isNaN(delayVal) ? 2 : delayVal,
-        monitor_interval: parseInt(document.getElementById('cfg-monitor-interval')?.value) || 30,
-        reattach_retries: parseInt(document.getElementById('cfg-reattach-retries')?.value) || 3,
-        restart_retries: parseInt(document.getElementById('cfg-restart-retries')?.value) || 3,
+        monitor_interval: readIntegerConfig('cfg-monitor-interval', 30),
+        reattach_retries: readIntegerConfig('cfg-reattach-retries', 3),
+        restart_retries: readIntegerConfig('cfg-restart-retries', 3),
         notifications_enabled: !!document.getElementById('cfg-notifications-enabled')?.checked,
         notification_types: getSelectedNotificationTypes(),
         log_auto_scroll: autoScrollVal,
@@ -1040,11 +1030,7 @@ async function saveConfig() {
     const data = await api('/api/config', { method: 'POST', body: JSON.stringify(config) });
     if (data.ok) {
         currentConfig = { ...(currentConfig || {}), ...config };
-        if (previousWebuiPort !== webuiPort) {
-            toast('Configuration saved. Direct host-port changes require an app restart and do not change the internal Ingress port.', 'accent');
-        } else {
-            toast('Configuration saved! Restart app to apply.');
-        }
+        toast('Configuration saved! Restart app to apply.');
     } else {
         const detail = data.detail || data.error || data.response?.message || 'unknown error';
         toast(`Save failed: ${detail}`, 'error');
@@ -1073,7 +1059,7 @@ function restoreConfig(input) {
             const data = await api('/api/config/restore', { method: 'POST', body: JSON.stringify(config) });
             toast(
                 data.ok
-                    ? 'Config restored! Restart app to apply. Direct host-port changes do not change the internal Ingress port.'
+                    ? 'Config restored! Restart app to apply.'
                     : 'Restore failed',
                 data.ok ? '' : 'error'
             );
@@ -1087,12 +1073,47 @@ function restoreConfig(input) {
 }
 
 // ---- Utilities ----
-function esc(str) {
-    if (!str) return '';
+function esc(value) {
+    if (value === null || value === undefined) return '';
     const d = document.createElement('div');
-    d.textContent = str;
+    d.textContent = String(value);
     return d.innerHTML;
 }
+
+function escAttr(value) {
+    return esc(value).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function handleDynamicAction(event) {
+    if (!(event.target instanceof Element)) return;
+
+    const restartButton = event.target.closest('.dep-app-restart');
+    if (restartButton) {
+        restartApp(
+            restartButton.dataset.slug || '',
+            restartButton.dataset.name || '',
+            restartButton,
+        );
+        return;
+    }
+
+    const detachButton = event.target.closest('.detach-one');
+    if (detachButton) {
+        detachOne(detachButton.dataset.port || '');
+        return;
+    }
+
+    const quickAttachButton = event.target.closest('.quick-attach');
+    if (quickAttachButton) {
+        quickAttach(
+            quickAttachButton.dataset.server || '',
+            quickAttachButton.dataset.busid || '',
+            quickAttachButton.dataset.name || '',
+        );
+    }
+}
+
+document.addEventListener('click', handleDynamicAction);
 
 // ---------------------------------------------------------------------------
 // Tooltips: enable tap-to-toggle on touch devices and accessible hide-on-outside/Escape
@@ -1186,8 +1207,8 @@ function renderDependentAppsList() {
             <input type="hidden" value="" class="cfg-dev-name">
             <input type="hidden" value="" class="cfg-dev-id">
             <input type="hidden" value="" class="cfg-dev-server">
-            <input type="text" value="${esc(a.name)}" class="dep-app-name" readonly>
-            <input type="text" value="${esc(a.slug)}" class="dep-app-slug" readonly>
+            <input type="text" value="${escAttr(a.name)}" class="dep-app-name" readonly>
+            <input type="text" value="${escAttr(a.slug)}" class="dep-app-slug" readonly>
             <button class="btn btn-xs btn-error" onclick="removeDependentApp(${i})">\u2715</button>
         </div>
     `).join('');
@@ -1225,7 +1246,7 @@ async function loadAvailableApps() {
         const checked = selectedSlugs.has(a.slug) ? 'checked' : '';
         const stateClass = a.state === 'started' ? 'badge-ok' : 'badge-error';
         return `<label style="display:flex;align-items:center;gap:.5rem;padding:.2rem 0;cursor:pointer">
-                <input type="checkbox" class="dep-app-check" data-slug="${esc(a.slug)}" data-name="${esc(a.name)}" ${checked}>
+                <input type="checkbox" class="dep-app-check" data-slug="${escAttr(a.slug)}" data-name="${escAttr(a.name)}" ${checked}>
                 <span>${esc(a.name)}</span>
                 <span class="badge ${stateClass}" style="font-size:.7rem">${esc(a.state)}</span>
                 <span class="dim" style="font-size:.7rem">${esc(a.slug)}</span>
@@ -1239,7 +1260,9 @@ async function loadAvailableApps() {
 
 function applyAppSelection() {
     const checks = document.querySelectorAll('.dep-app-check:checked');
+    const previous = new Map(_selectedDependentApps.map(a => [a.slug, a]));
     _selectedDependentApps = Array.from(checks).map(c => ({
+        ...previous.get(c.dataset.slug),
         name: c.dataset.name,
         slug: c.dataset.slug,
     }));

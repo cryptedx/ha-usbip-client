@@ -36,12 +36,6 @@ def tmp_details_file(tmp_path):
 
 
 @pytest.fixture
-def tmp_attached_file(tmp_path):
-    """Return a path to a temp attached devices file."""
-    return str(tmp_path / "attached_devices.txt")
-
-
-@pytest.fixture
 def mock_subprocess_success(mocker):
     """Mock subprocess.run to always return success (rc=0)."""
     mock = mocker.patch("usbip_lib.usbip.subprocess.run")

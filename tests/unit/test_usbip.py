@@ -19,7 +19,6 @@ from usbip_lib.usbip import (
     read_device_manifest,
     resolve_device_id_to_bus_id,
     run_cmd,
-    write_attached_devices_file,
     write_device_manifest,
 )
 
@@ -413,36 +412,18 @@ class TestAttachAllFromManifest:
         assert failed == 0
 
 
-class TestWriteAttachedDevicesFile:
-    def test_write(self, tmp_attached_file):
-        write_attached_devices_file([0, 1, 2], tmp_attached_file)
-        with open(tmp_attached_file) as f:
-            lines = f.read().strip().split("\n")
-        assert lines == ["0", "1", "2"]
-
-
 class TestCleanupTempFiles:
     def test_removes_files(self, tmp_path, mocker):
-        # Create temp files
-        for name in [
-            "attached_devices.txt",
-            "device_manifest.json",
-        ]:
-            (tmp_path / name).write_text("data")
+        manifest_path = tmp_path / "device_manifest.json"
+        manifest_path.write_text("data")
 
-        mocker.patch(
-            "usbip_lib.usbip.ATTACHED_DEVICES_FILE",
-            str(tmp_path / "attached_devices.txt"),
-        )
         mocker.patch(
             "usbip_lib.usbip.DEVICE_MANIFEST_FILE",
-            str(tmp_path / "device_manifest.json"),
+            str(manifest_path),
         )
         cleanup_temp_files()
-        assert not (tmp_path / "attached_devices.txt").exists()
-        assert not (tmp_path / "device_manifest.json").exists()
+        assert not manifest_path.exists()
 
     def test_missing_files_no_error(self, mocker):
-        mocker.patch("usbip_lib.usbip.ATTACHED_DEVICES_FILE", "/nonexistent/a")
         mocker.patch("usbip_lib.usbip.DEVICE_MANIFEST_FILE", "/nonexistent/c")
         cleanup_temp_files()  # Should not raise

@@ -2,7 +2,10 @@
 
 import json
 import os
+import subprocess
 import sys
+from html.parser import HTMLParser
+from pathlib import Path
 
 import pytest
 
@@ -22,6 +25,34 @@ from testdata import (
     SAMPLE_USBIP_LIST_OUTPUT,
     SAMPLE_USBIP_PORT_OUTPUT,
 )
+
+SUBPROCESS_RUN = subprocess.run
+
+
+def _extract_js_function(js, name):
+    start = js.index(f"function {name}(")
+    body_start = js.index("{", start)
+    depth = 0
+    for index in range(body_start, len(js)):
+        if js[index] == "{":
+            depth += 1
+        elif js[index] == "}":
+            depth -= 1
+            if depth == 0:
+                return js[start : index + 1]
+    raise AssertionError(f"unterminated JavaScript function: {name}")
+
+
+def _run_node(source):
+    completed = SUBPROCESS_RUN(
+        ["node", "-e", source],
+        capture_output=True,
+        text=True,
+        timeout=5,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+    return json.loads(completed.stdout)
 
 
 @pytest.fixture
@@ -81,10 +112,72 @@ def client(mock_usbip_env):
         yield client
 
 
+class TestIngressGuard:
+    def test_rejects_non_ingress_client_in_production(self, mock_usbip_env):
+        import app as app_module
+
+        previous = app_module.app.config["TESTING"]
+        app_module.app.config["TESTING"] = False
+        try:
+            with app_module.app.test_client() as direct_client:
+                response = direct_client.get(
+                    "/api/status",
+                    environ_base={"REMOTE_ADDR": "172.30.33.9"},
+                )
+        finally:
+            app_module.app.config["TESTING"] = previous
+
+        assert response.status_code == 403
+        assert response.get_json() == {"ok": False, "error": "Ingress required"}
+
+    @pytest.mark.parametrize("path", ["/", "/static/app.js"])
+    def test_rejects_non_ingress_page_and_static_without_leaking_content(
+        self, mock_usbip_env, path
+    ):
+        import app as app_module
+
+        previous = app_module.app.config["TESTING"]
+        app_module.app.config["TESTING"] = False
+        try:
+            with app_module.app.test_client() as direct_client:
+                response = direct_client.get(
+                    path,
+                    environ_base={"REMOTE_ADDR": "172.30.33.9"},
+                )
+        finally:
+            app_module.app.config["TESTING"] = previous
+
+        assert response.status_code == 403
+        assert response.is_json is False
+        assert response.get_data(as_text=True) == "Ingress required"
+
+    @pytest.mark.parametrize("remote_addr", ["172.30.32.2", "127.0.0.1", "::1"])
+    def test_allows_ingress_proxy_and_loopback(self, mock_usbip_env, remote_addr):
+        import app as app_module
+
+        previous = app_module.app.config["TESTING"]
+        app_module.app.config["TESTING"] = False
+        try:
+            with app_module.app.test_client() as allowed_client:
+                response = allowed_client.get(
+                    "/api/status",
+                    environ_base={"REMOTE_ADDR": remote_addr},
+                )
+        finally:
+            app_module.app.config["TESTING"] = previous
+
+        assert response.status_code == 200
+
+
 class TestIndexPage:
     def test_loads(self, client):
         resp = client.get("/")
         assert resp.status_code == 200
+
+    def test_template_has_no_save_config_monkey_patch(self, client):
+        html = client.get("/").get_data(as_text=True)
+
+        assert "originalSaveConfig" not in html
 
     def test_stylesheet_uses_asset_stamp_cache_buster(self, client):
         """Rendered HTML includes style.css asset stamp for ingress cache busting."""
@@ -130,14 +223,13 @@ class TestIndexPage:
         assert 'id="cfg-notif-type-device_attached"' in html
         assert 'id="cfg-notif-type-device_detached"' in html
 
-    def test_config_includes_direct_webui_port_control(self, client):
-        """Config tab renders direct WebUI host-port control."""
+    def test_config_omits_direct_webui_port_control(self, client):
+        """Config tab does not expose a direct WebUI host-port control."""
         resp = client.get("/")
         html = resp.get_data(as_text=True)
 
-        assert 'id="cfg-webui-port"' in html
-        assert "Direct WebUI Host Port" in html
-        assert "does not change the internal Ingress" in html
+        assert 'id="cfg-webui-port"' not in html
+        assert "Direct WebUI Host Port" not in html
 
     def test_dependent_apps_handlers_present(self, client):
         """Rendered HTML uses apps-only dependent app handlers and IDs."""
@@ -399,6 +491,141 @@ class TestIndexPage:
 
 
 class TestStaticAppJsCompatibility:
+    def test_dynamic_values_never_enter_inline_javascript(self, client):
+        js = client.get("/static/app.js").get_data(as_text=True)
+
+        assert "onclick=\"restartApp('${esc(a.slug)}" not in js
+        assert "onclick=\"quickAttach('${esc(d.server)}" not in js
+        assert 'onclick="detachOne(${d.port})"' not in js
+        assert 'class="btn btn-xs dep-app-restart"' in js
+        assert 'class="btn btn-xs quick-attach"' in js
+        assert 'class="btn btn-warn btn-xs detach-one"' in js
+        assert "detachOne(detachButton.dataset.port || '');" in js
+        assert "document.addEventListener('click', handleDynamicAction);" in js
+
+    def test_attribute_values_use_attribute_escaping(self, client):
+        js = client.get("/static/app.js").get_data(as_text=True)
+
+        assert "function escAttr(value)" in js
+        assert 'value="${escAttr(name)}"' in js
+        assert 'data-slug="${escAttr(a.slug)}"' in js
+        assert 'data-name="${escAttr(a.name)}"' in js
+        assert 'data-port="${escAttr(d.port)}"' in js
+
+    def test_event_type_class_uses_attribute_escaping(self, client):
+        js = client.get("/static/app.js").get_data(as_text=True)
+
+        assert 'class="event-type ${escAttr(e.type)}"' in js
+        assert 'class="event-type ${esc(e.type)}"' not in js
+
+    def test_dynamic_action_ignores_non_element_targets(self, client):
+        js = client.get("/static/app.js").get_data(as_text=True)
+        guard = "if (!(event.target instanceof Element)) return;"
+        first_closest = "event.target.closest('.dep-app-restart')"
+
+        assert guard in js
+        assert js.index(guard) < js.index(first_closest)
+
+    def test_hostile_attributes_round_trip_through_delegated_action(self, client):
+        js = client.get("/static/app.js").get_data(as_text=True)
+        template_start = js.index('`<button class="btn btn-xs dep-app-restart"')
+        template_end = js.index("`", template_start + 1) + 1
+        restart_button_template = js[template_start:template_end]
+
+        hostile = 'stick" autofocus onmouseover="alert(1)\'><svg/onload=alert(2)>&'
+        escape_result = _run_node(
+            "\n".join(
+                [
+                    "global.document = {",
+                    "  createElement() {",
+                    "    let innerHTML = '';",
+                    "    return {",
+                    "      set textContent(value) {",
+                    "        innerHTML = String(value)",
+                    "          .replace(/&/g, '&amp;')",
+                    "          .replace(/</g, '&lt;')",
+                    "          .replace(/>/g, '&gt;');",
+                    "      },",
+                    "      get innerHTML() { return innerHTML; },",
+                    "    };",
+                    "  },",
+                    "};",
+                    _extract_js_function(js, "esc"),
+                    _extract_js_function(js, "escAttr"),
+                    f"const hostile = {json.dumps(hostile)};",
+                    "const a = { slug: hostile, name: hostile };",
+                    f"const markup = {restart_button_template};",
+                    "process.stdout.write(JSON.stringify({",
+                    "  escaped: esc(hostile),",
+                    "  escapedAttr: escAttr(hostile),",
+                    "  markup,",
+                    "}));",
+                ]
+            )
+        )
+
+        assert "<" not in escape_result["escaped"]
+        assert "&quot;" in escape_result["escapedAttr"]
+        assert "&#39;" in escape_result["escapedAttr"]
+
+        class ButtonParser(HTMLParser):
+            def __init__(self):
+                super().__init__(convert_charrefs=True)
+                self.buttons = []
+
+            def handle_starttag(self, tag, attrs):
+                if tag == "button":
+                    self.buttons.append(attrs)
+
+        parser = ButtonParser()
+        parser.feed(escape_result["markup"])
+
+        assert len(parser.buttons) == 1
+        attribute_items = parser.buttons[0]
+        attribute_names = [name for name, _ in attribute_items]
+        assert attribute_names == ["class", "data-slug", "data-name"]
+        assert not any(name.startswith("on") for name in attribute_names)
+        button_attributes = dict(attribute_items)
+        assert button_attributes["data-slug"] == hostile
+        assert button_attributes["data-name"] == hostile
+
+        action_result = _run_node(
+            "\n".join(
+                [
+                    "global.Element = class Element {};",
+                    f"const slug = {json.dumps(button_attributes['data-slug'])};",
+                    f"const name = {json.dumps(button_attributes['data-name'])};",
+                    "const button = { dataset: { slug, name } };",
+                    "let received = null;",
+                    "function restartApp(valueSlug, valueName, target) {",
+                    "  received = { slug: valueSlug, name: valueName, sameTarget: target === button };",
+                    "}",
+                    "function detachOne() { throw new Error('unexpected detach'); }",
+                    "function quickAttach() { throw new Error('unexpected attach'); }",
+                    _extract_js_function(js, "handleDynamicAction"),
+                    "class Target extends Element {",
+                    "  closest(selector) {",
+                    "    return selector === '.dep-app-restart' ? button : null;",
+                    "  }",
+                    "}",
+                    "handleDynamicAction({ target: new Target() });",
+                    "process.stdout.write(JSON.stringify(received));",
+                ]
+            )
+        )
+
+        assert action_result == {
+            "slug": hostile,
+            "name": hostile,
+            "sameTarget": True,
+        }
+
+    def test_dashboard_server_name_is_escaped(self, client):
+        js = client.get("/static/app.js").get_data(as_text=True)
+
+        assert "${esc(ip)}" in js
+        assert "${icon} ${ip}" not in js
+
     def test_exposes_app_handlers_on_window_only(self, client):
         """Served app.js exposes current dependent-app functions without legacy aliases."""
         resp = client.get("/static/app.js")
@@ -423,6 +650,21 @@ class TestStaticAppJsCompatibility:
         assert "post_reattach_actions: getPostReattachActionsFromForm()," in js
         assert "window.addPostReattachAction = addPostReattachAction;" in js
         assert "window.removePostReattachAction = removePostReattachAction;" in js
+
+    def test_config_save_preserves_zero_retry_values(self, client):
+        js = client.get("/static/app.js").get_data(as_text=True)
+
+        assert "function readIntegerConfig(id, fallback) {" in js
+        assert (
+            "const value = Number.parseInt(document.getElementById(id)?.value, 10);"
+            in js
+        )
+        assert "return Number.isInteger(value) ? value : fallback;" in js
+        assert "if (reattRetries) reattRetries.value = cfg.reattach_retries ?? 3;" in js
+        assert "if (restRetries) restRetries.value = cfg.restart_retries ?? 3;" in js
+        assert "readIntegerConfig('cfg-monitor-interval', 30)" in js
+        assert "readIntegerConfig('cfg-reattach-retries', 3)" in js
+        assert "readIntegerConfig('cfg-restart-retries', 3)" in js
 
     def test_persists_active_tab_via_cookie(self, client):
         """Tab persistence uses cookie for server-side rendering in Ingress."""
@@ -463,29 +705,23 @@ class TestStaticAppJsCompatibility:
         assert resp.status_code == 200
         js = resp.get_data(as_text=True)
 
-        assert "onclick=\"restartApp('${esc(a.slug)}','${esc(a.name)}', this)\"" in js
+        assert "restartButton.dataset.slug || ''" in js
+        assert "restartButton.dataset.name || ''" in js
+        assert "restartButton," in js
         assert "async function restartApp(slug, name, buttonEl = null)" in js
         assert "buttonEl.disabled = true;" in js
         assert "buttonEl.textContent = 'RESTARTING...';" in js
 
-    def test_config_js_handles_direct_webui_port(self, client):
-        """Config JS hydrates and validates the direct WebUI host-port field."""
+    def test_config_js_omits_direct_webui_port(self, client):
+        """Config JS does not hydrate or persist a direct WebUI host port."""
         resp = client.get("/static/app.js")
         assert resp.status_code == 200
         js = resp.get_data(as_text=True)
 
         assert "let currentConfig = null;" in js
-        assert (
-            "document.getElementById('cfg-webui-port').value = cfg.webui_port ?? '';"
-            in js
-        )
-        assert "const webuiPortEl = document.getElementById('cfg-webui-port');" in js
-        assert "Direct WebUI host port must be blank, 0, or between 1 and 65535." in js
-        assert (
-            "Direct host-port changes require an app restart and do not change the internal Ingress port."
-            in js
-        )
-        assert "Direct host-port changes do not change the internal Ingress port." in js
+        assert "cfg-webui-port" not in js
+        assert "webui_port" not in js
+        assert "Direct WebUI host port" not in js
 
     def test_initial_load_hydrates_active_tab_data(self, client):
         """Initial page load hydrates currently active tab data (ingress/full reload safe)."""
@@ -612,15 +848,18 @@ class TestApiAttach:
         resp = client.post("/api/attach", json={"server": "192.168.1.44"})
         assert resp.status_code == 400
 
-    def test_failure(self, client, mocker):
+    def test_attach_failure_returns_actionable_generic_detail(self, client, mocker):
         mocker.patch("app.attach_device", return_value=False)
-        resp = client.post(
+        response = client.post(
             "/api/attach",
-            json={"server": "192.168.1.44", "busid": "1-1.4"},
+            json={"server": "usbip-host", "busid": "1-2", "name": "Stick"},
         )
-        data = resp.get_json()
-        assert data["ok"] is False
-        assert "Operation failed" in data["detail"]
+
+        assert response.status_code == 200
+        assert response.get_json() == {
+            "ok": False,
+            "detail": "Attach failed. Check USB/IP server reachability and app logs.",
+        }
 
 
 class TestApiDetach:
@@ -635,6 +874,17 @@ class TestApiDetach:
         resp = client.post("/api/detach", json={})
         assert resp.status_code == 400
 
+    def test_detach_failure_returns_actionable_generic_detail(self, client, mocker):
+        mocker.patch("app.detach_device", return_value=False)
+
+        response = client.post("/api/detach", json={"port": 2})
+
+        assert response.status_code == 200
+        assert response.get_json() == {
+            "ok": False,
+            "detail": "Detach failed. Check USB/IP device state and app logs.",
+        }
+
 
 class TestApiDetachAll:
     def test_success(self, client, mock_usbip_env):
@@ -644,6 +894,22 @@ class TestApiDetachAll:
         assert data["ok"] is True
         assert "detached" in data
         assert "failed" in data
+
+    def test_partial_detach_all_returns_not_ok(self, client, mocker):
+        mocker.patch("app.detach_all", return_value=(1, 1))
+
+        response = client.post("/api/detach-all")
+
+        assert response.status_code == 200
+        assert response.get_json() == {"ok": False, "detached": 1, "failed": 1}
+
+    def test_empty_detach_all_returns_ok(self, client, mocker):
+        mocker.patch("app.detach_all", return_value=(0, 0))
+
+        response = client.post("/api/detach-all")
+
+        assert response.status_code == 200
+        assert response.get_json() == {"ok": True, "detached": 0, "failed": 0}
 
 
 class TestApiAttachAll:
@@ -720,44 +986,12 @@ class TestApiConfig:
         assert data["config"].get("log_auto_scroll") == "when_not_paused"
         assert data["config"].get("notifications_enabled") is True
         assert "device_lost" in data["config"].get("notification_types", [])
-        assert "webui_port" in data["config"]
-        assert data["config"]["webui_port"] is None
+        assert "webui_port" not in data["config"]
 
     def test_set(self, client, mock_usbip_env):
         resp = client.post("/api/config", json={"log_level": "debug"})
         data = resp.get_json()
         assert data["ok"] is True
-
-    def test_set_accepts_webui_port(self, client, mocker):
-        set_mock = mocker.patch("app.set_app_config", return_value={"result": "ok"})
-        mocker.patch(
-            "app.get_app_config",
-            return_value={
-                **SAMPLE_APP_CONFIG,
-                "webui_port": 18199,
-            },
-        )
-
-        resp = client.post(
-            "/api/config",
-            json={"log_level": "debug", "webui_port": 18199},
-        )
-        data = resp.get_json()
-
-        assert data["ok"] is True
-        payload = set_mock.call_args.args[0]
-        assert payload["webui_port"] == 18199
-
-    def test_set_rejects_invalid_webui_port(self, client):
-        resp = client.post(
-            "/api/config",
-            json={"log_level": "debug", "webui_port": "invalid"},
-        )
-        data = resp.get_json()
-
-        assert data["ok"] is False
-        assert data["response"]["result"] == "error"
-        assert "Direct WebUI host port" in data["response"]["message"]
 
     def test_backup_returns_current_config_shape(self, client):
         resp = client.get("/api/config/backup")
@@ -767,8 +1001,7 @@ class TestApiConfig:
         assert data.get("log_auto_scroll") == "when_not_paused"
         assert data.get("notifications_enabled") is True
         assert isinstance(data.get("dependent_apps"), list)
-        assert "webui_port" in data
-        assert data["webui_port"] is None
+        assert "webui_port" not in data
 
     def test_restore_normalizes_legacy_payload_and_writes_event(self, client, mocker):
         set_mock = mocker.patch("app.set_app_config", return_value={"result": "ok"})
@@ -778,7 +1011,6 @@ class TestApiConfig:
                 **SAMPLE_APP_CONFIG,
                 "notifications_enabled": True,
                 "notification_types": ["device_lost"],
-                "webui_port": 18199,
             },
         )
 
@@ -789,7 +1021,6 @@ class TestApiConfig:
                 "dependent_addons": [{"name": "Z2M", "slug": "z2m"}],
                 "notifications_enabled": "yes",
                 "notification_types": ["device_lost", "invalid", 123, "device_lost"],
-                "webui_port": 18199,
             },
         )
         data = resp.get_json()
@@ -800,7 +1031,6 @@ class TestApiConfig:
         assert "dependent_addons" not in saved
         assert saved["notifications_enabled"] is True
         assert saved["notification_types"] == ["device_lost"]
-        assert saved["webui_port"] == 18199
 
         events_resp = client.get("/api/events")
         events = events_resp.get_json()["events"]
@@ -929,28 +1159,6 @@ class TestApiConfig:
         assert data["ok"] is False
         assert "not persisted" in data["detail"].lower()
 
-    def test_set_reports_webui_port_persist_mismatch(self, client, mocker):
-        mocker.patch("app.set_app_config", return_value={"result": "ok"})
-        mocker.patch(
-            "app.get_app_config",
-            return_value={
-                **SAMPLE_APP_CONFIG,
-                "webui_port": None,
-            },
-        )
-
-        resp = client.post(
-            "/api/config",
-            json={
-                "log_level": "debug",
-                "webui_port": 18199,
-            },
-        )
-        data = resp.get_json()
-
-        assert data["ok"] is False
-        assert "Direct WebUI host port" in data["detail"]
-
     def test_set_reports_post_reattach_actions_persist_mismatch(self, client, mocker):
         mocker.patch("app.set_app_config", return_value={"result": "ok"})
         mocker.patch(
@@ -987,6 +1195,20 @@ class TestApiEvents:
         assert data["ok"] is True
         assert data["events"] == []
 
+    @pytest.mark.parametrize(
+        ("requested_limit", "expected_limit"),
+        [(0, 1), (-1, 1), (1001, 1000)],
+    )
+    def test_event_limit_is_clamped(
+        self, client, mocker, requested_limit, expected_limit
+    ):
+        read = mocker.patch("app.read_events", return_value=[])
+
+        response = client.get(f"/api/events?limit={requested_limit}")
+
+        assert response.status_code == 200
+        read.assert_called_once_with(expected_limit)
+
     def test_clear(self, client, mock_usbip_env):
         # Write an event first
         from usbip_lib.events import write_event
@@ -995,6 +1217,15 @@ class TestApiEvents:
 
         resp = client.post("/api/events/clear")
         assert resp.get_json()["ok"] is True
+        assert open(mock_usbip_env["events_file"], "rb").read() == b""
+
+    def test_clear_uses_locked_event_storage(self, client, mock_usbip_env, mocker):
+        clear = mocker.patch("app.clear_events")
+
+        resp = client.post("/api/events/clear")
+
+        assert resp.status_code == 200
+        clear.assert_called_once_with(events_file=mock_usbip_env["events_file"])
 
 
 class TestApiCachingHeaders:
@@ -1395,6 +1626,55 @@ class TestApiDependentAppsSave:
         data = resp.get_json()
         assert data["ok"] is True
 
+    def test_save_keeps_device_mapping(self, client, mocker):
+        apps = [
+            {
+                "name": "Z-Wave JS",
+                "slug": "core_zwave_js",
+                "devices": ["Z-Wave Stick"],
+            }
+        ]
+        set_mock = mocker.patch("app.set_app_config", return_value={"result": "ok"})
+        mocker.patch("app.get_app_config", return_value={"dependent_apps": []})
+
+        resp = client.post("/api/dependent-apps", json={"dependent_apps": apps})
+
+        assert resp.get_json()["ok"] is True
+        assert set_mock.call_args.args[0]["dependent_apps"] == apps
+
+    def test_selection_dialog_keeps_device_mapping_of_kept_apps(self, client):
+        js = client.get("/static/app.js").get_data(as_text=True)
+
+        selected = _run_node(
+            "\n".join(
+                [
+                    "const checked = [",
+                    "  { dataset: { slug: 'core_zwave_js', name: 'Z-Wave JS' } },",
+                    "  { dataset: { slug: 'new_app', name: 'New App' } },",
+                    "];",
+                    "global.document = { querySelectorAll: () => checked };",
+                    "function renderDependentAppsList() {}",
+                    "function toast() {}",
+                    "let _selectedDependentApps = [",
+                    "  { name: 'Z-Wave JS', slug: 'core_zwave_js', devices: ['Z-Wave Stick'] },",
+                    "  { name: 'Zigbee2MQTT', slug: 'z2m', devices: ['Zigbee Stick'] },",
+                    "];",
+                    _extract_js_function(js, "applyAppSelection"),
+                    "applyAppSelection();",
+                    "process.stdout.write(JSON.stringify(_selectedDependentApps));",
+                ]
+            )
+        )
+
+        assert selected == [
+            {
+                "name": "Z-Wave JS",
+                "slug": "core_zwave_js",
+                "devices": ["Z-Wave Stick"],
+            },
+            {"name": "New App", "slug": "new_app"},
+        ]
+
     def test_legacy_dependent_route_removed(self, client):
         resp = client.post(
             "/api/dependent-addons",
@@ -1404,6 +1684,110 @@ class TestApiDependentAppsSave:
 
 
 class TestSystemRestart:
+    def test_flush_serializes_persistence_before_accepting_new_samples(self, mocker):
+        import app as app_module
+
+        old_sample = {"ts": "2026-07-11T10:00:00Z", "servers": {"host": 10.0}}
+        new_sample = {"ts": "2026-07-11T10:00:30Z", "servers": {"host": 11.0}}
+        first_persist_started = app_module.threading.Event()
+        allow_first_persist = app_module.threading.Event()
+        producer_started = app_module.threading.Event()
+        producer_finished = app_module.threading.Event()
+        persisted_batches = []
+        flush_results = []
+
+        mocker.patch.object(app_module, "latency_buffer", [old_sample])
+        mocker.patch.object(app_module, "last_latency_flush_ts", 0.0)
+
+        def persist(batch, **_kwargs):
+            persisted_batches.append(list(batch))
+            if len(persisted_batches) == 1:
+                first_persist_started.set()
+                allow_first_persist.wait(timeout=2)
+            return True
+
+        mocker.patch("app.append_latency_samples", side_effect=persist)
+
+        def flush():
+            flush_results.append(app_module._flush_latency_buffer(force=True))
+
+        def add_sample():
+            producer_started.set()
+            with app_module.latency_lock:
+                app_module.latency_buffer.append(new_sample)
+            producer_finished.set()
+
+        flush_thread = app_module.threading.Thread(target=flush, daemon=True)
+        producer_thread = app_module.threading.Thread(target=add_sample, daemon=True)
+        flush_thread.start()
+
+        assert first_persist_started.wait(timeout=1)
+        producer_thread.start()
+        assert producer_started.wait(timeout=1)
+        try:
+            assert not producer_finished.wait(timeout=0.2)
+        finally:
+            allow_first_persist.set()
+            flush_thread.join(timeout=2)
+            producer_thread.join(timeout=2)
+
+        assert not flush_thread.is_alive()
+        assert not producer_thread.is_alive()
+        assert flush_results == [True]
+        assert app_module.latency_buffer == [new_sample]
+
+        assert app_module._flush_latency_buffer(force=True) is True
+        assert persisted_batches == [[old_sample], [new_sample]]
+        assert app_module.latency_buffer == []
+
+    def test_shutdown_exits_when_current_thread_owns_latency_lock(self):
+        repo_root = Path(__file__).resolve().parents[2]
+        webui_dir = repo_root / "rootfs/usr/local/bin/webui"
+        library_dir = repo_root / "rootfs/usr/local/lib"
+        script = "\n".join(
+            [
+                "import sys",
+                f"sys.path.insert(0, {str(webui_dir)!r})",
+                f"sys.path.insert(0, {str(library_dir)!r})",
+                "import app",
+                "with app.latency_lock:",
+                "    app._handle_shutdown()",
+            ]
+        )
+
+        completed = SUBPROCESS_RUN(
+            [sys.executable, "-c", script],
+            capture_output=True,
+            text=True,
+            timeout=2,
+            check=False,
+        )
+
+        assert completed.returncode == 0, completed.stderr
+
+    def test_shutdown_handler_flushes_and_exits(self, mocker):
+        import app as app_module
+
+        flush = mocker.patch("app._flush_latency_buffer", return_value=True)
+
+        with pytest.raises(SystemExit) as exc_info:
+            app_module._handle_shutdown(15, None)
+
+        assert exc_info.value.code == 0
+        flush.assert_called_once_with(force=True)
+
+    def test_registers_shutdown_handler_for_sigterm_and_sigint(self, mocker):
+        import app as app_module
+
+        signal_handler = mocker.patch("app.signal.signal")
+
+        app_module._register_shutdown_handlers()
+
+        assert signal_handler.call_args_list == [
+            mocker.call(app_module.signal.SIGTERM, app_module._handle_shutdown),
+            mocker.call(app_module.signal.SIGINT, app_module._handle_shutdown),
+        ]
+
     def test_restart_returns_accepted_response(self, client, mocker):
         """POST /api/system/restart should respond accepted immediately."""
         thread_mock = mocker.Mock()

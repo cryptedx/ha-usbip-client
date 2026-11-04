@@ -60,12 +60,12 @@ For apppublishing workflow see [docs/publishing.md](docs/publishing.md).
 - **usbipd_server_address**: IP address of the USB/IP server.
 - **attach_delay**: Optional delay between attachment attempts. Default `2`, range `0-30`.
 - **monitor_interval**: Optional health check interval. Default `30`, range `10-300`.
-- **reattach_retries**: Optional reattach retries. Default `3`, range `0-10`.
-- **restart_retries**: Optional dependent app restart retries. Default `3`, range `0-10`.
-- **dependent_apps**: Optional list with `name` and `slug`.
+- **reattach_retries**: Optional reattach retries. Default `3`, range `0-10`; `0` disables automatic reattach attempts.
+- **restart_retries**: Optional dependent app restart retries. Default `3`, range `0-10`; `0` disables automatic dependent app restart attempts.
+- **dependent_apps**: Optional list with `name`, `slug` and optional `devices`.
+  - **devices**: Names of the devices this app uses, spelled exactly like `name` in the `devices` option below. After a reattach, the app restarts only if one of these devices came back. Without this list, the app restarts after every reattach. If a listed name is not a configured device, the app also restarts after every reattach and the log shows a warning. Set this list in the app options; the WebUI keeps it but does not edit it.
 - **post_reattach_actions**: Optional HTTP actions after a successful device reattach. Supports `GET` and `POST`; timeout is capped at `3` seconds. Configure these in the WebUI Configuration tab or Home Assistant app options.
 - **Recommended for dependent apps**: Let USB/IP Client manage dependent apps and disable **Start on boot** and **Watchdog** for each of them in Home Assistant.
-- **Direct WebUI host port**: Configure this in the WebUI Configuration tab, not in the Home Assistant app options schema. Leave it blank or set it to `0` to disable direct browser access outside Ingress.
 - **devices**: Device list containing:
   - **name**: Display name.
   - **device_or_bus_id**: Bus ID (`1-1.1.3`) or USB device ID (`0658:0200`).
@@ -82,8 +82,12 @@ restart_retries: 3
 dependent_apps:
   - name: "Zigbee2MQTT"
     slug: "45df7312_zigbee2mqtt"
+    devices:
+      - "Zigbee Stick"
   - name: "Z-Wave JS"
     slug: "core_zwave_js"
+    devices:
+      - "Z-Wave Stick"
 post_reattach_actions:
   - name: "Companion surface rescan"
     url: "http://a0820fdc-bitfocus-companion:8000/api/surfaces/rescan"
@@ -101,7 +105,6 @@ devices:
 - After startup, the app connects to the configured USB/IP server and attaches configured devices.
 - Attached devices become available in Home Assistant integrations.
 - Use the WebUI panel for discovery, attach/detach actions, logs, and event tracking.
-- In the WebUI Configuration tab, you can set the optional direct host port for browser access outside Home Assistant Ingress. Leave it blank or set it to `0` to disable direct host access.
 - In the WebUI Configuration tab, you can add post-reattach HTTP actions without editing YAML.
 
 ## Screenshots
@@ -127,13 +130,13 @@ The app performs kernel- and USB-level operations and therefore still requires e
 - AppArmor: enabled by default with an addon-specific profile aligned to the actual runtime scripts and binaries.
 - Required capabilities: the app requests only the kernel/network capabilities needed for USB/IP (`NET_ADMIN`, `SYS_ADMIN`, `SYS_MODULE`, `SYS_RAWIO`) and `vhci-hcd` kernel module access.
 - Device access: raw USB and `/dev/vhci` are mapped explicitly instead of using Docker-style full privileged access.
-- Network & host access: the app uses the container network for USB/IP communication. The WebUI listens on internal port 8099 for Ingress, and direct browser access is optional through Home Assistant port mapping. You can manage that host port from the WebUI Configuration tab without changing the internal Ingress port.
+- Network & host access: the app uses the container network for USB/IP communication. The WebUI listens on internal port 8099 and is available only through Home Assistant Ingress.
 - Diagnostics: the Dashboard includes first-run checks (module loaded, usbip command available, server reachable) to speed up troubleshooting.
 
 Recommendations
 
 - Use the app in a trusted network environment and keep Home Assistant updated.
-- Review the `privileged` settings and any `ports` mapping in `config.yaml` before deploying to sensitive hosts.
+- Review the `privileged` settings in `config.yaml` before deploying to sensitive hosts.
 - For development or advanced deployment details see `DEVELOPER.md`.
 
 ## License

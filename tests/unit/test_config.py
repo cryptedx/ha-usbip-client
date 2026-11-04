@@ -1,16 +1,19 @@
 """Unit tests for usbip_lib.config module."""
 
 import json
+from pathlib import Path
 
 import pytest
+import yaml
 
 from usbip_lib.config import (
     get_app_config,
     get_app_state,
     get_unique_servers,
     list_installed_apps,
-    normalize_notification_config,
+    normalize_app_config,
     normalize_dependent_apps_config,
+    normalize_notification_config,
     normalize_post_reattach_actions_config,
     restart_app,
     send_ha_notification,
@@ -26,6 +29,8 @@ from testdata import (
     SAMPLE_APPS_LIST_RESPONSE,
     SAMPLE_SUPERVISOR_INFO_RESPONSE,
 )
+
+CONFIG_PATH = Path(__file__).resolve().parents[2] / "config.yaml"
 
 
 class TestSupervisorRequest:
@@ -58,29 +63,7 @@ class TestGetAppConfig:
         assert config["log_level"] == "info"
         assert config["usbipd_server_address"] == "192.168.1.44"
         assert len(config["devices"]) == 2
-        assert config["webui_port"] is None
-
-    def test_uses_network_for_webui_port_and_ignores_stale_option(self, mocker):
-        response = {
-            "result": "ok",
-            "data": {
-                "options": {
-                    "log_level": "info",
-                    "webui_port": 8099,
-                },
-                "network": {"8099/tcp": 18199},
-            },
-        }
-        resp = mocker.Mock()
-        resp.read.return_value = json.dumps(response).encode()
-        resp.__enter__ = mocker.Mock(return_value=resp)
-        resp.__exit__ = mocker.Mock(return_value=False)
-        mocker.patch("usbip_lib.config.urllib.request.urlopen", return_value=resp)
-
-        config = get_app_config(token="test")
-
-        assert config["log_level"] == "info"
-        assert config["webui_port"] == 18199
+        assert "webui_port" not in config
 
     def test_api_error(self, mocker):
         resp = mocker.Mock()
@@ -113,7 +96,7 @@ class TestSetAppConfig:
         result = set_app_config({"log_level": "debug"}, token="test-token")
         assert result["result"] == "ok"
 
-    def test_sets_webui_port_via_network_payload(self, mocker):
+    def test_discards_imported_legacy_webui_port(self, mocker):
         mock_urlopen = mocker.patch("usbip_lib.config.urllib.request.urlopen")
         resp = mocker.Mock()
         resp.read.return_value = json.dumps({"result": "ok"}).encode()
@@ -132,33 +115,7 @@ class TestSetAppConfig:
         payload = json.loads(req.data.decode("utf-8"))
         assert payload["options"]["log_level"] == "debug"
         assert "webui_port" not in payload["options"]
-        assert payload["network"] == {"8099/tcp": 18199}
-
-    def test_disables_webui_port_with_zero(self, mocker):
-        mock_urlopen = mocker.patch("usbip_lib.config.urllib.request.urlopen")
-        resp = mocker.Mock()
-        resp.read.return_value = json.dumps({"result": "ok"}).encode()
-        resp.__enter__ = mocker.Mock(return_value=resp)
-        resp.__exit__ = mocker.Mock(return_value=False)
-        mock_urlopen.return_value = resp
-
-        result = set_app_config({"webui_port": 0}, token="test-token")
-
-        assert result["result"] == "ok"
-
-        req = mock_urlopen.call_args[0][0]
-        payload = json.loads(req.data.decode("utf-8"))
-        assert payload["options"] == {}
-        assert payload["network"] == {"8099/tcp": None}
-
-    def test_rejects_invalid_webui_port(self, mocker):
-        supervisor_request_mock = mocker.patch("usbip_lib.config.supervisor_request")
-
-        result = set_app_config({"webui_port": "invalid"}, token="test-token")
-
-        assert result["result"] == "error"
-        assert "Direct WebUI host port" in result["message"]
-        supervisor_request_mock.assert_not_called()
+        assert "network" not in payload
 
     def test_normalizes_legacy_dependent_key_before_post(self, mocker):
         mock_urlopen = mocker.patch("usbip_lib.config.urllib.request.urlopen")
@@ -179,6 +136,47 @@ class TestSetAppConfig:
         options = payload["options"]
         assert options["dependent_apps"] == [{"name": "Z2M", "slug": "z2m"}]
         assert "dependent_addons" not in options
+
+
+class TestDeviceMappingOfDependentApps:
+    def test_schema_keeps_mapping_optional(self):
+        config = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8"))
+        app_schema = config["schema"]["dependent_apps"][0]
+
+        # Supervisor reads the optional marker from the list element. With a
+        # plain "str" every existing config without a mapping would be rejected.
+        assert app_schema["devices"] == ["str?"]
+
+    def test_normalizing_keeps_mapping(self):
+        apps = [{"name": "Z2M", "slug": "z2m", "devices": ["Zigbee Stick"]}]
+
+        config, changed = normalize_app_config(
+            {
+                "dependent_apps": apps,
+                "notifications_enabled": True,
+                "notification_types": [],
+                "post_reattach_actions": [],
+            }
+        )
+
+        assert changed is False
+        assert config["dependent_apps"] == apps
+
+
+class TestNormalizeAppConfig:
+    def test_normalize_app_config_runs_all_normalizers(self):
+        config, changed = normalize_app_config(
+            {
+                "dependent_addons": [{"name": "Z2M", "slug": "z2m"}],
+                "notifications_enabled": "yes",
+                "post_reattach_actions": "invalid",
+            }
+        )
+
+        assert changed is True
+        assert config["dependent_apps"] == [{"name": "Z2M", "slug": "z2m"}]
+        assert config["notifications_enabled"] is True
+        assert config["post_reattach_actions"] == []
 
 
 class TestNormalizeDependentAppsConfig:

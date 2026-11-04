@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.0.8] - 2026-11-04
+
+### Changed
+
+- **Restart only the affected app**: Entries in `dependent_apps` accept an optional `devices` list with the names of the devices an app uses. After a reattach, such an app restarts only if one of those devices came back. Apps without the list still restart after every reattach. So do apps whose list names an unknown device, and the log then shows a warning.
+- The WebUI keeps the `devices` list when saving or changing the dependent app selection. It does not edit the list; set it in the app options.
+
+## [1.0.7] - 2026-07-11
+
+### Security
+
+- Removed unauthenticated direct host-port access; the WebUI is now available
+  only through Home Assistant Ingress.
+- Hardened dynamic WebUI rendering against attribute and inline-handler XSS.
+
+### Fixed
+
+- WebUI processes now exit cleanly on SIGTERM and SIGINT.
+- Health-check-driven Dependent-App restart results are emitted only when the restart outcome changes.
+- Zero retry values, event-log bounds, shared logging, and API failure status
+  now behave consistently.
+
+### Changed
+
+- Removed unused Socket.IO, compatibility exports, and write-only state file.
+
 ## [1.0.6] - 2026-07-07
 
 ### Fixed

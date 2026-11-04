@@ -1,6 +1,6 @@
 name: "HA USB/IP Client"
 description: "A USB/IP client to connect to an existing USB/IP server and access remote USB devices."
-version: "1.0.6"
+version: "1.0.8"
 slug: "ha_usbip_client"
 icon: "icon.png"
 arch:
@@ -18,10 +18,6 @@ homeassistant_api: true
 hassio_role: manager
 kernel_modules:
   - vhci-hcd
-ports:
-  8099/tcp: null
-ports_description:
-  8099/tcp: Direct WebUI access
 usb: true
 devices:
   - /dev/vhci
@@ -73,6 +69,8 @@ schema:
   dependent_apps:
     - name: str
       slug: str
+      devices:
+        - "str?"
   post_reattach_actions:
     - name: str
       url: str

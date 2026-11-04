@@ -36,6 +36,10 @@ _flapping_state: dict[str, dict] = {}
 # Track previous app health to avoid repeated alerts
 _app_health_prev: dict[str, str] = {}
 
+# Track the last concrete automatic restart outcome per app so result changes
+# are reported without repeating identical results on every monitor cycle.
+_app_restart_outcome_prev: dict[str, bool] = {}
+
 # Supervisor app states that should trigger an auto-restart attempt while the
 # app is configured as a dependent app. ``unknown`` is intentionally excluded
 # because it typically means the Supervisor API call failed and we cannot
@@ -67,6 +71,7 @@ def clear_flapping_state() -> None:
 def clear_app_health_state() -> None:
     """Reset dependent app health state cache (useful for testing)."""
     _app_health_prev.clear()
+    _app_restart_outcome_prev.clear()
 
 
 def record_flapping_recovery(device_key: str, now: float | None = None) -> dict | None:
@@ -181,7 +186,7 @@ def find_missing_devices(manifest: list[dict], attached: list[dict]) -> list[dic
     return missing
 
 
-def attempt_reattach(device: dict, retries: int, logger: logging.Logger) -> bool:
+def attempt_reattach(device: dict, retries: int, logger: logging.Logger) -> bool | None:
     """Try to reattach a lost device.
 
     Args:
@@ -190,8 +195,11 @@ def attempt_reattach(device: dict, retries: int, logger: logging.Logger) -> bool
         logger: Logger instance.
 
     Returns:
-        True if reattach succeeded.
+        True if reattach succeeded, False if it failed, or None if disabled.
     """
+    if retries < 1:
+        return None
+
     server = device["server"]
     bus_id = device["bus_id"]
     name = device.get("name", bus_id)
@@ -239,10 +247,69 @@ def refresh_device_manifest(config: dict, logger: logging.Logger) -> list[dict]:
     return manifest
 
 
+def select_apps_to_restart(
+    dependent_apps: list[dict],
+    reattached: list[dict],
+    manifest: list[dict],
+    logger: logging.Logger,
+) -> list[dict]:
+    """Choose the dependent apps to restart after devices were reattached.
+
+    An app with a ``devices`` list restarts only when one of those devices came
+    back. An app without that list restarts after every recovery. So does an app
+    whose list names a device missing from the manifest, because a typo or a
+    renamed device must not leave the app on a stale connection.
+
+    Args:
+        dependent_apps: List of dicts with 'name', 'slug' and optional 'devices'
+            (device names from the ``devices`` option).
+        reattached: Manifest entries reattached in this monitor cycle.
+        manifest: All expected devices.
+        logger: Logger instance.
+
+    Returns:
+        The apps to restart, in their configured order.
+    """
+    if not reattached:
+        return []
+
+    known = {dev.get("name") for dev in manifest}
+    recovered = {dev.get("name") for dev in reattached}
+
+    selected = []
+    for app in dependent_apps:
+        wanted = app.get("devices")
+        if not wanted or not isinstance(wanted, list):
+            selected.append(app)
+            continue
+
+        slug = app.get("slug", "")
+        name = app.get("name", slug)
+        unknown = [device for device in wanted if device not in known]
+        if unknown:
+            logger.warning(
+                "Dependent app %s (%s) lists unknown device(s) %s; "
+                "restarting it after any recovery.",
+                name,
+                slug,
+                unknown,
+            )
+            selected.append(app)
+        elif recovered.intersection(wanted):
+            selected.append(app)
+        else:
+            logger.info(
+                "Not restarting %s (%s): none of its devices was reattached.",
+                name,
+                slug,
+            )
+    return selected
+
+
 def restart_dependent_apps(
     dependent_apps: list[dict], restart_retries: int, logger: logging.Logger
 ) -> None:
-    """Restart all configured dependent apps.
+    """Restart the given dependent apps.
 
     Args:
         dependent_apps: List of dicts with 'name' and 'slug' keys.
@@ -330,6 +397,32 @@ def run_post_reattach_actions(actions: list[dict], logger: logging.Logger) -> No
             )
 
 
+def _report_restart_result(
+    *,
+    ok: bool,
+    slug: str,
+    name: str,
+    restart_retries: int,
+    success_reason: str,
+) -> None:
+    """Write the event and notification for a concrete restart result."""
+    if ok:
+        write_event("app_restart_ok", f"Restarted {name}", device=name)
+        send_ha_notification(
+            "USB/IP: App Restarted",
+            f"{name} was restarted {success_reason}",
+            notification_type="app_restarted",
+        )
+        return
+
+    write_event("app_restart_fail", f"Failed to restart {name}", device=name)
+    send_ha_notification(
+        "USB/IP: App Restart Failed",
+        f"Could not restart {name} ({slug}) after {restart_retries} attempts.",
+        notification_type="app_restart_failed",
+    )
+
+
 def _retry_restart(
     *,
     slug: str,
@@ -337,8 +430,12 @@ def _retry_restart(
     restart_retries: int,
     logger: logging.Logger,
     success_reason: str,
-) -> bool:
+    report_result: bool = True,
+) -> bool | None:
     """Try restarting an app with retries and consistent event/notification writes."""
+    if restart_retries < 1:
+        return None
+
     for attempt in range(1, restart_retries + 1):
         logger.info(
             "Restarting %s (%s) — attempt %d/%d",
@@ -350,12 +447,14 @@ def _retry_restart(
         ok = restart_app(slug)
         if ok:
             logger.info("Successfully restarted %s", name)
-            write_event("app_restart_ok", f"Restarted {name}", device=name)
-            send_ha_notification(
-                "USB/IP: App Restarted",
-                f"{name} was restarted {success_reason}",
-                notification_type="app_restarted",
-            )
+            if report_result:
+                _report_restart_result(
+                    ok=True,
+                    slug=slug,
+                    name=name,
+                    restart_retries=restart_retries,
+                    success_reason=success_reason,
+                )
             return True
         logger.warning(
             "Restart attempt %d/%d failed for %s", attempt, restart_retries, name
@@ -364,12 +463,14 @@ def _retry_restart(
             time.sleep(5)
 
     logger.error("Failed to restart %s after %d attempts", name, restart_retries)
-    write_event("app_restart_fail", f"Failed to restart {name}", device=name)
-    send_ha_notification(
-        "USB/IP: App Restart Failed",
-        f"Could not restart {name} ({slug}) after {restart_retries} attempts.",
-        notification_type="app_restart_failed",
-    )
+    if report_result:
+        _report_restart_result(
+            ok=False,
+            slug=slug,
+            name=name,
+            restart_retries=restart_retries,
+            success_reason=success_reason,
+        )
     return False
 
 
@@ -392,6 +493,9 @@ def check_dependent_app_health(
         state = get_app_state(slug)
         prev = _app_health_prev.get(slug, "started")
 
+        if state == "started":
+            _app_restart_outcome_prev.pop(slug, None)
+
         if state != "started" and prev == "started":
             logger.warning("Dependent app %s (%s) is %s", name, slug, state)
             write_event("app_health_fail", f"{name} is {state}", device=name)
@@ -409,18 +513,33 @@ def check_dependent_app_health(
         # be retried on the next monitor pass. Notification/event emission
         # above stays transition-based to avoid log/notification spam.
         if state in RESTARTABLE_APP_STATES:
-            logger.info(
-                "Attempting to restart unhealthy app %s (%s) — current state: %s",
-                name,
-                slug,
-                state,
-            )
-            _retry_restart(
+            if restart_retries > 0:
+                logger.info(
+                    "Attempting to restart unhealthy app %s (%s) — current state: %s",
+                    name,
+                    slug,
+                    state,
+                )
+            restart_result = _retry_restart(
                 slug=slug,
                 name=name,
                 restart_retries=restart_retries,
                 logger=logger,
                 success_reason=f"due to {state} state.",
+                report_result=False,
             )
+            if (
+                restart_result is not None
+                and _app_restart_outcome_prev.get(slug) != restart_result
+            ):
+                _report_restart_result(
+                    ok=restart_result,
+                    slug=slug,
+                    name=name,
+                    restart_retries=restart_retries,
+                    success_reason=f"due to {state} state.",
+                )
+            if restart_result is not None:
+                _app_restart_outcome_prev[slug] = restart_result
 
         _app_health_prev[slug] = state

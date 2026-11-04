@@ -8,7 +8,6 @@ from .constants import (
     POST_REATTACH_ACTION_TIMEOUT_SECONDS,
     SUPERVISOR_TOKEN,
     SUPERVISOR_URL,
-    WEBUI_INTERNAL_PORT,
 )
 
 
@@ -25,104 +24,29 @@ NOTIFICATION_TYPES = [
     "device_detached",
 ]
 
-WEBUI_PORT_FIELD = "webui_port"
-WEBUI_NETWORK_KEY = f"{WEBUI_INTERNAL_PORT}/tcp"
+LEGACY_WEBUI_PORT_FIELD = "webui_port"
 
 
 def _strip_virtual_config_fields(config: dict) -> tuple[dict, bool]:
-    """Remove fields that are derived from Supervisor runtime state."""
-    if not isinstance(config, dict):
+    """Remove obsolete fields accepted only for backup compatibility."""
+    if not isinstance(config, dict) or not config:
         return {}, False
-    if not config:
-        return {}, False
-
-    changed = False
-    if WEBUI_PORT_FIELD in config:
-        del config[WEBUI_PORT_FIELD]
-        changed = True
-
-    return config, changed
-
-
-def _normalize_webui_port(value: object) -> int | None:
-    """Validate direct WebUI host-port values from UI or Supervisor payloads."""
-    if value is None:
-        return None
-
-    if isinstance(value, bool):
-        raise ValueError(
-            "Direct WebUI host port must be blank/0 to disable or an integer "
-            "between 1 and 65535."
-        )
-
-    if isinstance(value, str):
-        value = value.strip()
-        if not value or value == "0":
-            return None
-        if not value.isdigit():
-            raise ValueError(
-                "Direct WebUI host port must be blank/0 to disable or an integer "
-                "between 1 and 65535."
-            )
-        value = int(value)
-    elif value == 0:
-        return None
-    elif not isinstance(value, int):
-        raise ValueError(
-            "Direct WebUI host port must be blank/0 to disable or an integer "
-            "between 1 and 65535."
-        )
-
-    if value < 1 or value > 65535:
-        raise ValueError(
-            "Direct WebUI host port must be blank/0 to disable or an integer "
-            "between 1 and 65535."
-        )
-
-    return value
-
-
-def _get_webui_port(config_data: dict) -> int | None:
-    """Read the effective direct WebUI host port from Supervisor app info."""
-    if not isinstance(config_data, dict):
-        return None
-
-    network = config_data.get("network")
-    if not isinstance(network, dict):
-        return None
-
-    try:
-        return _normalize_webui_port(network.get(WEBUI_NETWORK_KEY))
-    except ValueError:
-        return None
+    if LEGACY_WEBUI_PORT_FIELD not in config:
+        return config, False
+    del config[LEGACY_WEBUI_PORT_FIELD]
+    return config, True
 
 
 def _build_supervisor_config_payload(options: dict) -> tuple[dict, str | None]:
-    """Translate WebUI config payload into Supervisor options + network payloads."""
+    """Normalize a WebUI config payload for Supervisor options."""
     if not isinstance(options, dict):
         return {}, "Configuration payload must be an object."
 
     normalized_options = dict(options)
-    network_payload = None
-
-    if WEBUI_PORT_FIELD in normalized_options:
-        raw_webui_port = normalized_options.pop(WEBUI_PORT_FIELD)
-        try:
-            webui_port = _normalize_webui_port(raw_webui_port)
-        except ValueError as exc:
-            return {}, str(exc)
-        network_payload = {WEBUI_NETWORK_KEY: webui_port}
-
-    normalized_options, _ = normalize_dependent_apps_config(normalized_options)
-    normalized_options, _ = normalize_notification_config(normalized_options)
-    normalized_options, _ = normalize_post_reattach_actions_config(normalized_options)
+    normalized_options, _ = normalize_app_config(normalized_options)
     normalized_options, _ = _strip_virtual_config_fields(normalized_options)
 
-    payload = {"options": normalized_options}
-    if network_payload is not None:
-        payload["network"] = network_payload
-
-    return payload, None
+    return {"options": normalized_options}, None
 
 
 def normalize_dependent_apps_config(config: dict) -> tuple[dict, bool]:
@@ -248,6 +172,14 @@ def normalize_notification_config(config: dict) -> tuple[dict, bool]:
     return config, changed
 
 
+def normalize_app_config(config: dict) -> tuple[dict, bool]:
+    """Run all app config normalizers."""
+    normalized, dependent_changed = normalize_dependent_apps_config(config)
+    normalized, notification_changed = normalize_notification_config(normalized)
+    normalized, action_changed = normalize_post_reattach_actions_config(normalized)
+    return normalized, (dependent_changed or notification_changed or action_changed)
+
+
 def get_unique_servers(config: dict) -> set[str]:
     """Collect unique USB/IP server addresses from app config."""
     if not isinstance(config, dict):
@@ -324,11 +256,8 @@ def get_app_config(
         else:
             options = dict(options)
 
-        normalized, _ = normalize_dependent_apps_config(options)
-        normalized, _ = normalize_notification_config(normalized)
-        normalized, _ = normalize_post_reattach_actions_config(normalized)
+        normalized, _ = normalize_app_config(options)
         normalized, _ = _strip_virtual_config_fields(normalized)
-        normalized[WEBUI_PORT_FIELD] = _get_webui_port(config_data)
         return normalized
     return {}
 

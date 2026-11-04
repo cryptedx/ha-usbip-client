@@ -4,8 +4,10 @@ import os
 
 # Temp / state files
 EVENTS_FILE = "/tmp/usbip_events.jsonl"
+EVENTS_MAX_BYTES = 1048576
+EVENTS_RETAINED_LINES = 2000
+EVENTS_API_MAX_LIMIT = 1000
 DEVICE_DETAILS_FILE = "/tmp/device_details.txt"
-ATTACHED_DEVICES_FILE = "/tmp/attached_devices.txt"
 DEVICE_MANIFEST_FILE = "/tmp/device_manifest.json"
 
 # Persistent files (/data survives addon restarts)

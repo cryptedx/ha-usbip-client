@@ -16,6 +16,7 @@ from usbip_lib.monitor import (
     record_flapping_recovery,
     run_post_reattach_actions,
     restart_dependent_apps,
+    select_apps_to_restart,
     set_cooldown,
 )
 
@@ -164,6 +165,21 @@ class TestReattachLogic:
         )
         assert ok is False
 
+    def test_zero_reattach_retries_disables_attempt(self, mocker):
+        logger = mocker.Mock()
+        attach = mocker.patch("usbip_lib.monitor.attach_device")
+        events = mocker.patch("usbip_lib.monitor.write_event")
+
+        result = attempt_reattach(
+            {"name": "Stick", "server": "usbip-host", "bus_id": "1-2"},
+            retries=0,
+            logger=logger,
+        )
+
+        assert result is None
+        attach.assert_not_called()
+        events.assert_not_called()
+
 
 class TestFlappingDetection:
     def setup_method(self):
@@ -293,6 +309,37 @@ class TestDependentAppRestart:
             notification_type="app_restarted",
         )
 
+    def test_zero_restart_retries_disables_restart(self, mocker):
+        logger = mocker.Mock()
+        restart = mocker.patch("usbip_lib.monitor.restart_app")
+        notify = mocker.patch("usbip_lib.monitor.send_ha_notification")
+        events = mocker.patch("usbip_lib.monitor.write_event")
+
+        restart_dependent_apps([{"name": "Z2M", "slug": "z2m"}], 0, logger)
+
+        restart.assert_not_called()
+        notify.assert_not_called()
+        events.assert_not_called()
+
+    def test_zero_restart_retries_does_not_claim_health_restart(self, mocker):
+        logger = mocker.Mock()
+        mocker.patch("usbip_lib.monitor.get_app_state", return_value="stopped")
+        restart = mocker.patch("usbip_lib.monitor.restart_app")
+        mocker.patch("usbip_lib.monitor.send_ha_notification")
+        mocker.patch("usbip_lib.monitor.write_event")
+
+        check_dependent_app_health(
+            [{"name": "Z2M", "slug": "z2m"}],
+            restart_retries=0,
+            logger=logger,
+        )
+
+        restart.assert_not_called()
+        assert not any(
+            call.args and "Attempting to restart unhealthy app" in call.args[0]
+            for call in logger.info.call_args_list
+        )
+
     def test_check_dependent_app_health_retries_error_state(self, mocker):
         logger = mocker.Mock()
         mocker.patch("usbip_lib.monitor.time.sleep")
@@ -396,6 +443,270 @@ class TestDependentAppRestart:
             if c.args[:1] == ("app_health_fail",)
         ]
         assert len(health_fail_events) == 1
+
+    @pytest.mark.parametrize(
+        ("outcome", "notification_type", "event_type"),
+        [
+            (False, "app_restart_failed", "app_restart_fail"),
+            (True, "app_restarted", "app_restart_ok"),
+        ],
+    )
+    def test_repeated_restart_result_is_reported_once_across_cycles(
+        self, mocker, outcome, notification_type, event_type
+    ):
+        logger = mocker.Mock()
+        mocker.patch("usbip_lib.monitor.time.sleep")
+        mocker.patch("usbip_lib.monitor.get_app_state", return_value="stopped")
+        restart = mocker.patch("usbip_lib.monitor.restart_app", return_value=outcome)
+        notify = mocker.patch("usbip_lib.monitor.send_ha_notification")
+        events = mocker.patch("usbip_lib.monitor.write_event")
+
+        apps = [{"name": "Z2M", "slug": "z2m"}]
+        check_dependent_app_health(apps, restart_retries=1, logger=logger)
+        check_dependent_app_health(apps, restart_retries=1, logger=logger)
+
+        assert restart.call_count == 2
+        assert (
+            sum(
+                call.kwargs.get("notification_type") == notification_type
+                for call in notify.call_args_list
+            )
+            == 1
+        )
+        assert (
+            sum(call.args[:1] == (event_type,) for call in events.call_args_list) == 1
+        )
+
+    @pytest.mark.parametrize(
+        ("outcomes", "expected_notifications", "expected_events"),
+        [
+            (
+                [False, True],
+                ["app_restart_failed", "app_restarted"],
+                ["app_restart_fail", "app_restart_ok"],
+            ),
+            (
+                [True, False],
+                ["app_restarted", "app_restart_failed"],
+                ["app_restart_ok", "app_restart_fail"],
+            ),
+        ],
+    )
+    def test_changed_restart_result_is_reported_across_cycles(
+        self, mocker, outcomes, expected_notifications, expected_events
+    ):
+        logger = mocker.Mock()
+        mocker.patch("usbip_lib.monitor.time.sleep")
+        mocker.patch("usbip_lib.monitor.get_app_state", return_value="stopped")
+        restart = mocker.patch("usbip_lib.monitor.restart_app", side_effect=outcomes)
+        notify = mocker.patch("usbip_lib.monitor.send_ha_notification")
+        events = mocker.patch("usbip_lib.monitor.write_event")
+
+        apps = [{"name": "Z2M", "slug": "z2m"}]
+        check_dependent_app_health(apps, restart_retries=1, logger=logger)
+        check_dependent_app_health(apps, restart_retries=1, logger=logger)
+
+        assert restart.call_count == 2
+        assert [
+            call.kwargs.get("notification_type")
+            for call in notify.call_args_list
+            if call.kwargs.get("notification_type")
+            in {"app_restarted", "app_restart_failed"}
+        ] == expected_notifications
+        assert [
+            call.args[0]
+            for call in events.call_args_list
+            if call.args[:1] in {("app_restart_ok",), ("app_restart_fail",)}
+        ] == expected_events
+
+    def test_restart_results_are_tracked_independently_per_app(self, mocker):
+        logger = mocker.Mock()
+        mocker.patch("usbip_lib.monitor.time.sleep")
+        mocker.patch("usbip_lib.monitor.get_app_state", return_value="stopped")
+        restart = mocker.patch(
+            "usbip_lib.monitor.restart_app",
+            side_effect=[False, True, True, False],
+        )
+        mocker.patch("usbip_lib.monitor.send_ha_notification")
+        events = mocker.patch("usbip_lib.monitor.write_event")
+
+        apps = [
+            {"name": "App A", "slug": "app_a"},
+            {"name": "App B", "slug": "app_b"},
+        ]
+        check_dependent_app_health(apps, restart_retries=1, logger=logger)
+        check_dependent_app_health(apps, restart_retries=1, logger=logger)
+
+        assert restart.call_count == 4
+        assert [
+            call.args[0]
+            for call in events.call_args_list
+            if call.kwargs.get("device") == "App A"
+            and call.args[:1] in {("app_restart_ok",), ("app_restart_fail",)}
+        ] == ["app_restart_fail", "app_restart_ok"]
+        assert [
+            call.args[0]
+            for call in events.call_args_list
+            if call.kwargs.get("device") == "App B"
+            and call.args[:1] in {("app_restart_ok",), ("app_restart_fail",)}
+        ] == ["app_restart_ok", "app_restart_fail"]
+
+    def test_health_recovery_resets_restart_result_reporting(self, mocker):
+        logger = mocker.Mock()
+        mocker.patch("usbip_lib.monitor.time.sleep")
+        mocker.patch(
+            "usbip_lib.monitor.get_app_state",
+            side_effect=["stopped", "started", "stopped"],
+        )
+        restart = mocker.patch("usbip_lib.monitor.restart_app", return_value=False)
+        notify = mocker.patch("usbip_lib.monitor.send_ha_notification")
+        events = mocker.patch("usbip_lib.monitor.write_event")
+
+        apps = [{"name": "Z2M", "slug": "z2m"}]
+        for _ in range(3):
+            check_dependent_app_health(apps, restart_retries=1, logger=logger)
+
+        assert restart.call_count == 2
+        assert (
+            sum(
+                call.kwargs.get("notification_type") == "app_restart_failed"
+                for call in notify.call_args_list
+            )
+            == 2
+        )
+        assert any(
+            call.args[:1] == ("app_health_ok",) for call in events.call_args_list
+        )
+
+    def test_disabled_result_does_not_hide_first_later_restart_result(self, mocker):
+        logger = mocker.Mock()
+        mocker.patch("usbip_lib.monitor.time.sleep")
+        mocker.patch("usbip_lib.monitor.get_app_state", return_value="stopped")
+        restart = mocker.patch("usbip_lib.monitor.restart_app", return_value=False)
+        notify = mocker.patch("usbip_lib.monitor.send_ha_notification")
+        events = mocker.patch("usbip_lib.monitor.write_event")
+
+        apps = [{"name": "Z2M", "slug": "z2m"}]
+        check_dependent_app_health(apps, restart_retries=0, logger=logger)
+        check_dependent_app_health(apps, restart_retries=1, logger=logger)
+
+        restart.assert_called_once_with("z2m")
+        assert (
+            sum(
+                call.kwargs.get("notification_type") == "app_restart_failed"
+                for call in notify.call_args_list
+            )
+            == 1
+        )
+        assert (
+            sum(
+                call.args[:1] == ("app_restart_fail",) for call in events.call_args_list
+            )
+            == 1
+        )
+
+
+class TestSelectAppsToRestart:
+    """Which dependent apps restart after devices were reattached."""
+
+    ZWAVE = {"name": "Z-Wave Stick", "server": "pi", "bus_id": "1-1.2"}
+    ZIGBEE = {"name": "Zigbee Stick", "server": "pi", "bus_id": "1-1.3"}
+    MANIFEST = [ZWAVE, ZIGBEE]
+    ZWAVE_APP = {"name": "Z-Wave JS", "slug": "zwave", "devices": ["Z-Wave Stick"]}
+    ZIGBEE_APP = {"name": "Z2M", "slug": "z2m", "devices": ["Zigbee Stick"]}
+
+    def _select(self, mocker, apps, reattached):
+        logger = mocker.Mock()
+        return select_apps_to_restart(apps, reattached, self.MANIFEST, logger), logger
+
+    def test_app_without_devices_restarts_after_any_recovery(self, mocker):
+        apps = [{"name": "Z2M", "slug": "z2m"}, {"name": "Z-Wave", "slug": "zwave"}]
+
+        selected, logger = self._select(mocker, apps, [self.ZWAVE])
+
+        assert selected == apps
+        logger.warning.assert_not_called()
+
+    def test_empty_device_list_counts_as_no_mapping(self, mocker):
+        app = {"name": "Z2M", "slug": "z2m", "devices": []}
+
+        selected, logger = self._select(mocker, [app], [self.ZWAVE])
+
+        assert selected == [app]
+        logger.warning.assert_not_called()
+
+    def test_mapped_app_restarts_only_for_its_own_device(self, mocker):
+        apps = [self.ZIGBEE_APP, self.ZWAVE_APP]
+
+        selected, logger = self._select(mocker, apps, [self.ZWAVE])
+
+        assert selected == [self.ZWAVE_APP]
+        logger.warning.assert_not_called()
+
+    def test_skipped_app_is_named_in_the_log(self, mocker):
+        _, logger = self._select(
+            mocker, [self.ZIGBEE_APP, self.ZWAVE_APP], [self.ZWAVE]
+        )
+
+        logged = [call.args[1:] for call in logger.info.call_args_list]
+        assert ("Z2M", "z2m") in logged
+        assert ("Z-Wave JS", "zwave") not in logged
+
+    def test_app_with_two_devices_restarts_for_either(self, mocker):
+        app = {
+            "name": "Both",
+            "slug": "both",
+            "devices": ["Z-Wave Stick", "Zigbee Stick"],
+        }
+
+        for device in (self.ZWAVE, self.ZIGBEE):
+            selected, _ = self._select(mocker, [app], [device])
+            assert selected == [app]
+
+    def test_unmapped_app_restarts_next_to_mapped_ones(self, mocker):
+        unmapped = {"name": "Other", "slug": "other"}
+
+        selected, _ = self._select(
+            mocker, [self.ZIGBEE_APP, unmapped, self.ZWAVE_APP], [self.ZWAVE]
+        )
+
+        assert selected == [unmapped, self.ZWAVE_APP]
+
+    def test_unknown_device_name_restarts_app_and_warns(self, mocker):
+        typo = {"name": "Z2M", "slug": "z2m", "devices": ["Zigbe Stick"]}
+
+        selected, logger = self._select(mocker, [typo], [self.ZIGBEE])
+
+        assert selected == [typo]
+        logger.warning.assert_called_once()
+        assert ["Zigbe Stick"] in logger.warning.call_args.args
+
+    def test_one_unknown_name_disables_the_mapping_of_that_app(self, mocker):
+        app = {
+            "name": "Z2M",
+            "slug": "z2m",
+            "devices": ["Zigbee Stick", "Renamed Stick"],
+        }
+
+        selected, logger = self._select(mocker, [app], [self.ZWAVE])
+
+        assert selected == [app]
+        logger.warning.assert_called_once()
+
+    def test_malformed_device_list_counts_as_no_mapping(self, mocker):
+        app = {"name": "Z2M", "slug": "z2m", "devices": 5}
+
+        selected, _ = self._select(mocker, [app], [self.ZWAVE])
+
+        assert selected == [app]
+
+    def test_nothing_reattached_selects_nothing(self, mocker):
+        apps = [{"name": "Z2M", "slug": "z2m"}, self.ZWAVE_APP]
+
+        selected, logger = self._select(mocker, apps, [])
+
+        assert selected == []
+        logger.warning.assert_not_called()
 
 
 class TestManifestRefresh:

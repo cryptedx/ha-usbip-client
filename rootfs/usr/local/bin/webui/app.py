@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""HA USB/IP Client WebUI — Flask backend with SocketIO for live logs."""
+"""HA USB/IP Client WebUI — Flask backend."""
 
 import json
 import os
@@ -9,25 +9,27 @@ import atexit
 import threading
 import time
 import urllib.request
+from typing import NoReturn
 
 from flask import Flask, g, jsonify, make_response, render_template, request
-from flask_socketio import SocketIO
+from gevent.pywsgi import WSGIServer
 
 from usbip_lib.config import (
     get_app_config,
     get_app_state,
     get_unique_servers,
     list_installed_apps,
+    normalize_app_config,
     normalize_dependent_apps_config,
     normalize_notification_config,
-    normalize_post_reattach_actions_config,
     restart_app,
     send_ha_notification,
     set_app_config,
 )
 from usbip_lib.constants import (
-    HEALTH_INTERVAL_SECONDS,
+    EVENTS_API_MAX_LIMIT,
     EVENTS_FILE,
+    HEALTH_INTERVAL_SECONDS,
     LATENCY_CHANGE_ABS_THRESHOLD_MS,
     LATENCY_CHANGE_REL_THRESHOLD,
     LATENCY_FLUSH_INTERVAL_SECONDS,
@@ -38,12 +40,13 @@ from usbip_lib.constants import (
     SUPERVISOR_URL,
     WEBUI_INTERNAL_PORT,
 )
-from usbip_lib.events import now_iso, read_events, write_event
+from usbip_lib.events import clear_events, now_iso, read_events, write_event
 from usbip_lib.latency_history import (
     append_latency_samples,
     read_latency_window,
     should_persist_change,
 )
+from usbip_lib.logging_setup import setup_logging
 from usbip_lib.usbip import (
     attach_device,
     detach_device,
@@ -60,7 +63,7 @@ from usbip_lib.usbip import (
 # ---------------------------------------------------------------------------
 # Constants (WebUI-specific only)
 # ---------------------------------------------------------------------------
-APP_VERSION = "1.0.6"
+APP_VERSION = "1.0.8"
 LOG_BUFFER_MAX = 2000
 VALID_WEBUI_TABS = {
     "dashboard",
@@ -70,6 +73,8 @@ VALID_WEBUI_TABS = {
     "events",
     "config",
 }
+
+ALLOWED_WEBUI_CLIENTS = frozenset({"172.30.32.2", "127.0.0.1", "::1"})
 FLAPPING_LEVEL_RANK = {"none": 0, "warning": 1, "critical": 2}
 
 app = Flask(
@@ -78,21 +83,15 @@ app = Flask(
     static_folder="/usr/local/bin/webui/static",
 )
 app.config["SECRET_KEY"] = os.urandom(24).hex()
-socketio = SocketIO(
-    app,
-    async_mode="gevent",
-    cors_allowed_origins=["http://localhost", "http://127.0.0.1"],
-)
 
 # ---------------------------------------------------------------------------
 # In-memory state
 # ---------------------------------------------------------------------------
 log_buffer: list[str] = []
 log_lock = threading.Lock()
-_log_seq: int = 0  # monotonic sequence counter for dedup
 health_state: dict = {}  # server_ip -> {latency_ms, online, last_check}
 health_lock = threading.Lock()
-latency_lock = threading.Lock()
+latency_lock = threading.RLock()
 latency_buffer: list[dict] = []
 last_persisted_latency: dict[str, float | None] = {}
 last_latency_flush_ts: float = 0.0
@@ -114,22 +113,34 @@ def _flush_latency_buffer(force: bool = False) -> bool:
             return True
 
         batch = list(latency_buffer)
+        ok = append_latency_samples(
+            batch,
+            history_file=LATENCY_HISTORY_FILE,
+            window_seconds=LATENCY_HISTORY_WINDOW_SECONDS,
+        )
+        if not ok:
+            return False
 
-    ok = append_latency_samples(
-        batch,
-        history_file=LATENCY_HISTORY_FILE,
-        window_seconds=LATENCY_HISTORY_WINDOW_SECONDS,
-    )
-    if not ok:
-        return False
-
-    with latency_lock:
         if len(latency_buffer) >= len(batch) and latency_buffer[: len(batch)] == batch:
             del latency_buffer[: len(batch)]
         else:
             latency_buffer.clear()
         last_latency_flush_ts = now_ts
     return True
+
+
+def _flush_latency_on_exit(*_args) -> None:
+    _flush_latency_buffer(force=True)
+
+
+def _handle_shutdown(*_args) -> NoReturn:
+    _flush_latency_buffer(force=True)
+    raise SystemExit(0)
+
+
+def _register_shutdown_handlers() -> None:
+    signal.signal(signal.SIGTERM, _handle_shutdown)
+    signal.signal(signal.SIGINT, _handle_shutdown)
 
 
 def _merge_pending_latency_samples(history: dict, pending_samples: list[dict]) -> dict:
@@ -180,7 +191,6 @@ def _merge_pending_latency_samples(history: dict, pending_samples: list[dict]) -
 # ---------------------------------------------------------------------------
 def _fetch_logs_direct() -> list[str]:
     """Fetch logs directly from Supervisor API (bypass buffer)."""
-    global _log_seq
     try:
         url = f"{SUPERVISOR_URL}/addons/self/logs"
         headers = {
@@ -196,14 +206,13 @@ def _fetch_logs_direct() -> list[str]:
                 content = raw.decode("latin-1", errors="replace")
             content = re.sub(r"\x1b\[[0-9;]*m", "", content)
             lines = [ln.strip() for ln in content.strip().split("\n") if ln.strip()]
-            # Populate buffer with new lines (sequence-based dedup)
+            # Populate buffer with new lines (positional dedup)
             with log_lock:
                 existing = set(f"{i}:{ln}" for i, ln in enumerate(log_buffer[-500:]))
                 for idx, ln in enumerate(lines[-500:]):
                     # Use positional check: only skip if exact same content at same tail position
                     if f"{idx}:{ln}" not in existing:
                         log_buffer.append(ln)
-                        _log_seq += 1
                 while len(log_buffer) > LOG_BUFFER_MAX:
                     log_buffer.pop(0)
             return lines[-500:]
@@ -375,8 +384,7 @@ def _health_checker():
 
 
 def _log_tailer():
-    """Tail the s6 log output and push to WebSocket clients."""
-    global _log_seq
+    """Poll the s6 log output into the REST log buffer."""
 
     while True:
         try:
@@ -396,7 +404,6 @@ def _log_tailer():
                 # Strip ANSI escape codes
                 content = re.sub(r"\x1b\[[0-9;]*m", "", content)
                 lines = content.strip().split("\n")
-                new_lines = []
                 with log_lock:
                     # Compare tail of fetched lines against tail of buffer
                     # to find genuinely new lines
@@ -418,17 +425,10 @@ def _log_tailer():
                                 break
 
                     for ln in candidate_lines[match_start:]:
-                        new_lines.append(ln)
                         log_buffer.append(ln)
-                        _log_seq += 1
                     # Trim buffer
                     while len(log_buffer) > LOG_BUFFER_MAX:
                         log_buffer.pop(0)
-                for ln in new_lines:
-                    try:
-                        socketio.emit("log_line", {"line": ln}, namespace="/ws/logs")
-                    except Exception:
-                        pass
         except Exception as e:
             # Log the error to buffer itself for debugging
             err_line = f"[WebUI] Log tailer error: {e}"
@@ -441,9 +441,18 @@ def _log_tailer():
 # ---------------------------------------------------------------------------
 # Flask middleware — inject ingress_path
 # ---------------------------------------------------------------------------
+def _is_allowed_webui_client() -> bool:
+    return app.testing or request.remote_addr in ALLOWED_WEBUI_CLIENTS
+
+
 @app.before_request
-def _inject_ingress():
+def _guard_and_inject_ingress():
     g.ingress_path = request.headers.get("X-Ingress-Path", "")
+    if _is_allowed_webui_client():
+        return None
+    if request.path.startswith("/api/"):
+        return jsonify({"ok": False, "error": "Ingress required"}), 403
+    return "Ingress required", 403
 
 
 @app.after_request
@@ -582,7 +591,7 @@ def api_attach():
     detail = (
         "attached"
         if success
-        else _classify_usbip_error("", server=server, target=busid)
+        else "Attach failed. Check USB/IP server reachability and app logs."
     )
     write_event(
         "attach_ok" if success else "attach_fail", detail, device=name, server=server
@@ -604,7 +613,11 @@ def api_detach():
         return jsonify({"ok": False, "error": "port required"}), 400
     port = str(port)
     success = detach_device(port)
-    detail = "detached" if success else _classify_usbip_error("", target=f"port {port}")
+    detail = (
+        "detached"
+        if success
+        else "Detach failed. Check USB/IP device state and app logs."
+    )
     write_event(
         "detach_ok" if success else "detach_fail", detail, device=f"port {port}"
     )
@@ -621,7 +634,7 @@ def api_detach():
 def api_detach_all():
     detached, failed = detach_all()
     write_event("detach_all", f"Detached {detached}/{detached + failed} devices")
-    return jsonify({"ok": True, "detached": detached, "failed": failed})
+    return jsonify({"ok": failed == 0, "detached": detached, "failed": failed})
 
 
 @app.route("/api/attach-all", methods=["POST"])
@@ -752,14 +765,6 @@ def _config_persist_mismatch_detail(
             "the new schema."
         )
 
-    if "webui_port" in expected_config and expected_config.get(
-        "webui_port"
-    ) != persisted_config.get("webui_port"):
-        return (
-            "Direct WebUI host port was not persisted by Supervisor. "
-            "Restart the app and verify the Home Assistant host port mapping."
-        )
-
     if expected_config.get("post_reattach_actions", []) != persisted_config.get(
         "post_reattach_actions", []
     ):
@@ -775,9 +780,7 @@ def _config_persist_mismatch_detail(
 @app.route("/api/config", methods=["POST"])
 def api_config_set():
     data = request.get_json(force=True)
-    data, _ = normalize_dependent_apps_config(data)
-    data, _ = normalize_notification_config(data)
-    data, _ = normalize_post_reattach_actions_config(data)
+    data, _ = normalize_app_config(data)
     resp = set_app_config(data)
     ok = resp.get("result") == "ok"
 
@@ -802,9 +805,7 @@ def api_config_backup():
 @app.route("/api/config/restore", methods=["POST"])
 def api_config_restore():
     data = request.get_json(force=True)
-    data, _ = normalize_dependent_apps_config(data)
-    data, _ = normalize_notification_config(data)
-    data, _ = normalize_post_reattach_actions_config(data)
+    data, _ = normalize_app_config(data)
     resp = set_app_config(data)
     ok = resp.get("result") == "ok"
     detail = ""
@@ -821,16 +822,14 @@ def api_config_restore():
 @app.route("/api/events")
 def api_events():
     limit = request.args.get("limit", 200, type=int)
+    limit = max(1, min(limit, EVENTS_API_MAX_LIMIT))
     events = read_events(limit)
     return jsonify({"ok": True, "events": events})
 
 
 @app.route("/api/events/clear", methods=["POST"])
 def api_events_clear():
-    try:
-        open(EVENTS_FILE, "w").close()
-    except OSError:
-        pass
+    clear_events(events_file=EVENTS_FILE)
     return jsonify({"ok": True})
 
 
@@ -1015,27 +1014,14 @@ def api_logs():
 
 
 # ---------------------------------------------------------------------------
-# WebSocket — live logs
-# ---------------------------------------------------------------------------
-@socketio.on("connect", namespace="/ws/logs")
-def ws_logs_connect():
-    # Send buffered lines on connect
-    with log_lock:
-        for ln in log_buffer[-200:]:
-            socketio.emit("log_line", {"line": ln}, namespace="/ws/logs")
-
-
-# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
-
-    def _flush_latency_on_exit(*_args):
-        _flush_latency_buffer(force=True)
+    logger = setup_logging("info", name="webui")
+    logger.info("Starting WebUI service on internal port %s...", WEBUI_INTERNAL_PORT)
 
     atexit.register(_flush_latency_on_exit)
-    signal.signal(signal.SIGTERM, _flush_latency_on_exit)
-    signal.signal(signal.SIGINT, _flush_latency_on_exit)
+    _register_shutdown_handlers()
 
     # Start background threads
     threading.Thread(target=_health_checker, daemon=True).start()
@@ -1046,11 +1032,5 @@ if __name__ == "__main__":
         f"WebUI service started on internal port {WEBUI_INTERNAL_PORT}",
     )
 
-    socketio.run(
-        app,
-        host="0.0.0.0",
-        port=WEBUI_INTERNAL_PORT,
-        debug=False,
-        use_reloader=False,
-        log_output=False,
-    )
+    server = WSGIServer(("0.0.0.0", WEBUI_INTERNAL_PORT), app, log=None)
+    server.serve_forever()
